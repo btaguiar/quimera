@@ -20,7 +20,7 @@ def _config(**overrides) -> ApiConfig:
         rate_limit_window_s=3600,
         cache_ttl_s=3600,
         daily_bytes_budget=10 * 1024**3,
-        request_timeout_s=10.0,
+        request_timeout_s=30.0,
     )
     base.update(overrides)
     return ApiConfig(**base)
