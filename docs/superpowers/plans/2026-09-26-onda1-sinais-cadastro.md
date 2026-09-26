@@ -44,9 +44,10 @@ sobre a tabela própria, e o LLM continua só preenchendo `LeadFilters`.
 | bairro | 28.415 sem bairro | filtro por bairro viável (exige município) |
 | e-mail | 24,46 M ativos com e-mail; gmail 12,9 M empresas, hotmail 4,2 M; contabilizei.com.br 141.903, maismei.com.br 88.408 (e-mail da contabilidade); erros de digitação (gmai.com 11 mil) | "domínio próprio" = domínio usado por **no máximo 4** empresas. Com esse corte não é preciso lista de provedores: 658.689 domínios são exclusivos de 1 empresa e 177.445 são de 2 a 4 |
 
-Custo das leituras novas no build (sonda): e-mail ~3,9 GB, CEP/bairro ~4,2 GB,
-diretório de CEP 0,05 GB. O build passa de ~13 GB para ~20 GB (~US$ 0,13/mês).
-A Task 1 confirma o valor antes de qualquer execução.
+Custo do build (sonda sem custo, Task 1): **13,17 GB hoje e 16,54 GB com os
+sinais da Onda 1** (protótipo do SQL da Task 2), mais ~0,05 GB da tabela
+`ceps`, ou seja, ~US$ 0,10/mês. O CTE `ativos`, referenciado três vezes, não é
+cobrado três vezes.
 
 ---
 
@@ -58,14 +59,17 @@ build real acontece antes de ele passar.
 **Files:**
 - Create: `probe_build_onda1.py` (raiz, no padrão dos `probe_*.py` existentes)
 
-- [ ] **Step 1:** Escrever a sonda: gera `build_leads_sql` com um destino
+- [x] **Step 1:** Escrever a sonda: gera `build_leads_sql` com um destino
   descartável e executa com `maximum_bytes_billed=1`, que é recusada sem
   custo. Imprime os bytes exigidos (`"N or higher required"`), como em
   `probe_data.py`.
-- [ ] **Step 2:** Critério: N ≤ 25 GB. Se o CTE `ativos` for cobrado uma vez
+- [x] **Step 2:** Critério: N ≤ 25 GB. **Medido: 16,54 GB (protótipo); OK.** Se o CTE `ativos` for cobrado uma vez
   por referência (três referências), N sobe para ~40 GB. Nesse caso,
   materializar `ativos` numa tabela `_ativos_tmp` e ler dela.
-- [ ] **Step 3:** Anotar N no docstring de `BUILD_MAX_BYTES`.
+- [x] **Step 3:** Anotar N no comentário de `BUILD_MAX_BYTES`.
+- [ ] **Step 4 (depois da Task 2):** rodar `python probe_build_onda1.py`
+  sobre o `build_leads_sql` real (+ `build_ceps_sql`) e conferir que N fica
+  perto dos 16,54 GB do protótipo.
 
 ---
 

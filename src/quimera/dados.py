@@ -64,9 +64,10 @@ from .query import (
     resolve_leads_tables,
 )
 
-# Teto da materialização: a leitura das colunas de um snapshot custou ~13 GB
-# na consulta direta; 64 GiB dá margem sem permitir leitura de vários snapshots
-# (~132 GB por tabela sem filtro de partição).
+# Teto da materialização: o build exige 13,17 GB hoje e 16,54 GB com os sinais
+# da Onda 1 (sonda sem custo, probe_build_onda1.py, 2026-09-26); 64 GiB dá
+# margem sem permitir leitura de vários snapshots (~132 GB por tabela sem
+# filtro de partição).
 BUILD_MAX_BYTES = 64 * 1024**3
 # Checagens leem poucas colunas da tabela própria (~4 GB no total).
 CHECK_MAX_BYTES = 8 * 1024**3
