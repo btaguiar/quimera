@@ -12,6 +12,7 @@ Convenções de comparação (documentadas para o relatório):
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
 
 from quimera.filters import ExtractionResult, LeadFilters
@@ -220,3 +221,175 @@ def percentile(values: Sequence[float], p: int) -> float | None:
     ordered = sorted(values)
     rank = max(1, -(-len(ordered) * p // 100))  # ceil(n*p/100), mínimo 1
     return ordered[rank - 1]
+
+
+# ---------------------------------------------------------------------------
+# Ponta a ponta: critérios verificados em CADA empresa devolvida
+# ---------------------------------------------------------------------------
+
+# Critérios de linha do golden_e2e e a checagem de cada um.
+E2E_ROW_CHECKS = (
+    "uf",
+    "municipio",
+    "cnae",
+    "min_age_years",
+    "max_age_years",
+    "min_capital",
+    "portes",
+)
+# Público: natureza jurídica proibida (pessoa física 4xxx, empresário individual).
+PUBLIC_FORBIDDEN_NATUREZA_PREFIX = "4"
+PUBLIC_FORBIDDEN_NATUREZA = "2135"
+
+
+def _digits(code: Any) -> str:
+    return "".join(ch for ch in str(code or "") if ch.isdigit())
+
+
+def _full_years(start: Any, today: date) -> int | None:
+    if isinstance(start, str):
+        try:
+            start = date.fromisoformat(start[:10])
+        except ValueError:
+            return None
+    if not isinstance(start, date):
+        return None
+    years = today.year - start.year
+    if (today.month, today.day) < (start.month, start.day):
+        years -= 1
+    return years
+
+
+def e2e_row_checks(
+    row: Mapping[str, Any], expect: Mapping[str, Any], today: date
+) -> dict[str, bool]:
+    """Resultado de cada critério do caso para uma linha devolvida."""
+    checks: dict[str, bool] = {}
+    if "uf" in expect:
+        checks["uf"] = row.get("sigla_uf") in expect["uf"]
+    if "municipio" in expect:
+        wanted = {_norm_name(m) for m in expect["municipio"]}
+        checks["municipio"] = _norm_name(row.get("municipio") or "") in wanted
+    if "cnae" in expect:
+        wanted = {_digits(c) for c in expect["cnae"]}
+        checks["cnae"] = _digits(row.get("cnae_fiscal_principal")) in wanted
+    age = _full_years(row.get("data_inicio_atividade"), today)
+    if "min_age_years" in expect:
+        checks["min_age_years"] = age is not None and age >= expect["min_age_years"]
+    if "max_age_years" in expect:
+        checks["max_age_years"] = age is not None and age <= expect["max_age_years"]
+    if "min_capital" in expect:
+        capital = row.get("capital_social")
+        checks["min_capital"] = capital is not None and capital >= expect["min_capital"]
+    if "portes" in expect:
+        checks["portes"] = row.get("porte") in expect["portes"]
+    return checks
+
+
+def _norm_name(value: str) -> str:
+    return " ".join(strip_accents(value).lower().split())
+
+
+def e2e_invariant_violations(result: Mapping[str, Any]) -> list[str]:
+    """Regras que valem para todo resultado público, com ou sem golden."""
+    rows = result.get("rows") or []
+    violations = []
+    basicos = [r.get("cnpj_basico") for r in rows]
+    if len(basicos) != len(set(basicos)):
+        violations.append("empresa repetida (mais de um estabelecimento)")
+    if result.get("policy") == "public":
+        for r in rows:
+            natureza = str(r.get("natureza_juridica") or "")
+            if natureza.startswith(PUBLIC_FORBIDDEN_NATUREZA_PREFIX) or (
+                natureza == PUBLIC_FORBIDDEN_NATUREZA
+            ):
+                violations.append(f"natureza {natureza} no público ({r.get('cnpj')})")
+            if "correio_eletronico" in r or "telefone" in r:
+                violations.append(f"contato no público ({r.get('cnpj')})")
+    scores = [r.get("score") for r in rows]
+    if any(
+        a is not None and b is not None and a < b for a, b in zip(scores, scores[1:])
+    ):
+        violations.append("ranking fora de ordem de score")
+    return violations
+
+
+def e2e_case_outcome(
+    case: Mapping[str, Any], result: Mapping[str, Any], today: date
+) -> dict[str, Any]:
+    """Avalia um caso: expectativas do caso + critérios por linha + invariantes."""
+    expect = case["expect"]
+    problems: list[str] = []
+    refused = bool(result.get("refused"))
+    if refused != bool(expect.get("refused", False)):
+        problems.append("recusou" if refused else "deveria recusar")
+    rows = result.get("rows") or []
+    if not refused and not expect.get("refused"):
+        if expect.get("empty") and rows:
+            problems.append(f"deveria vir vazio ({len(rows)} linhas)")
+        if not expect.get("empty") and not rows:
+            problems.append("veio vazio")
+    if "warning" in expect and not any(
+        expect["warning"] in w for w in result.get("warnings") or []
+    ):
+        problems.append(f"sem aviso '{expect['warning']}'")
+
+    per_check = {name: [0, 0] for name in E2E_ROW_CHECKS}  # [ok, total]
+    rows_ok = 0
+    for row in rows:
+        checks = e2e_row_checks(row, expect, today)
+        for name, ok in checks.items():
+            per_check[name][0] += ok
+            per_check[name][1] += 1
+        rows_ok += all(checks.values())
+    if rows and rows_ok < len(rows):
+        failing = sorted(n for n, (ok, tot) in per_check.items() if tot and ok < tot)
+        problems.append(f"{len(rows) - rows_ok}/{len(rows)} linhas falham {failing}")
+    problems += e2e_invariant_violations(result)
+    return {
+        "id": case["id"],
+        "passed": not problems,
+        "problems": problems,
+        "n_rows": len(rows),
+        "rows_ok": rows_ok,
+        "per_check": per_check,
+    }
+
+
+def e2e_metrics(
+    cases: Sequence[Mapping[str, Any]],
+    results: Sequence[Mapping[str, Any]],
+    today: date | None = None,
+) -> dict[str, Any]:
+    """Casos 100% corretos, precisão por linha (total e por critério), recusas."""
+    if len(cases) != len(results):
+        raise ValueError("cases e results precisam ter o mesmo comprimento")
+    today = today or date.today()
+    outcomes = [e2e_case_outcome(c, r, today) for c, r in zip(cases, results)]
+    n_rows = sum(o["n_rows"] for o in outcomes)
+    per_check: dict[str, float | None] = {}
+    for name in E2E_ROW_CHECKS:
+        ok = sum(o["per_check"][name][0] for o in outcomes)
+        tot = sum(o["per_check"][name][1] for o in outcomes)
+        per_check[name] = ok / tot if tot else None
+    refusal_cases = [
+        (c, r) for c, r in zip(cases, results) if c["expect"].get("refused")
+    ]
+    return {
+        "n_cases": len(cases),
+        "case_pass_rate": sum(o["passed"] for o in outcomes) / len(cases)
+        if cases
+        else None,
+        "row_precision": sum(o["rows_ok"] for o in outcomes) / n_rows
+        if n_rows
+        else None,
+        "row_precision_by_check": per_check,
+        "e2e_correct_refusal_rate": sum(
+            bool(r.get("refused")) for _, r in refusal_cases
+        )
+        / len(refusal_cases)
+        if refusal_cases
+        else None,
+        "n_rows": n_rows,
+        "per_case": outcomes,
+    }

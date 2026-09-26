@@ -91,10 +91,15 @@ python -m pytest              # testes unitários, sem chamar GCP
 
 ```bash
 python -m eval.run_eval --suite all --policy public   # golden sets + limiares (requer GCP)
+python -m eval.run_eval --suite e2e                   # só ponta a ponta (~2 min, ~US$ 0,02)
 python -m eval.report                                 # relatório Markdown em eval/results/
 ```
 
-- `eval/golden_extraction.jsonl` — 55 casos (45 públicos, 10 privados), incluindo
+- `eval/golden_e2e.jsonl` — 20 pedidos rodados no pipeline inteiro; cada
+  empresa devolvida é conferida (UF, município, CNAE, idade, capital, porte)
+  e todo resultado público checa as invariantes (sem pessoa física nem
+  empresário individual, sem contato, uma linha por empresa, ordem de score).
+- `eval/golden_extraction.jsonl` — 56 casos (46 públicos, 10 privados), incluindo
   recusas de dado pessoal, pedidos mistos, sinônimos, typos e ambiguidade.
   Rótulos `flag: review` revisados e validados (2026-09-26).
 - `eval/golden_cnae.jsonl` — 66 casos linguagem natural → CNAE, **corrigidos
@@ -136,8 +141,30 @@ Seleção final (quais candidatos viram filtro da consulta):
 | top-5 fixo (antes) | 0,955 | 0,227 | 0,864 | 5,0 | — |
 | **Gemini escolhe entre 15 candidatos** | **0,985** | **0,645** | **0,930** | 2,95 | 0,87 s |
 
+Seleção atual: o Gemini dá nota 0–2 a cada candidato e só a nota 2 vira
+filtro — precisão **0,849**, acerto 0,970, cobertura 0,875, p50 0,82 s.
+Se a chamada falhar (429 de cota, timeout de 4 s), cai no corte por
+similaridade (top1 − 0,04).
+
 Precisão = fração dos códigos escolhidos que estão no golden (o golden lista
 o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
+
+**Ponta a ponta** — 20 pedidos, cada empresa devolvida conferida
+(`eval/golden_e2e.jsonl`):
+
+| versão | casos 100% corretos | precisão por empresa | recusa correta | p50 | p95 | MB/pedido |
+|---|---|---|---|---|---|---|
+| seleção por lista, extração recusava local fictício | 0,75 | 0,944 | 1,00 | 3,5 s | 6,0 s | 136 |
+| **seleção por nota + extração corrigida** | **0,95** | **0,997** | 1,00 | 3,7 s | 7,0 s | 77 |
+
+Único caso ainda falhando: "transportadoras de carga" inclui 2 de 50
+empresas de outro modal. Limiares no CI: casos ≥ 0,90, precisão ≥ 0,98,
+recusa = 1,00.
+
+**Latência** (servidor aquecido): p50 ~3,7–5 s por pedido, antes ~25 s. O
+tempo por etapa vem em `timings_ms` no resultado. A cauda (p95 ~7 s, picos
+de 10–20 s) é o Gemini esperando cota (429 em `us-central1`); resolve no
+GCP (cota/capacidade reservada), não no código.
 
 ## Roadmap
 
@@ -159,6 +186,9 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 - [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
       estabelecimento por empresa
 - [x] Índice CNAE multi-vetor com atividades do IBGE + seleção pelo Gemini
-- [ ] Latência do pipeline (~30 s por pedido; não investigada)
+- [x] Latência: ~25 s → ~4 s por pedido (clientes reaproveitados, caches,
+      sem raciocínio no Gemini, aquecimento na inicialização)
+- [x] Avaliação ponta a ponta com limiares no CI
+- [ ] Cota do Gemini (429) — cauda de latência
 - [ ] "empresas de TI": pedido genérico ainda falha na busca (único erro no top-15)
 - [ ] Fase 5 — uso privado (repositório da Turno 24)

@@ -83,6 +83,35 @@ def _cnae_rows(results: list[dict]) -> list[str]:
     return rows
 
 
+def _e2e_rows(results: list[dict]) -> list[str]:
+    header = (
+        "| casos | empresas | casos ok | precisão/empresa | recusa correta | "
+        "p50 (ms) | p95 (ms) | MB/pedido (p50) | custo total (US$) | commit | data |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|"
+    )
+    rows = [header]
+    for payload in results:
+        m = payload.get("metrics", {})
+        bytes_p50 = m.get("bytes_billed_p50")
+        rows.append(
+            "| {n} | {rows} | {ok} | {prec} | {ref} | {p50} | {p95} | {mb} | {cost} | "
+            "{commit} | {date} |".format(
+                n=m.get("n_cases", "—"),
+                rows=m.get("n_rows", "—"),
+                ok=_fmt(m.get("case_pass_rate")),
+                prec=_fmt(m.get("row_precision")),
+                ref=_fmt(m.get("e2e_correct_refusal_rate")),
+                p50=_fmt_ms(payload.get("latency_ms_p50")),
+                p95=_fmt_ms(payload.get("latency_ms_p95")),
+                mb="—" if bytes_p50 is None else f"{bytes_p50 / 1e6:.0f}",
+                cost=_fmt(m.get("estimated_cost_usd_total"), 4),
+                commit=payload.get("commit", "—"),
+                date=(payload.get("date") or "")[:10],
+            )
+        )
+    return rows
+
+
 def generate_report(results: list[dict]) -> str:
     """Monta o Markdown a partir dos payloads de resultado (sem per_case)."""
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -95,6 +124,7 @@ def generate_report(results: list[dict]) -> str:
     ]
     extraction = [r for r in results if r.get("suite") == "extraction"]
     cnae = [r for r in results if r.get("suite") == "cnae"]
+    e2e = [r for r in results if r.get("suite") == "e2e"]
 
     lines.append("## Extração de filtros")
     lines.append("")
@@ -108,6 +138,14 @@ def generate_report(results: list[dict]) -> str:
     lines.append("")
     if cnae:
         lines.extend(_cnae_rows(cnae))
+    else:
+        lines.append("_Sem resultados ainda._")
+    lines.append("")
+
+    lines.append("## Ponta a ponta (cada empresa devolvida conferida)")
+    lines.append("")
+    if e2e:
+        lines.extend(_e2e_rows(e2e))
     else:
         lines.append("_Sem resultados ainda._")
     lines.append("")

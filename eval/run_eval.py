@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Sequence
 
-from eval.metrics import cnae_metrics, extraction_metrics
+from eval.metrics import cnae_metrics, e2e_metrics, extraction_metrics
 from quimera.cnae import DEFAULT_EMBED_MODEL
 from quimera.extract import DEFAULT_MODEL
 from quimera.filters import ExtractionResult
@@ -29,11 +29,14 @@ from quimera.filters import ExtractionResult
 EVAL_DIR = Path(__file__).resolve().parent
 GOLDEN_EXTRACTION = EVAL_DIR / "golden_extraction.jsonl"
 GOLDEN_CNAE = EVAL_DIR / "golden_cnae.jsonl"
+GOLDEN_E2E = EVAL_DIR / "golden_e2e.jsonl"
 THRESHOLDS_PATH = EVAL_DIR / "thresholds.json"
 RESULTS_DIR = EVAL_DIR / "results"
 
 ExtractFn = Callable[[str], ExtractionResult]
 SearchFn = Callable[[str, int], list[tuple[str, str, float]]]
+# Pedido -> resultado do pipeline serializado (PipelineResult.to_dict()).
+RunFn = Callable[[str], dict]
 
 # Limiar nulo = baseline pendente (anotar após a primeira medição, não inventar).
 DEFAULT_THRESHOLDS = {
@@ -133,11 +136,83 @@ def run_cnae_suite(
     )
 
 
+def run_e2e_suite(
+    cases: Sequence[dict], run_fn: RunFn, *, policy: str = "public"
+) -> dict:
+    """Roda o pipeline inteiro por pedido e confere cada empresa devolvida.
+
+    Além da qualidade, registra latência total e por etapa, e bytes por pedido.
+    """
+    results: list[dict] = []
+    latencies: list[float] = []
+    for case in cases:
+        started = time.perf_counter()
+        results.append(run_fn(case["request"]))
+        latencies.append((time.perf_counter() - started) * 1000)
+    metrics = e2e_metrics(cases, results)
+    stages = sorted({k for r in results for k in (r.get("timings_ms") or {})})
+    stage_latency = {
+        stage: {
+            "p50": _pct(
+                [
+                    r["timings_ms"][stage]
+                    for r in results
+                    if stage in (r.get("timings_ms") or {})
+                ],
+                50,
+            ),
+            "p95": _pct(
+                [
+                    r["timings_ms"][stage]
+                    for r in results
+                    if stage in (r.get("timings_ms") or {})
+                ],
+                95,
+            ),
+        }
+        for stage in stages
+    }
+    billed = [r.get("bytes_billed") or 0 for r in results if r.get("rows")]
+    metrics["bytes_billed_p50"] = _pct(billed, 50)
+    metrics["bytes_billed_p95"] = _pct(billed, 95)
+    metrics["estimated_cost_usd_total"] = round(
+        sum(r.get("estimated_cost_usd") or 0 for r in results), 6
+    )
+    detail = [
+        {
+            "id": case["id"],
+            "request": case["request"],
+            "filters": r.get("filters"),
+            "cnae_codes": [m[0] for m in r.get("cnae_matches") or []],
+            "warnings": r.get("warnings"),
+            "latency_ms": round(lat, 1),
+            "timings_ms": r.get("timings_ms"),
+            "bytes_billed": r.get("bytes_billed"),
+        }
+        for case, r, lat in zip(cases, results, latencies)
+    ]
+    return _payload(
+        "e2e",
+        metrics,
+        latencies,
+        policy=policy,
+        model=os.environ.get("EXTRACT_MODEL", DEFAULT_MODEL),
+        stage_latency_ms=stage_latency,
+        detail=detail,
+    )
+
+
 # Limiar (thresholds.json) -> (métrica agregada, rótulo legível no CI).
 _THRESHOLD_TO_METRIC = {
     "correct_refusal_rate": ("correct_refusal_rate", "recusa correta"),
     "overall_field_accuracy": ("overall_field_accuracy", "acerto de extração"),
     "recall_at_5": ("recall@5", "recall@5 de CNAE"),
+    "e2e_case_pass_rate": ("case_pass_rate", "casos ponta a ponta 100% corretos"),
+    "e2e_row_precision": ("row_precision", "precisão por empresa devolvida"),
+    "e2e_correct_refusal_rate": (
+        "e2e_correct_refusal_rate",
+        "recusa correta ponta a ponta",
+    ),
 }
 
 
@@ -180,6 +255,15 @@ def _real_extract_fn(policy_obj, model):
     return lambda request: extract_filters(request, policy_obj, model=model)
 
 
+def _real_run_fn(policy_obj):
+    from quimera.pipeline import run, warmup
+
+    # Como o servidor (python -m quimera.api): sem isso o 1º caso paga ~16 s
+    # de clientes e diretório e distorce o p95.
+    warmup()
+    return lambda request: run(request, policy_obj).to_dict()
+
+
 def _real_search_fn(index_path, embed_model):
     from quimera.cnae import search, vertex_embedder
 
@@ -199,7 +283,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="python -m eval.run_eval",
         description="Roda os golden sets e verifica limiares (falha o CI se estourar).",
     )
-    parser.add_argument("--suite", choices=["extraction", "cnae", "all"], default="all")
+    parser.add_argument(
+        "--suite", choices=["extraction", "cnae", "e2e", "all"], default="all"
+    )
     parser.add_argument("--policy", choices=["public", "private"], default="public")
     parser.add_argument("--model", default=None, help="modelo de extração ou embedding")
     parser.add_argument("--index", default=None, help="caminho do índice CNAE")
@@ -239,6 +325,25 @@ def main(argv: list[str] | None = None) -> int:
         path = save_result(payload)
         print(f"[cnae] {payload['metrics']['n_cases']} casos -> {path}")
         failures += check_thresholds(payload["metrics"], thresholds)
+
+    if args.suite in ("e2e", "all"):
+        cases = load_cases(GOLDEN_E2E)
+        if args.limit:
+            cases = cases[: args.limit]
+        from quimera.policy import PUBLIC
+
+        payload = run_e2e_suite(cases, _real_run_fn(PUBLIC))
+        path = save_result(payload)
+        m = payload["metrics"]
+        print(
+            f"[e2e] {m['n_cases']} casos, {m['n_rows']} empresas -> {path}\n"
+            f"      casos ok {m['case_pass_rate']:.3f} | precisão por empresa "
+            f"{m['row_precision']:.3f} | p50 {payload['latency_ms_p50']} ms"
+        )
+        for outcome in m["per_case"]:
+            if not outcome["passed"]:
+                print(f"      FALHOU {outcome['id']}: {'; '.join(outcome['problems'])}")
+        failures += check_thresholds(m, thresholds)
 
     for failure in failures:
         print(f"LIMIAR FALHOU: {failure}", file=sys.stderr)

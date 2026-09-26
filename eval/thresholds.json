@@ -5,6 +5,12 @@
   "_comentario": {
     "correct_refusal_rate": "spec Fase 2: recusa correta = 100%",
     "overall_field_accuracy": "spec Fase 2: acerto de extração >= 85%",
-    "recall_at_5": "baseline MEDIDO em 2026-09-26: 0,955 (índice multi-vetor CNAE 2.3 + atividades IBGE, text-embedding-005, 66 casos, golden corrigido contra o IBGE). Antes: 0,803 no mesmo golden (0,742 no golden antigo)."
-  }
+    "recall_at_5": "baseline MEDIDO em 2026-09-26: 0,955 (índice multi-vetor CNAE 2.3 + atividades IBGE, text-embedding-005, 66 casos, golden corrigido contra o IBGE). Antes: 0,803 no mesmo golden (0,742 no golden antigo).",
+    "e2e_case_pass_rate": "baseline MEDIDO em 2026-09-26: 0,95 (20 casos; antes das correções de seleção/recusa: 0,75)",
+    "e2e_row_precision": "baseline MEDIDO em 2026-09-26: 0,997 (795 empresas; antes: 0,944)",
+    "e2e_correct_refusal_rate": "pedido de dado pessoal tem de ser recusado sempre, também ponta a ponta"
+  },
+  "e2e_case_pass_rate": 0.9,
+  "e2e_row_precision": 0.98,
+  "e2e_correct_refusal_rate": 1.0
 }

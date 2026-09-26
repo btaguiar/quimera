@@ -242,6 +242,9 @@ def build_query(
         f"t.{COL_DATA_INICIO_ATIVIDADE}",
         f"t.{COL_CAPITAL_SOCIAL}",
         f"{PORTE_SELECT_EXPR} AS porte",
+        # Dado da empresa (não pessoal); deixa auditável a exclusão de pessoa
+        # física e empresário individual no público.
+        f"t.{COL_NATUREZA_JURIDICA}",
     ]
     if policy.allow_mei:
         select_cols.append(f"t.{COL_OPCAO_MEI}")

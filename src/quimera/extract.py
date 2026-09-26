@@ -45,6 +45,9 @@ def build_prompt(request: str, policy: Policy) -> str:
         "os filtros mapeáveis e ignore qualificadores sem filtro correspondente "
         "(ex.: 'empresas boas', 'conhecidas', 'maiores'); se nada for mapeável, "
         "devolva filters vazio. Recusa é exclusivamente para dado pessoal.",
+        "- Local desconhecido, fictício ou fora do Brasil NÃO é motivo de recusa: "
+        "devolva o nome em municipio_names como escrito (o sistema avisa se não "
+        "existir).",
     ]
     if policy.allow_mei:
         lines.append("- include_mei: true apenas se o usuário quiser incluir MEI.")

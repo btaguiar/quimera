@@ -19,6 +19,7 @@ from quimera.cnae import (
     mask_code,
     merge_sources,
     search,
+    SelectionError,
     select_codes,
     fallback_codes,
 )
@@ -203,8 +204,8 @@ class TestShippedSource:
 class _FakeSelectClient:
     """Cliente genai falso para select_codes: registra o pedido e responde fixo."""
 
-    def __init__(self, codigos):
-        self.codigos = codigos
+    def __init__(self, notas):
+        self.notas = notas
         self.calls = []
 
     @property
@@ -214,7 +215,7 @@ class _FakeSelectClient:
         class _Models:
             def generate_content(self, **kwargs):
                 outer.calls.append(kwargs)
-                return type("R", (), {"text": json.dumps({"codigos": outer.codigos})})()
+                return type("R", (), {"text": json.dumps({"notas": outer.notas})})()
 
         return _Models()
 
@@ -227,22 +228,30 @@ CANDIDATES = [
 
 
 class TestSelectCodes:
-    def test_keeps_only_chosen_in_search_order(self):
-        client = _FakeSelectClient(["4721-1/02", "1091-1/02"])
+    def test_keeps_only_grade_2_in_search_order(self):
+        client = _FakeSelectClient([2, 1, 2])
         chosen = select_codes("padarias", CANDIDATES, client=client, model="m")
         assert [c for c, _, _ in chosen] == ["1091-1/02", "4721-1/02"]
 
-    def test_llm_can_only_pick_given_codes(self):
-        client = _FakeSelectClient([])
-        select_codes("padarias", CANDIDATES, client=client, model="m")
-        schema = client.calls[0]["config"]["response_schema"]
-        assert schema["properties"]["codigos"]["items"]["enum"] == [
-            c for c, _, _ in CANDIDATES
-        ]
-        assert client.calls[0]["config"]["temperature"] == 0
+    def test_one_grade_per_candidate_is_enforced(self):
+        # Notas desalinhadas com os candidatos = resposta inválida; o pipeline
+        # cai no corte por similaridade.
+        with pytest.raises(SelectionError):
+            select_codes("x", CANDIDATES, client=_FakeSelectClient([2, 2]), model="m")
+        with pytest.raises(SelectionError):
+            select_codes(
+                "x", CANDIDATES, client=_FakeSelectClient([2, 5, 0]), model="m"
+            )
+
+    def test_deterministic_and_without_thinking(self):
+        client = _FakeSelectClient([0, 0, 0])
+        assert select_codes("x", CANDIDATES, client=client, model="m") == []
+        config = client.calls[0]["config"]
+        assert config["temperature"] == 0
+        assert config["thinking_config"] == {"thinking_budget": 0}
 
     def test_prompt_has_activity_and_ibge_examples(self):
-        client = _FakeSelectClient([])
+        client = _FakeSelectClient([2])
         select_codes(
             "dentistas",
             [("8630-5/04", "Atividade odontológica", 0.9)],
@@ -254,12 +263,8 @@ class TestSelectCodes:
         assert "8630-5/04 — Atividade odontológica — " in prompt
         assert "atividades de dentistas" in prompt  # exemplos da fonte IBGE
 
-    def test_invented_code_is_ignored(self):
-        client = _FakeSelectClient(["9999-9/99"])
-        assert select_codes("x", CANDIDATES, client=client, model="m") == []
-
     def test_no_candidates_no_call(self):
-        client = _FakeSelectClient(["1091-1/02"])
+        client = _FakeSelectClient([2])
         assert select_codes("x", [], client=client) == []
         assert client.calls == []
 

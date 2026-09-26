@@ -324,17 +324,22 @@ SELECT_TIMEOUT_MS = 4000
 FALLBACK_DELTA = 0.04
 FALLBACK_MAX = 5
 
-SELECT_PROMPT = """Você escolhe códigos CNAE para filtrar empresas num pedido de prospecção.
+SELECT_PROMPT = """Você classifica códigos CNAE para filtrar empresas num pedido de prospecção.
 Atividade pedida pelo usuário: "{activity}"
 
 Candidatos (código — descrição — exemplos de atividades da subclasse):
 {candidates}
 
-Devolva os códigos cujas empresas o usuário quer encontrar: a atividade pedida,
-incluindo variações da mesma atividade (ex.: com e sem produção própria).
-Não inclua fornecedores, fabricantes de insumos, atacadistas, construção ou
-manutenção relacionados à atividade, a menos que o pedido peça isso.
-Se nenhum candidato servir, devolva lista vazia."""
+Dê uma nota a CADA candidato:
+2 = é a atividade pedida: o usuário chamaria essas empresas pelo mesmo nome que usou
+    (inclui variações que só mudam o modelo de negócio, ex.: com ou sem produção própria);
+1 = atividade relacionada, vizinha ou mais ampla, mas não a pedida;
+0 = outra atividade.
+Responda com a lista de notas na MESMA ordem dos candidatos."""
+# Só nota 2 vira filtro. Dar nota a cada candidato (em vez de pedir a lista
+# dos que servem) deixou o LLM mais criterioso: no golden CNAE, precisão
+# 0,645 -> 0,849, acerto 0,985 -> 0,970, mesma latência (medido 2026-09-26).
+SELECT_KEEP_GRADE = 2
 
 
 @lru_cache(maxsize=1)
@@ -379,6 +384,10 @@ def _select_client() -> Any:
     )
 
 
+class SelectionError(ValueError):
+    """Resposta da seleção fora do contrato (nº de notas ou valores)."""
+
+
 def select_codes(
     activity: str,
     candidates: list[tuple[str, str, float]],
@@ -388,7 +397,7 @@ def select_codes(
 ) -> list[tuple[str, str, float]]:
     """Filtra os candidatos da busca com o Gemini; mantém a ordem da busca.
 
-    O LLM só escolhe entre os códigos recebidos (enum no schema de saída) —
+    O LLM só dá notas aos códigos recebidos (uma por candidato, na ordem) —
     nunca inventa código. A busca sozinha põe no filtro vizinhos semânticos
     errados ("padarias" trazia atacado de pães e chaveiros).
     """
@@ -397,7 +406,6 @@ def select_codes(
     from .extract import DEFAULT_MODEL
 
     client = client or _select_client()
-    codes = [code for code, _, _ in candidates]
     response = client.models.generate_content(
         model=model or os.environ.get("EXTRACT_MODEL", DEFAULT_MODEL),
         contents=build_select_prompt(activity, candidates),
@@ -409,17 +417,18 @@ def select_codes(
             "response_schema": {
                 "type": "OBJECT",
                 "properties": {
-                    "codigos": {
-                        "type": "ARRAY",
-                        "items": {"type": "STRING", "enum": codes},
-                    }
+                    "notas": {"type": "ARRAY", "items": {"type": "INTEGER"}}
                 },
-                "required": ["codigos"],
+                "required": ["notas"],
             },
         },
     )
-    chosen = set(json.loads(response.text).get("codigos") or [])
-    return [c for c in candidates if c[0] in chosen]
+    notas = json.loads(response.text).get("notas") or []
+    if len(notas) != len(candidates) or any(n not in (0, 1, 2) for n in notas):
+        raise SelectionError(
+            f"{len(notas)} notas para {len(candidates)} candidatos: {notas}"
+        )
+    return [c for c, nota in zip(candidates, notas) if nota == SELECT_KEEP_GRADE]
 
 
 def main(argv: list[str] | None = None) -> int:
