@@ -4,6 +4,10 @@ A app é uma casca fina sobre ``quimera.pipeline.run`` com as proteções
 da spec da Fase 3: token, rate limit por IP, orçamento diário de bytes
 com modo cache e timeout por request. Tudo injetável para testes sem
 GCP (mesmos fakes dos testes do pipeline).
+
+Limite aceito: dois requests simultâneos podem passar pelo modo cache
+antes do primeiro debitar (superdébito conservador, limitado pela
+concorrência do threadpool).
 """
 
 from __future__ import annotations

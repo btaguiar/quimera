@@ -204,19 +204,6 @@ class TestLeadsRefusal:
         assert health["budget_remaining_bytes"] == 10 * 1024**3
 
 
-class TestCacheHitSmoke:
-    def test_second_identical_request_is_served_from_cache(self):
-        app = _app()
-        extract = app.state.pipeline_deps["extract_client"]
-        client = TestClient(app)
-        resp1 = client.post("/leads", json={"request": "empresas em SP"})
-        resp2 = client.post("/leads", json={"request": "empresas em SP"})
-        assert resp1.json()["cached"] is False
-        assert resp2.json()["cached"] is True
-        assert len(extract.calls) == 1
-        assert resp2.json()["rows"] == resp1.json()["rows"]
-
-
 class TestTokenProtection:
     def test_wrong_token_returns_401(self):
         client = TestClient(_app(api_token="segredo"))
@@ -359,6 +346,8 @@ class TestBudgetAndCacheMode:
         client = TestClient(_app(daily_bytes_budget=1000))
         resp = client.post("/leads", json={"request": "empresas em SP"})
         assert resp.status_code == 200
+        health = client.get("/health").json()
+        assert health["cache_mode"] is True
         resp = client.post("/leads", json={"request": "empresas em RJ"})
         assert resp.status_code == 503
         data = resp.json()
@@ -371,6 +360,25 @@ class TestBudgetAndCacheMode:
         resp = client.post("/leads", json={"request": "empresas em SP"})
         assert resp.status_code == 200
         assert resp.json()["cached"] is True
+
+    def test_cache_mode_blocks_would_be_refusals_without_llm_call(self):
+        extract = FakeGenaiClient(
+            json.dumps(
+                {"refused": True, "refusal_reason": "pedido de dado pessoal"},
+                ensure_ascii=False,
+            )
+        )
+        app = create_app(
+            config=_config(daily_bytes_budget=0),
+            extract_client=extract,
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(),
+        )
+        client = TestClient(app)
+        resp = client.post("/leads", json={"request": "telefone do dono"})
+        assert resp.status_code == 503
+        assert resp.json()["error"] == "cache mode"
+        assert len(extract.calls) == 0
 
 
 class TestCache:
