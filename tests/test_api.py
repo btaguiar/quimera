@@ -580,3 +580,35 @@ class TestStartupWarnings:
         with caplog.at_level(logging.WARNING, logger="quimera.api"):
             _app(api_token="tok")
         assert not any("API_TOKEN" in msg for msg in caplog.messages)
+
+
+class TestWarmup:
+    """O 1º pedido do processo pagava ~16 s de clientes, índice e diretório
+    (medido); o servidor aquece isso na inicialização, em segundo plano."""
+
+    def test_startup_runs_warmup_when_enabled(self, monkeypatch):
+        from quimera import pipeline
+
+        calls = []
+        monkeypatch.setattr(pipeline, "warmup", lambda: calls.append("ok"))
+        extract, search, bq = _happy_clients()
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=search,
+            bq_client=bq,
+            warmup=True,
+        )
+        with TestClient(app) as client:
+            client.get("/health")
+            client.app.state.executor.shutdown(wait=True)
+        assert calls == ["ok"]
+
+    def test_no_warmup_by_default(self, monkeypatch):
+        from quimera import pipeline
+
+        calls = []
+        monkeypatch.setattr(pipeline, "warmup", lambda: calls.append("ok"))
+        with TestClient(_app()) as client:
+            client.get("/health")
+        assert calls == []

@@ -15,7 +15,7 @@ def main() -> int:
     from . import create_app
 
     uvicorn.run(
-        create_app(),
+        create_app(warmup=True),
         host=os.environ.get("API_HOST", "0.0.0.0"),
         port=int(os.environ.get("PORT", "8000")),
     )

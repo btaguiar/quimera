@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 from datetime import date
 from typing import Any
 
@@ -444,7 +446,9 @@ def _to_bq_parameters(params: tuple[QueryParam, ...]) -> list[Any]:
     return bq_params
 
 
+@lru_cache(maxsize=1)
 def _default_client() -> Any:
+    """Cliente BigQuery, um por processo (cada criação busca credenciais)."""
     from google.cloud import bigquery  # lazy import — extra ``gcp``
 
     # O job precisa rodar na mesma região do dataset (US — docs/schema.md).
@@ -538,12 +542,33 @@ def read_leads_snapshot(
     ``require_contatos`` confere também a tabela de contatos (policy com
     campos de contato): sem ela, a consulta falharia com NotFound cru.
 
+    Com o cliente padrão, o resultado fica em cache por
+    ``SNAPSHOT_CACHE_TTL_S`` (o build é mensal; a leitura custava ~1,9 s).
+
     Substitui a descoberta por consulta no caminho do pedido: a descoberta lê a
     coluna ``data`` da Base dos Dados (GBs por chamada) e só roda no build.
     """
+    if client is None:
+        key = (tables, require_contatos)
+        cached = _SNAPSHOT_CACHE.get(key)
+        now = time.monotonic()
+        if cached and cached[0] > now:
+            return cached[1]
+        snapshots = _read_leads_snapshot(tables, _default_client(), require_contatos)
+        _SNAPSHOT_CACHE[key] = (now + SNAPSHOT_CACHE_TTL_S, snapshots)
+        return snapshots
+    return _read_leads_snapshot(tables, client, require_contatos)
+
+
+SNAPSHOT_CACHE_TTL_S = 600
+_SNAPSHOT_CACHE: dict[tuple[LeadsTables, bool], tuple[float, dict[str, date]]] = {}
+
+
+def _read_leads_snapshot(
+    tables: LeadsTables, client: Any, require_contatos: bool
+) -> dict[str, date]:
     from google.api_core.exceptions import NotFound  # lazy — extra ``gcp``
 
-    client = client or _default_client()
     try:
         table = client.get_table(tables.leads)
     except NotFound as exc:
@@ -573,6 +598,24 @@ def read_leads_snapshot(
     return snapshots
 
 
+def _fetch_municipality_directory(client: Any) -> tuple[tuple[str, str, str], ...]:
+    sql = (
+        f"SELECT {COL_NOME_MUNICIPIO}, {COL_SIGLA_UF}, {COL_ID_MUNICIPIO}\n"
+        f"FROM {TABLE_DIRETORIO_MUNICIPIOS}"
+    )
+    return tuple(
+        (row[COL_NOME_MUNICIPIO], row.get(COL_SIGLA_UF), str(row[COL_ID_MUNICIPIO]))
+        for row in client.query(sql).result()
+    )
+
+
+@lru_cache(maxsize=1)
+def _default_municipality_directory() -> tuple[tuple[str, str, str], ...]:
+    # Diretório estático (~5,5 mil linhas): lido uma vez por processo. Relê-lo
+    # a cada pedido custava ~2,8 s (medido em 2026-09-26).
+    return _fetch_municipality_directory(_default_client())
+
+
 def resolve_municipality_ids(
     names: list[str],
     *,
@@ -590,19 +633,17 @@ def resolve_municipality_ids(
     pedido quando houver, ou todos os homônimos quando não houver.
     Devolve apenas os nomes resolvidos: ``{nome_digitado: [id_ibge, ...]}``.
     """
-    client = client or _default_client()
-    sql = (
-        f"SELECT {COL_NOME_MUNICIPIO}, {COL_SIGLA_UF}, {COL_ID_MUNICIPIO}\n"
-        f"FROM {TABLE_DIRETORIO_MUNICIPIOS}"
+    rows = (
+        _fetch_municipality_directory(client)
+        if client is not None
+        else _default_municipality_directory()
     )
-    job = client.query(sql)
     wanted_ufs = set(ufs or ())
     lookup: dict[str, list[str]] = {}
-    for row in job.result():
-        if wanted_ufs and row.get(COL_SIGLA_UF) not in wanted_ufs:
+    for nome, uf, id_municipio in rows:
+        if wanted_ufs and uf not in wanted_ufs:
             continue
-        key = normalize_name(row[COL_NOME_MUNICIPIO])
-        lookup.setdefault(key, []).append(str(row[COL_ID_MUNICIPIO]))
+        lookup.setdefault(normalize_name(nome), []).append(id_municipio)
     return {
         name: sorted(lookup[key])
         for name in names
@@ -658,48 +699,24 @@ def run_query(
     client: Any | None = None,
     max_bytes_billed: int | None = None,
 ) -> QueryResult:
-    """Executa com estimativa prévia obrigatória + maximum_bytes_billed.
+    """Executa com ``maximum_bytes_billed``: acima do teto, recusa sem custo.
 
-    A estimativa vem de uma sonda com ``maximum_bytes_billed=1``: o BigQuery
-    recusa o job sem cobrar e informa "N or higher required". Funciona onde o
-    dry run não funciona — nas tabelas da Base dos Dados, dry run, job e
-    INFORMATION_SCHEMA.JOBS devolvem ``None`` (medido em 2026-09-26).
+    O BigQuery confere o teto contra a estimativa ANTES de executar e, ao
+    recusar, informa "N or higher required" — esse N vai para a mensagem. Na
+    tabela própria, N é o limite superior após a poda de partição (a
+    clusterização só poda na execução: 136 MB estimados para 70 MB cobrados,
+    medido), e o job informa os bytes cobrados normalmente.
 
-    Na tabela própria, N é o limite superior após a poda de PARTIÇÃO (a
-    clusterização só poda na execução, então o custo real costuma ser menor:
-    136 MB estimados para 70 MB cobrados, medido). O próprio BigQuery aplica o
-    ``maximum_bytes_billed`` sobre esse N, por isso a recusa antecipada usa o
-    mesmo número. Quando o job não reporta bytes, N é o valor contabilizado.
-    Se a sonda passar (cache hit, custo zero), o resultado dela é usado.
+    Não há sonda prévia: na tabela própria o próprio job já é a estimativa, e
+    a sonda custava uma ida e volta (~1 s) por pedido. Ela só era necessária
+    para consultar a Base dos Dados direto, onde nem o job informa bytes.
     """
     from google.cloud import bigquery  # lazy import — extra ``gcp``
 
     max_bytes = resolve_max_bytes_billed(max_bytes_billed)
     client = client or _default_client()
-    bq_params = _to_bq_parameters(spec.params)
-
-    probe_config = bigquery.QueryJobConfig(
-        query_parameters=bq_params, maximum_bytes_billed=1
-    )
-    try:
-        probe = client.query(spec.sql, job_config=probe_config)
-        rows = [dict(row) for row in probe.result()]
-    except Exception as exc:
-        if not _is_bytes_limit_error(exc):
-            raise
-        estimated = _required_bytes(exc)
-    else:
-        return QueryResult(
-            rows=rows,
-            bytes_processed=probe.total_bytes_processed or 0,
-            bytes_billed=probe.total_bytes_billed or 0,
-        )
-
-    if estimated is not None and estimated > max_bytes:
-        raise _budget_error(max_bytes, estimated)
-
     job_config = bigquery.QueryJobConfig(
-        query_parameters=bq_params,
+        query_parameters=_to_bq_parameters(spec.params),
         maximum_bytes_billed=max_bytes,
     )
     try:
@@ -709,14 +726,8 @@ def run_query(
         if _is_bytes_limit_error(exc):
             raise _budget_error(max_bytes, _required_bytes(exc)) from exc
         raise
-    # Job sem bytes reportados: contabiliza a estimativa da sonda.
-    fallback = estimated or 0
     return QueryResult(
         rows=rows,
-        bytes_processed=job.total_bytes_processed
-        if job.total_bytes_processed is not None
-        else fallback,
-        bytes_billed=job.total_bytes_billed
-        if job.total_bytes_billed is not None
-        else fallback,
+        bytes_processed=job.total_bytes_processed or 0,
+        bytes_billed=job.total_bytes_billed or 0,
     )

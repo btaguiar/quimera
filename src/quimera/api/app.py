@@ -70,6 +70,7 @@ def create_app(
     extract_client: Any | None = None,
     cnae_search: Any | None = None,
     bq_client: Any | None = None,
+    warmup: bool = False,
 ) -> FastAPI:
     config = config or ApiConfig.from_env()
     if config.api_token is None:
@@ -154,6 +155,12 @@ def create_app(
         "shutdown",
         lambda: _executor.shutdown(wait=False, cancel_futures=True),
     )
+    if warmup:
+        # Em segundo plano: /health responde já; o 1º pedido deixa de pagar
+        # ~16 s de clientes, índice e diretório (pipeline.warmup).
+        from ..pipeline import warmup as _warmup
+
+        app.add_event_handler("startup", lambda: _executor.submit(_warmup))
 
     @app.get("/health")
     def health():

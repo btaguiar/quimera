@@ -57,9 +57,10 @@ class FakeRejectedJob(FakeJob):
         raise self._error
 
 
-def is_estimate_probe(job_config) -> bool:
-    """Sonda de estimativa de run_query: teto de 1 byte."""
-    return getattr(job_config, "maximum_bytes_billed", None) == 1
+def exceeds_cap(job_config, required) -> bool:
+    """Como o BigQuery: teto abaixo do custo estimado recusa ANTES de executar."""
+    cap = getattr(job_config, "maximum_bytes_billed", None)
+    return cap is not None and required is not None and cap < required
 
 
 class FakePipelineBQ:
@@ -68,9 +69,9 @@ class FakePipelineBQ:
     Sequência de chamadas:
     1. client.get_table              -> labels de snapshot da tabela própria;
     2. job_config ausente           -> consulta ao diretório de municípios;
-    3. job_config com teto de 1 byte -> sonda de estimativa (recusada com
-       "N or higher required", N = ``dry_run_bytes``);
-    4. job_config de execução        -> consulta de leads (registrada em ``executed``).
+    3. job_config de execução        -> consulta de leads: recusada com
+       "N or higher required" (N = ``dry_run_bytes``) se o teto for menor,
+       senão registrada em ``executed``.
     """
 
     def __init__(
@@ -97,10 +98,10 @@ class FakePipelineBQ:
         return SimpleNamespace(labels=self.table_labels)
 
     def query(self, sql, job_config=None):
-        if is_estimate_probe(job_config):
-            return FakeRejectedJob(1, self.dry_run_bytes)
         if job_config is None:
             self.directory_queries.append(sql)
             return FakeJob(0, self.municipio_rows)
+        if exceeds_cap(job_config, self.dry_run_bytes):
+            return FakeRejectedJob(job_config.maximum_bytes_billed, self.dry_run_bytes)
         self.executed.append((sql, job_config))
         return FakeJob(self.dry_run_bytes, self.lead_rows)

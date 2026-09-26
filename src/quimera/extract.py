@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from functools import lru_cache
 from typing import Any
 
 from pydantic import ValidationError
@@ -92,8 +93,13 @@ def parse_extraction_response(payload: Any) -> ExtractionResult:
         ) from exc
 
 
+@lru_cache(maxsize=1)
 def _default_client() -> Any:
-    """Cliente Gemini/Vertex com import lazy do SDK (extra ``gcp``)."""
+    """Cliente Gemini/Vertex com import lazy do SDK (extra ``gcp``).
+
+    Um por processo: criar o cliente (credenciais + conexão) custava ~2-3 s
+    por pedido na seleção de CNAE (medido em 2026-09-26).
+    """
     from google import genai  # lazy import
 
     return genai.Client(
@@ -117,6 +123,9 @@ def extract_filters(
         contents=build_prompt(request, policy),
         config={
             "temperature": 0,
+            # Sem raciocínio: ~5 s -> ver docs/schema.md (latência). O golden de
+            # extração decide se isso fica (recusa correta tem de seguir 100%).
+            "thinking_config": {"thinking_budget": 0},
             "response_mime_type": "application/json",
             "response_schema": ExtractionResult,
         },

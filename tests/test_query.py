@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fakes import FakeRejectedJob, is_estimate_probe
+from fakes import FakeRejectedJob, exceeds_cap
 from quimera.filters import LeadFilters
 from quimera.policy import PRIVATE, PUBLIC
 from quimera.query import (
@@ -327,27 +327,22 @@ class _FakeJob:
 
 
 class FakeBQClient:
-    """Cliente BigQuery falso: a sonda de 1 byte é recusada com a estimativa
-    ("N or higher required"), a execução devolve rows.
-
-    ``job_reports_bytes=False`` imita as tabelas de CNPJ, cujo job real devolve
-    ``total_bytes_billed=None`` (medido em 2026-09-26).
+    """Cliente BigQuery falso: como o real, recusa ANTES de executar quando o
+    teto é menor que a estimativa ("N or higher required"); senão devolve rows.
     """
 
-    def __init__(self, estimate_bytes=1000, rows=None, job_reports_bytes=True):
+    def __init__(self, estimate_bytes=1000, rows=None):
         self.estimate_bytes = estimate_bytes
         self.rows = rows or []
-        self.job_reports_bytes = job_reports_bytes
         self.executed = []
-        self.probes = []
+        self.rejected = []
 
     def query(self, sql, job_config=None):
-        if is_estimate_probe(job_config):
-            self.probes.append((sql, job_config))
-            return FakeRejectedJob(1, self.estimate_bytes)
+        if exceeds_cap(job_config, self.estimate_bytes):
+            self.rejected.append((sql, job_config))
+            return FakeRejectedJob(job_config.maximum_bytes_billed, self.estimate_bytes)
         self.executed.append((sql, job_config))
-        reported = self.estimate_bytes if self.job_reports_bytes else None
-        return _FakeJob(reported, self.rows)
+        return _FakeJob(self.estimate_bytes, self.rows)
 
 
 class FakeDirectoryClient:
@@ -554,23 +549,22 @@ class TestResolveMaxBytesBilled:
 
 
 class TestRunQuery:
-    """Nas tabelas de CNPJ o BigQuery não informa bytes (dry run, job e
-    INFORMATION_SCHEMA devolvem None — medido). A estimativa vem de uma sonda
-    com teto de 1 byte, recusada sem custo com "N or higher required"."""
+    """O BigQuery confere maximum_bytes_billed contra a estimativa ANTES de
+    executar e, ao recusar, informa "N or higher required" (medido)."""
 
-    def test_estimate_above_cap_refuses_before_executing(self, spec):
+    def test_above_cap_refuses_without_executing(self, spec):
         client = FakeBQClient(estimate_bytes=10 * 1024**3)
         with pytest.raises(BytesBudgetExceededError, match=str(10 * 1024**3)):
             run_query(spec, client=client, max_bytes_billed=1024)
         assert client.executed == []
+        assert len(client.rejected) == 1
 
-    def test_probe_carries_parameters_and_one_byte_cap(self, spec):
+    def test_single_job_no_probe(self, spec):
+        # A sonda prévia custava uma ida e volta (~1 s) por pedido.
         client = FakeBQClient(estimate_bytes=1000)
         run_query(spec, client=client, max_bytes_billed=1024**3)
-        _, probe_config = client.probes[0]
-        assert probe_config.maximum_bytes_billed == 1
-        names = {p.name for p in probe_config.query_parameters}
-        assert {"ufs", "limit"} <= names
+        assert len(client.executed) == 1
+        assert client.rejected == []
 
     def test_execution_returns_rows_and_bytes(self, spec):
         rows = [{"razao_social": "CLINICA EXEMPLO ME", "porte": "demais"}]
@@ -578,40 +572,14 @@ class TestRunQuery:
         result = run_query(spec, client=client, max_bytes_billed=1024**3)
         assert result.rows == rows
         assert result.bytes_processed == 1000
-        assert len(client.executed) == 1
+        assert result.bytes_billed == 1000
 
-    def test_job_without_reported_bytes_accounts_the_estimate(self, spec):
-        # Sem isso bytes_billed seria 0 e o orçamento diário da API nunca baixaria.
-        client = FakeBQClient(estimate_bytes=3_580_887_040, job_reports_bytes=False)
-        result = run_query(spec, client=client, max_bytes_billed=5 * 1024**3)
-        assert result.bytes_billed == 3_580_887_040
-        assert result.bytes_processed == 3_580_887_040
-
-    def test_probe_that_runs_returns_its_result_without_second_job(self, spec):
-        # Cache hit: a sonda passa com 0 bytes e o resultado dela já serve.
+    def test_job_without_reported_bytes_counts_zero(self, spec):
         class Client(FakeBQClient):
             def query(self, sql, job_config=None):
-                self.probes.append((sql, job_config))
-                return _FakeJob(0, [{"razao_social": "X"}])
+                return _FakeJob(None, [])
 
-        client = Client()
-        result = run_query(spec, client=client, max_bytes_billed=1024**3)
-        assert result.rows == [{"razao_social": "X"}]
-        assert result.bytes_billed == 0
-        assert len(client.probes) == 1
-
-    def test_probe_error_without_number_still_proceeds(self, spec):
-        # Mensagem sem "N or higher required": sem estimativa, a barreira dura
-        # continua sendo o maximum_bytes_billed do job real.
-        class Client(FakeBQClient):
-            def query(self, sql, job_config=None):
-                if is_estimate_probe(job_config):
-                    return FakeRejectedJob(1, None)
-                return super().query(sql, job_config)
-
-        client = Client(rows=[{"razao_social": "X"}], job_reports_bytes=False)
-        result = run_query(spec, client=client, max_bytes_billed=1024**3)
-        assert result.rows == [{"razao_social": "X"}]
+        result = run_query(spec, client=Client(), max_bytes_billed=1024**3)
         assert result.bytes_billed == 0
 
     def test_execution_enforces_maximum_bytes_billed(self, spec):
@@ -620,29 +588,17 @@ class TestRunQuery:
         _, job_config = client.executed[0]
         assert job_config.maximum_bytes_billed == 2048
 
-    def test_bytes_limit_error_on_execution_becomes_budget_error(self, spec):
+    def test_limit_error_without_number_still_becomes_budget_error(self, spec):
         class Client(FakeBQClient):
             def query(self, sql, job_config=None):
-                if is_estimate_probe(job_config):
-                    return FakeRejectedJob(1, None)
-                return FakeRejectedJob(2048, 4096)
+                return FakeRejectedJob(2048, None)
 
-        with pytest.raises(BytesBudgetExceededError, match="exige 4096 bytes"):
-            run_query(spec, client=Client(), max_bytes_billed=2048)
-
-    def test_probe_errors_other_than_bytes_limit_propagate(self, spec):
-        class Client(FakeBQClient):
-            def query(self, sql, job_config=None):
-                raise RuntimeError("sintaxe inválida")
-
-        with pytest.raises(RuntimeError, match="sintaxe inválida"):
+        with pytest.raises(BytesBudgetExceededError, match="2048"):
             run_query(spec, client=Client(), max_bytes_billed=2048)
 
     def test_other_execution_errors_propagate(self, spec):
         class Client(FakeBQClient):
             def query(self, sql, job_config=None):
-                if is_estimate_probe(job_config):
-                    return FakeRejectedJob(1, 1000)
                 raise RuntimeError("falha de rede")
 
         with pytest.raises(RuntimeError, match="falha de rede"):

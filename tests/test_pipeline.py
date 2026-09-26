@@ -288,6 +288,21 @@ class TestCnaeStep:
         assert calls["select"] == ("padarias", candidates)
 
 
+class TestCnaeSelectionFallback:
+    def test_selection_failure_falls_back_to_similarity_cut(self, monkeypatch):
+        # 429 de cota no Gemini: o pedido segue com o corte por similaridade.
+        from quimera import cnae, pipeline
+
+        candidates = [("a", "A", 0.80), ("b", "B", 0.78), ("c", "C", 0.60)]
+        monkeypatch.setattr(cnae, "search", lambda q, k: candidates)
+
+        def fail(query, cands):
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+        monkeypatch.setattr(cnae, "select_codes", fail)
+        assert [c for c, _, _ in pipeline.default_cnae_search("x", 5)] == ["a", "b"]
+
+
 class TestCostGuard:
     def test_bytes_budget_exceeded_propagates(self):
         extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
@@ -327,3 +342,57 @@ class TestResultSerialization:
         assert record["request"] == "pedido com espaços"
         assert record["policy"] == "public"
         assert "bytes" in record and "latency_ms" in record and "model" in record
+
+
+class TestTimingsAndWarmup:
+    def test_result_has_per_stage_timings(self):
+        extract = FakeGenaiClient(
+            _extraction_payload(
+                cnae_query="dentistas", ufs=["SP"], municipio_names=["Campinas"]
+            )
+        )
+        bq = FakePipelineBQ(
+            municipio_rows=[
+                {"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}
+            ],
+            lead_rows=LEAD_ROWS,
+        )
+        result = run(
+            "dentistas em Campinas",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_cnae_search_recorder([("8630-5/04", "Odonto", 0.9)]),
+            bq_client=bq,
+        )
+        assert set(result.timings_ms) == {
+            "extract",
+            "cnae",
+            "municipios",
+            "snapshot",
+            "query",
+            "score",
+        }
+        assert result.to_dict()["timings_ms"] == result.timings_ms
+
+    def test_warmup_logs_failures_without_raising(self, monkeypatch, caplog):
+        from quimera import cnae, extract, pipeline, query
+
+        def boom():
+            raise RuntimeError("sem credencial")
+
+        monkeypatch.setattr(cnae, "load_index", boom)
+        monkeypatch.setattr(extract, "_default_client", lambda: object())
+        monkeypatch.setattr(cnae, "vertex_embedder", boom)
+        monkeypatch.setattr(query, "_default_client", lambda: object())
+        monkeypatch.setattr(query, "_default_municipality_directory", lambda: ())
+        monkeypatch.setattr(pipeline, "read_leads_snapshot", lambda tables: {})
+        timings = pipeline.warmup()
+        assert set(timings) == {
+            "cnae_index",
+            "gemini",
+            "embedding",
+            "bigquery",
+            "municipios",
+            "snapshot",
+        }
+        assert "aquecimento falhou em cnae_index" in caplog.text

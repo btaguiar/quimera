@@ -55,14 +55,15 @@ class Embedder(Protocol):
 
 def vertex_embedder(model: str | None = None) -> Embedder:
     """Embedder real via Vertex AI. Import lazy: o SDK não é necessário nos testes."""
-    from google import genai  # lazy import — extra ``gcp``
+    return _vertex_embedder(model or os.environ.get("EMBED_MODEL", DEFAULT_EMBED_MODEL))
 
-    model = model or os.environ.get("EMBED_MODEL", DEFAULT_EMBED_MODEL)
-    client = genai.Client(
-        vertexai=True,
-        project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
-        location=os.environ.get("VERTEX_LOCATION"),
-    )
+
+@lru_cache(maxsize=4)
+def _vertex_embedder(model: str) -> Embedder:
+    # Um cliente por modelo e processo (criar custava ~0,75 s por pedido).
+    from .extract import _default_client
+
+    client = _default_client()
 
     class _VertexEmbedder:
         def embed(self, texts: list[str]) -> list[list[float]]:
@@ -314,6 +315,14 @@ def search(
 SELECT_CANDIDATES = 15
 # Atividades de exemplo por candidato no prompt (contexto sem inflar tokens).
 SELECT_EXAMPLES = 6
+# Seleção falha rápido: 10% das chamadas levavam > 5 s (até 22 s) por 429 de
+# cota com retentativas do SDK (medido em 2026-09-26). Sem retentativa e com
+# timeout, a falha cai no corte por similaridade (``fallback_codes``).
+SELECT_TIMEOUT_MS = 4000
+# Corte relativo ao 1º candidato no fallback: no golden, acerto 0,909 e
+# precisão 0,698 (Gemini: 0,985 e 0,645; top-5 fixo: 0,955 e 0,227).
+FALLBACK_DELTA = 0.04
+FALLBACK_MAX = 5
 
 SELECT_PROMPT = """Você escolhe códigos CNAE para filtrar empresas num pedido de prospecção.
 Atividade pedida pelo usuário: "{activity}"
@@ -343,6 +352,33 @@ def build_select_prompt(activity: str, candidates: list[tuple[str, str, float]])
     return SELECT_PROMPT.format(activity=activity, candidates="\n".join(lines))
 
 
+def fallback_codes(
+    candidates: list[tuple[str, str, float]],
+) -> list[tuple[str, str, float]]:
+    """Candidatos próximos do 1º (sem LLM) — plano B quando a seleção falha."""
+    if not candidates:
+        return []
+    top = candidates[0][2]
+    return [c for c in candidates[:FALLBACK_MAX] if c[2] >= top - FALLBACK_DELTA]
+
+
+@lru_cache(maxsize=1)
+def _select_client() -> Any:
+    """Cliente Gemini da seleção: timeout curto e sem retentativa (ver acima)."""
+    from google import genai  # lazy import — extra ``gcp``
+    from google.genai import types
+
+    return genai.Client(
+        vertexai=True,
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
+        location=os.environ.get("VERTEX_LOCATION"),
+        http_options=types.HttpOptions(
+            timeout=SELECT_TIMEOUT_MS,
+            retry_options=types.HttpRetryOptions(attempts=1),
+        ),
+    )
+
+
 def select_codes(
     activity: str,
     candidates: list[tuple[str, str, float]],
@@ -358,9 +394,9 @@ def select_codes(
     """
     if not candidates:
         return []
-    from .extract import DEFAULT_MODEL, _default_client
+    from .extract import DEFAULT_MODEL
 
-    client = client or _default_client()
+    client = client or _select_client()
     codes = [code for code, _, _ in candidates]
     response = client.models.generate_content(
         model=model or os.environ.get("EXTRACT_MODEL", DEFAULT_MODEL),

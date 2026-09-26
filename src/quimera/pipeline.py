@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -44,7 +45,14 @@ def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
     chaveiros e atacado de pães); o LLM só escolhe entre os candidatos.
     """
     candidates = cnae.search(query, cnae.SELECT_CANDIDATES)
-    return cnae.select_codes(query, candidates)[:k]
+    try:
+        return cnae.select_codes(query, candidates)[:k]
+    except Exception as exc:  # 429/timeout: não segura o pedido por ~20 s
+        logger.warning(
+            "seleção de CNAE falhou (%s); usando corte por similaridade",
+            type(exc).__name__,
+        )
+        return cnae.fallback_codes(candidates)[:k]
 
 
 @dataclass
@@ -62,6 +70,8 @@ class PipelineResult:
     bytes_billed: int = 0
     estimated_cost_usd: float = 0.0
     latency_ms: float = 0.0
+    # Tempo por etapa (extract, cnae, municipios, snapshot, query, score).
+    timings_ms: dict[str, float] = field(default_factory=dict)
     model: str = ""
     policy: str = ""
     request_normalized: str = ""
@@ -81,6 +91,7 @@ class PipelineResult:
             "bytes_billed": self.bytes_billed,
             "estimated_cost_usd": self.estimated_cost_usd,
             "latency_ms": self.latency_ms,
+            "timings_ms": self.timings_ms,
             "model": self.model,
             "policy": self.policy,
             "request_normalized": self.request_normalized,
@@ -97,8 +108,48 @@ class PipelineResult:
             "bytes": self.bytes_billed,
             "estimated_cost_usd": self.estimated_cost_usd,
             "latency_ms": round(self.latency_ms, 1),
+            "timings_ms": self.timings_ms,
             "model": self.model,
         }
+
+
+@contextmanager
+def _stage(timings: dict[str, float], name: str):
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        timings[name] = round((time.perf_counter() - started) * 1000, 1)
+
+
+def warmup(tables: LeadsTables | None = None) -> dict[str, float]:
+    """Prepara no processo o que o 1º pedido pagaria (ms por item).
+
+    Medido em 2026-09-26, máquina local: cliente BigQuery 9,9 s, cliente
+    Gemini 2,1 s, 1ª chamada de embedding 2,3 s (depois 0,95 s), diretório
+    de municípios 2,0 s — o 1º pedido levava 39 s e os seguintes 4-5 s.
+    Falhas só vão para o log: o pedido real tenta de novo e reporta o erro.
+    """
+    from . import extract, query
+
+    tables = tables or resolve_leads_tables()
+    steps: list[tuple[str, Callable[[], object]]] = [
+        ("cnae_index", cnae.load_index),
+        ("gemini", extract._default_client),
+        ("embedding", lambda: cnae.vertex_embedder().embed(["aquecimento"])),
+        ("bigquery", query._default_client),
+        ("municipios", query._default_municipality_directory),
+        ("snapshot", lambda: read_leads_snapshot(tables)),
+    ]
+    timings: dict[str, float] = {}
+    for name, step in steps:
+        with _stage(timings, name):
+            try:
+                step()
+            except Exception:  # aquecimento nunca derruba o processo
+                logger.exception("aquecimento falhou em %s", name)
+    logger.info("aquecimento concluído: %s", timings)
+    return timings
 
 
 def _resolve_model(model: str | None) -> str:
@@ -125,7 +176,11 @@ def run(
     resolved_model = _resolve_model(model)
     request_normalized = " ".join(request.split())
 
-    extraction = extract_filters(request, policy, model=model, client=extract_client)
+    timings: dict[str, float] = {}
+    with _stage(timings, "extract"):
+        extraction = extract_filters(
+            request, policy, model=model, client=extract_client
+        )
     if extraction.refused:
         result = PipelineResult(
             refused=True,
@@ -135,6 +190,7 @@ def run(
             request_normalized=request_normalized,
         )
         result.latency_ms = (time.perf_counter() - started) * 1000
+        result.timings_ms = timings
         logger.info("pedido recusado: %s", extraction.refusal_reason)
         return result
 
@@ -143,7 +199,8 @@ def run(
     # 1. cnae_query -> códigos CNAE por embeddings (o LLM nunca inventa código).
     cnae_matches: list[tuple[str, str, float]] = []
     if filters.cnae_query:
-        cnae_matches = cnae_search(filters.cnae_query, cnae_top_k)
+        with _stage(timings, "cnae"):
+            cnae_matches = cnae_search(filters.cnae_query, cnae_top_k)
         filters = filters.model_copy(
             update={"cnae_codes": [c for c, _, _ in cnae_matches]}
         )
@@ -168,6 +225,7 @@ def run(
             warnings=warnings,
         )
         result.latency_ms = (time.perf_counter() - started) * 1000
+        result.timings_ms = timings
         logger.info("nenhum CNAE para %r; consulta não executada", filters.cnae_query)
         return result
     if PORTE_LABELS_DEMAIS.intersection(filters.portes):
@@ -180,9 +238,10 @@ def run(
     # 3. Nome de município -> códigos IBGE por lookup no diretório.
     municipio_resolution: dict[str, list[str]] = {}
     if filters.municipio_names:
-        municipio_resolution = resolve_municipality_ids(
-            filters.municipio_names, ufs=filters.ufs or None, client=bq_client
-        )
+        with _stage(timings, "municipios"):
+            municipio_resolution = resolve_municipality_ids(
+                filters.municipio_names, ufs=filters.ufs or None, client=bq_client
+            )
         unresolved = [
             name for name in filters.municipio_names if name not in municipio_resolution
         ]
@@ -211,6 +270,7 @@ def run(
                 warnings=warnings,
             )
             result.latency_ms = (time.perf_counter() - started) * 1000
+            result.timings_ms = timings
             logger.info("nenhum município resolvido; consulta não executada")
             return result
         filters = filters.model_copy(
@@ -224,22 +284,25 @@ def run(
         )
 
     # 4. Tabela própria (snapshot lido dos labels, sem custo) + query
-    #    parametrizada com estimativa prévia + teto de bytes.
+    #    parametrizada com teto de bytes.
     tables = tables or resolve_leads_tables()
-    snapshots = read_leads_snapshot(
-        tables, client=bq_client, require_contatos=bool(policy.contact_fields)
-    )
+    with _stage(timings, "snapshot"):
+        snapshots = read_leads_snapshot(
+            tables, client=bq_client, require_contatos=bool(policy.contact_fields)
+        )
     spec = build_query(filters, policy, tables=tables, icp=icp)
-    query_result: QueryResult = run_query(
-        spec, client=bq_client, max_bytes_billed=max_bytes_billed
-    )
+    with _stage(timings, "query"):
+        query_result: QueryResult = run_query(
+            spec, client=bq_client, max_bytes_billed=max_bytes_billed
+        )
 
     # 5. Score explicável e ranking.
     rows: list[dict] = []
-    for row in query_result.rows:
-        score, motivos = score_lead(row, icp)
-        rows.append({**row, "score": score, "motivos_score": motivos})
-    rows.sort(key=lambda r: r["score"], reverse=True)
+    with _stage(timings, "score"):
+        for row in query_result.rows:
+            score, motivos = score_lead(row, icp)
+            rows.append({**row, "score": score, "motivos_score": motivos})
+        rows.sort(key=lambda r: r["score"], reverse=True)
 
     result = PipelineResult(
         refused=False,
@@ -259,5 +322,6 @@ def run(
         warnings=warnings,
     )
     result.latency_ms = (time.perf_counter() - started) * 1000
+    result.timings_ms = timings
     logger.info("execução concluída: %s", result.log_record())
     return result

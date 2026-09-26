@@ -20,6 +20,7 @@ from quimera.cnae import (
     merge_sources,
     search,
     select_codes,
+    fallback_codes,
 )
 
 
@@ -261,3 +262,14 @@ class TestSelectCodes:
         client = _FakeSelectClient(["1091-1/02"])
         assert select_codes("x", [], client=client) == []
         assert client.calls == []
+
+
+class TestFallbackCodes:
+    def test_keeps_candidates_close_to_the_first(self):
+        cands = [("a", "A", 0.80), ("b", "B", 0.77), ("c", "C", 0.75), ("d", "D", 0.70)]
+        assert [c for c, _, _ in fallback_codes(cands)] == ["a", "b"]
+
+    def test_caps_size_and_handles_empty(self):
+        cands = [(str(i), "x", 0.9) for i in range(10)]
+        assert len(fallback_codes(cands)) == 5
+        assert fallback_codes([]) == []
