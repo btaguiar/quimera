@@ -58,6 +58,17 @@ class TestRateLimit:
         assert store.retry_after("ip1") > 0
         assert store.retry_after("ip1") <= 51
 
+    def test_rejected_requests_do_not_extend_the_block(self):
+        clock = FakeClock()
+        store = MemoryStateStore(_config(), clock=clock)
+        store.allow_request("ip1")
+        store.allow_request("ip1")
+        assert store.allow_request("ip1") is False
+        clock.now += 30
+        assert store.allow_request("ip1") is False
+        clock.now += 31
+        assert store.allow_request("ip1") is True
+
 
 class TestCache:
     def test_set_and_get_roundtrip(self):
@@ -109,3 +120,58 @@ class TestBudget:
         store = MemoryStateStore(_config(), clock=FakeClock())
         store.add_bytes(5000)
         assert store.budget_remaining() == 0
+
+
+class TestConcurrency:
+    def test_parallel_allow_request_never_exceeds_max(self):
+        import threading
+
+        store = MemoryStateStore(_config(rate_limit_max=5), clock=FakeClock())
+        accepted = []
+
+        def hammer():
+            for _ in range(20):
+                if store.allow_request("ip1"):
+                    accepted.append(1)
+
+        threads = [threading.Thread(target=hammer) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert sum(accepted) == 5
+
+    def test_parallel_add_bytes_counts_every_byte(self):
+        import threading
+
+        store = MemoryStateStore(_config(daily_bytes_budget=10**9), clock=FakeClock())
+
+        def add():
+            for _ in range(100):
+                store.add_bytes(1)
+
+        threads = [threading.Thread(target=add) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert store.budget_remaining() == 10**9 - 800
+
+
+class TestCacheBound:
+    def test_cache_cap_evicts_oldest_entry(self):
+        clock = FakeClock()
+        store = MemoryStateStore(_config(), clock=clock, max_cache_entries=2)
+        store.cache_set("a", {"n": 1})
+        clock.now += 1
+        store.cache_set("b", {"n": 2})
+        clock.now += 1
+        store.cache_set("c", {"n": 3})
+        assert store.cache_get("a") is None
+        assert store.cache_get("b") == {"n": 2}
+        assert store.cache_get("c") == {"n": 3}
+
+    def test_retry_after_does_not_create_entry_for_unseen_ip(self):
+        store = MemoryStateStore(_config(), clock=FakeClock())
+        assert store.retry_after("nunca-visto") == 0
+        assert "nunca-visto" not in store._requests
