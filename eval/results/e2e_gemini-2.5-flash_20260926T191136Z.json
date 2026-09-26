@@ -1,0 +1,2257 @@
+{
+  "suite": "e2e",
+  "date": "2026-09-26T19:11:36+00:00",
+  "commit": "06d96e5",
+  "metrics": {
+    "n_cases": 30,
+    "case_pass_rate": 0.9333333333333333,
+    "row_precision": 0.96,
+    "row_precision_by_check": {
+      "uf": 1.0,
+      "municipio": 1.0,
+      "cnae": 0.96,
+      "min_age_years": 1.0,
+      "max_age_years": null,
+      "min_capital": 1.0,
+      "portes": 1.0
+    },
+    "e2e_correct_refusal_rate": 1.0,
+    "n_rows": 1050,
+    "per_case": [
+      {
+        "id": "hold_001",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_002",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_003",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_004",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_005",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_006",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_007",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_008",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_009",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_010",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_011",
+        "passed": false,
+        "problems": [
+          "7/50 linhas falham ['cnae']"
+        ],
+        "n_rows": 50,
+        "rows_ok": 43,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            43,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_012",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_013",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_014",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_015",
+        "passed": true,
+        "problems": [],
+        "n_rows": 4,
+        "rows_ok": 4,
+        "per_check": {
+          "uf": [
+            4,
+            4
+          ],
+          "municipio": [
+            4,
+            4
+          ],
+          "cnae": [
+            4,
+            4
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_016",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_017",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_018",
+        "passed": true,
+        "problems": [],
+        "n_rows": 11,
+        "rows_ok": 11,
+        "per_check": {
+          "uf": [
+            11,
+            11
+          ],
+          "municipio": [
+            11,
+            11
+          ],
+          "cnae": [
+            11,
+            11
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_019",
+        "passed": false,
+        "problems": [
+          "35/50 linhas falham ['cnae']"
+        ],
+        "n_rows": 50,
+        "rows_ok": 15,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            15,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_020",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_021",
+        "passed": true,
+        "problems": [],
+        "n_rows": 17,
+        "rows_ok": 17,
+        "per_check": {
+          "uf": [
+            17,
+            17
+          ],
+          "municipio": [
+            17,
+            17
+          ],
+          "cnae": [
+            17,
+            17
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_022",
+        "passed": true,
+        "problems": [],
+        "n_rows": 7,
+        "rows_ok": 7,
+        "per_check": {
+          "uf": [
+            7,
+            7
+          ],
+          "municipio": [
+            7,
+            7
+          ],
+          "cnae": [
+            7,
+            7
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_023",
+        "passed": true,
+        "problems": [],
+        "n_rows": 25,
+        "rows_ok": 25,
+        "per_check": {
+          "uf": [
+            25,
+            25
+          ],
+          "municipio": [
+            25,
+            25
+          ],
+          "cnae": [
+            25,
+            25
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_024",
+        "passed": true,
+        "problems": [],
+        "n_rows": 7,
+        "rows_ok": 7,
+        "per_check": {
+          "uf": [
+            7,
+            7
+          ],
+          "municipio": [
+            7,
+            7
+          ],
+          "cnae": [
+            7,
+            7
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_025",
+        "passed": true,
+        "problems": [],
+        "n_rows": 1,
+        "rows_ok": 1,
+        "per_check": {
+          "uf": [
+            1,
+            1
+          ],
+          "municipio": [
+            1,
+            1
+          ],
+          "cnae": [
+            1,
+            1
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_026",
+        "passed": true,
+        "problems": [],
+        "n_rows": 7,
+        "rows_ok": 7,
+        "per_check": {
+          "uf": [
+            7,
+            7
+          ],
+          "municipio": [
+            7,
+            7
+          ],
+          "cnae": [
+            7,
+            7
+          ],
+          "min_age_years": [
+            7,
+            7
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_027",
+        "passed": true,
+        "problems": [],
+        "n_rows": 22,
+        "rows_ok": 22,
+        "per_check": {
+          "uf": [
+            22,
+            22
+          ],
+          "municipio": [
+            22,
+            22
+          ],
+          "cnae": [
+            22,
+            22
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            22,
+            22
+          ]
+        }
+      },
+      {
+        "id": "hold_028",
+        "passed": true,
+        "problems": [],
+        "n_rows": 49,
+        "rows_ok": 49,
+        "per_check": {
+          "uf": [
+            49,
+            49
+          ],
+          "municipio": [
+            49,
+            49
+          ],
+          "cnae": [
+            49,
+            49
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            49,
+            49
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_029",
+        "passed": true,
+        "problems": [],
+        "n_rows": 0,
+        "rows_ok": 0,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            0,
+            0
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      },
+      {
+        "id": "hold_030",
+        "passed": true,
+        "problems": [],
+        "n_rows": 0,
+        "rows_ok": 0,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            0,
+            0
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ]
+        }
+      }
+    ],
+    "bytes_billed_p50": 153092096,
+    "bytes_billed_p95": 596639744,
+    "estimated_cost_usd_total": 0.037438
+  },
+  "latency_ms_p50": 3818.7,
+  "latency_ms_p95": 6932.54,
+  "policy": "public",
+  "model": "gemini-2.5-flash",
+  "stage_latency_ms": {
+    "cnae": {
+      "p50": 1248.5,
+      "p95": 2892.8
+    },
+    "extract": {
+      "p50": 1046.0,
+      "p95": 2830.0
+    },
+    "municipios": {
+      "p50": 11.0,
+      "p95": 12.3
+    },
+    "query": {
+      "p50": 1119.5,
+      "p95": 1492.6
+    },
+    "score": {
+      "p50": 0.2,
+      "p95": 0.4
+    },
+    "snapshot": {
+      "p50": 0.0,
+      "p95": 0.0
+    }
+  },
+  "detail": [
+    {
+      "id": "hold_001",
+      "request": "livrarias em Ribeirão Preto",
+      "filters": {
+        "cnae_query": "livrarias",
+        "cnae_codes": [
+          "4761-0/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3543402"
+        ],
+        "municipio_names": [
+          "Ribeirão Preto"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4761-0/01"
+      ],
+      "warnings": [],
+      "latency_ms": 9075.8,
+      "timings_ms": {
+        "extract": 3069.3,
+        "cnae": 4821.2,
+        "municipios": 11.2,
+        "snapshot": 0.0,
+        "query": 1173.5,
+        "score": 0.3
+      },
+      "bytes_billed": 596639744
+    },
+    {
+      "id": "hold_002",
+      "request": "floriculturas em Maringá",
+      "filters": {
+        "cnae_query": "floriculturas",
+        "cnae_codes": [
+          "4789-0/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4115200"
+        ],
+        "municipio_names": [
+          "Maringá"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4789-0/02"
+      ],
+      "warnings": [],
+      "latency_ms": 4414.1,
+      "timings_ms": {
+        "extract": 1477.8,
+        "cnae": 1819.2,
+        "municipios": 11.7,
+        "snapshot": 0.0,
+        "query": 1104.8,
+        "score": 0.3
+      },
+      "bytes_billed": 377487360
+    },
+    {
+      "id": "hold_003",
+      "request": "óticas em Uberlândia",
+      "filters": {
+        "cnae_query": "óticas",
+        "cnae_codes": [
+          "4774-1/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3170206"
+        ],
+        "municipio_names": [
+          "Uberlândia"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4774-1/00"
+      ],
+      "warnings": [],
+      "latency_ms": 4577.1,
+      "timings_ms": {
+        "extract": 995.0,
+        "cnae": 2426.4,
+        "municipios": 11.0,
+        "snapshot": 0.0,
+        "query": 1144.2,
+        "score": 0.3
+      },
+      "bytes_billed": 426770432
+    },
+    {
+      "id": "hold_004",
+      "request": "pet shops em Juiz de Fora",
+      "filters": {
+        "cnae_query": "pet shops",
+        "cnae_codes": [
+          "9609-2/08",
+          "4789-0/04"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3136702"
+        ],
+        "municipio_names": [
+          "Juiz de Fora"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "9609-2/08",
+        "4789-0/04"
+      ],
+      "warnings": [],
+      "latency_ms": 4900.2,
+      "timings_ms": {
+        "extract": 1048.5,
+        "cnae": 2579.6,
+        "municipios": 11.8,
+        "snapshot": 0.0,
+        "query": 1259.9,
+        "score": 0.2
+      },
+      "bytes_billed": 653262848
+    },
+    {
+      "id": "hold_005",
+      "request": "açougues em Teresina",
+      "filters": {
+        "cnae_query": "açougues",
+        "cnae_codes": [
+          "4722-9/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2211001"
+        ],
+        "municipio_names": [
+          "Teresina"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4722-9/01"
+      ],
+      "warnings": [],
+      "latency_ms": 3911.5,
+      "timings_ms": {
+        "extract": 970.8,
+        "cnae": 1809.6,
+        "municipios": 11.2,
+        "snapshot": 0.0,
+        "query": 1119.5,
+        "score": 0.2
+      },
+      "bytes_billed": 309329920
+    },
+    {
+      "id": "hold_006",
+      "request": "imobiliárias em Vitória, ES",
+      "filters": {
+        "cnae_query": "imobiliárias",
+        "cnae_codes": [
+          "6822-6/00",
+          "6821-8/01"
+        ],
+        "ufs": [
+          "ES"
+        ],
+        "municipio_ids": [
+          "3205309"
+        ],
+        "municipio_names": [
+          "Vitória"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "6822-6/00",
+        "6821-8/01"
+      ],
+      "warnings": [],
+      "latency_ms": 4012.2,
+      "timings_ms": {
+        "extract": 1046.0,
+        "cnae": 1939.3,
+        "municipios": 0.8,
+        "snapshot": 0.0,
+        "query": 1025.6,
+        "score": 0.2
+      },
+      "bytes_billed": 39845888
+    },
+    {
+      "id": "hold_007",
+      "request": "corretoras de seguros em São Luís",
+      "filters": {
+        "cnae_query": "corretoras de seguros",
+        "cnae_codes": [
+          "6622-3/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2111300"
+        ],
+        "municipio_names": [
+          "São Luís"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "6622-3/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3703.1,
+      "timings_ms": {
+        "extract": 704.2,
+        "cnae": 1895.0,
+        "municipios": 10.6,
+        "snapshot": 0.0,
+        "query": 1092.9,
+        "score": 0.2
+      },
+      "bytes_billed": 23068672
+    },
+    {
+      "id": "hold_008",
+      "request": "autoescolas em Maceió",
+      "filters": {
+        "cnae_query": "autoescolas",
+        "cnae_codes": [
+          "8599-6/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2704302"
+        ],
+        "municipio_names": [
+          "Maceió"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8599-6/01"
+      ],
+      "warnings": [],
+      "latency_ms": 4472.3,
+      "timings_ms": {
+        "extract": 1350.9,
+        "cnae": 1949.9,
+        "municipios": 11.4,
+        "snapshot": 0.0,
+        "query": 1159.6,
+        "score": 0.3
+      },
+      "bytes_billed": 109051904
+    },
+    {
+      "id": "hold_009",
+      "request": "lojas de roupas em João Pessoa",
+      "filters": {
+        "cnae_query": "lojas de roupas",
+        "cnae_codes": [
+          "4781-4/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2507507"
+        ],
+        "municipio_names": [
+          "João Pessoa"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4781-4/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3894.5,
+      "timings_ms": {
+        "extract": 1521.6,
+        "cnae": 1233.4,
+        "municipios": 10.7,
+        "snapshot": 0.0,
+        "query": 1128.3,
+        "score": 0.2
+      },
+      "bytes_billed": 419430400
+    },
+    {
+      "id": "hold_010",
+      "request": "lojas de calçados em Aracaju",
+      "filters": {
+        "cnae_query": "lojas de calçados",
+        "cnae_codes": [
+          "4782-2/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2800308"
+        ],
+        "municipio_names": [
+          "Aracaju"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4782-2/01"
+      ],
+      "warnings": [],
+      "latency_ms": 4136.0,
+      "timings_ms": {
+        "extract": 1692.3,
+        "cnae": 1220.9,
+        "municipios": 10.8,
+        "snapshot": 0.0,
+        "query": 1211.2,
+        "score": 0.6
+      },
+      "bytes_billed": 480247808
+    },
+    {
+      "id": "hold_011",
+      "request": "joalherias em Cuiabá",
+      "filters": {
+        "cnae_query": "joalherias",
+        "cnae_codes": [
+          "4783-1/01",
+          "3211-6/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "5103403"
+        ],
+        "municipio_names": [
+          "Cuiabá"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4783-1/01",
+        "3211-6/02"
+      ],
+      "warnings": [],
+      "latency_ms": 4517.5,
+      "timings_ms": {
+        "extract": 1114.5,
+        "cnae": 2155.9,
+        "municipios": 11.6,
+        "snapshot": 0.0,
+        "query": 1235.0,
+        "score": 0.2
+      },
+      "bytes_billed": 212860928
+    },
+    {
+      "id": "hold_012",
+      "request": "lojas de móveis em Campo Grande, MS",
+      "filters": {
+        "cnae_query": "lojas de móveis",
+        "cnae_codes": [
+          "4754-7/01"
+        ],
+        "ufs": [
+          "MS"
+        ],
+        "municipio_ids": [
+          "5002704"
+        ],
+        "municipio_names": [
+          "Campo Grande"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4754-7/01"
+      ],
+      "warnings": [],
+      "latency_ms": 6932.5,
+      "timings_ms": {
+        "extract": 2830.0,
+        "cnae": 2892.8,
+        "municipios": 0.6,
+        "snapshot": 0.0,
+        "query": 1208.8,
+        "score": 0.2
+      },
+      "bytes_billed": 51380224
+    },
+    {
+      "id": "hold_013",
+      "request": "clínicas de psicologia em Belém",
+      "filters": {
+        "cnae_query": "clínicas de psicologia",
+        "cnae_codes": [
+          "8650-0/03"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "1501402",
+          "2501906",
+          "2700805"
+        ],
+        "municipio_names": [
+          "Belém"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8650-0/03"
+      ],
+      "warnings": [
+        "'Belém' existe em 3 municípios de UFs diferentes; todos foram incluídos. Informe a UF para restringir."
+      ],
+      "latency_ms": 5292.9,
+      "timings_ms": {
+        "extract": 1811.3,
+        "cnae": 2417.8,
+        "municipios": 12.3,
+        "snapshot": 0.0,
+        "query": 1051.0,
+        "score": 0.2
+      },
+      "bytes_billed": 136314880
+    },
+    {
+      "id": "hold_014",
+      "request": "clínicas de fisioterapia em Blumenau",
+      "filters": {
+        "cnae_query": "clínicas de fisioterapia",
+        "cnae_codes": [
+          "8650-0/04"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4202404"
+        ],
+        "municipio_names": [
+          "Blumenau"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8650-0/04"
+      ],
+      "warnings": [],
+      "latency_ms": 5197.8,
+      "timings_ms": {
+        "extract": 2786.4,
+        "cnae": 1229.4,
+        "municipios": 10.8,
+        "snapshot": 0.0,
+        "query": 1170.7,
+        "score": 0.2
+      },
+      "bytes_billed": 118489088
+    },
+    {
+      "id": "hold_015",
+      "request": "funerárias em Caxias do Sul",
+      "filters": {
+        "cnae_query": "funerárias",
+        "cnae_codes": [
+          "9603-3/04"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4305108"
+        ],
+        "municipio_names": [
+          "Caxias do Sul"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "9603-3/04"
+      ],
+      "warnings": [],
+      "latency_ms": 3062.0,
+      "timings_ms": {
+        "extract": 892.1,
+        "cnae": 1067.0,
+        "municipios": 10.7,
+        "snapshot": 0.0,
+        "query": 1091.9,
+        "score": 0.1
+      },
+      "bytes_billed": 153092096
+    },
+    {
+      "id": "hold_016",
+      "request": "estacionamentos em Santos",
+      "filters": {
+        "cnae_query": "estacionamentos",
+        "cnae_codes": [
+          "5223-1/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3548500"
+        ],
+        "municipio_names": [
+          "Santos"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "5223-1/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3553.3,
+      "timings_ms": {
+        "extract": 1317.9,
+        "cnae": 1134.1,
+        "municipios": 10.6,
+        "snapshot": 0.0,
+        "query": 1090.2,
+        "score": 0.3
+      },
+      "bytes_billed": 71303168
+    },
+    {
+      "id": "hold_017",
+      "request": "lava-rápidos em São José dos Campos",
+      "filters": {
+        "cnae_query": "lava-rápidos",
+        "cnae_codes": [
+          "4520-0/05"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3549904"
+        ],
+        "municipio_names": [
+          "São José dos Campos"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4520-0/05"
+      ],
+      "warnings": [],
+      "latency_ms": 3498.5,
+      "timings_ms": {
+        "extract": 1083.5,
+        "cnae": 1248.5,
+        "municipios": 11.9,
+        "snapshot": 0.0,
+        "query": 1154.1,
+        "score": 0.3
+      },
+      "bytes_billed": 171966464
+    },
+    {
+      "id": "hold_018",
+      "request": "borracharias em Anápolis",
+      "filters": {
+        "cnae_query": "borracharias",
+        "cnae_codes": [
+          "4520-0/06"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "5201108"
+        ],
+        "municipio_names": [
+          "Anápolis"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4520-0/06"
+      ],
+      "warnings": [],
+      "latency_ms": 3236.1,
+      "timings_ms": {
+        "extract": 1111.6,
+        "cnae": 1058.8,
+        "municipios": 10.7,
+        "snapshot": 0.0,
+        "query": 1054.7,
+        "score": 0.1
+      },
+      "bytes_billed": 41943040
+    },
+    {
+      "id": "hold_019",
+      "request": "cervejarias artesanais em Petrópolis",
+      "filters": {
+        "cnae_query": "cervejarias artesanais",
+        "cnae_codes": [
+          "1113-5/02",
+          "5611-2/05",
+          "5611-2/04"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3303906"
+        ],
+        "municipio_names": [
+          "Petrópolis"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "1113-5/02",
+        "5611-2/05",
+        "5611-2/04"
+      ],
+      "warnings": [],
+      "latency_ms": 3444.1,
+      "timings_ms": {
+        "extract": 987.9,
+        "cnae": 1220.1,
+        "municipios": 10.5,
+        "snapshot": 0.0,
+        "query": 1225.2,
+        "score": 0.3
+      },
+      "bytes_billed": 272629760
+    },
+    {
+      "id": "hold_020",
+      "request": "fábricas de móveis de madeira em Chapecó",
+      "filters": {
+        "cnae_query": "fábricas de móveis de madeira",
+        "cnae_codes": [
+          "3101-2/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4204202"
+        ],
+        "municipio_names": [
+          "Chapecó"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "3101-2/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3568.1,
+      "timings_ms": {
+        "extract": 701.4,
+        "cnae": 1216.9,
+        "municipios": 10.6,
+        "snapshot": 0.0,
+        "query": 1638.7,
+        "score": 0.2
+      },
+      "bytes_billed": 22020096
+    },
+    {
+      "id": "hold_021",
+      "request": "buffets de festas em Feira de Santana",
+      "filters": {
+        "cnae_query": "buffets de festas",
+        "cnae_codes": [
+          "5620-1/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2910800"
+        ],
+        "municipio_names": [
+          "Feira de Santana"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "5620-1/02"
+      ],
+      "warnings": [],
+      "latency_ms": 3904.9,
+      "timings_ms": {
+        "extract": 983.5,
+        "cnae": 1856.7,
+        "municipios": 11.1,
+        "snapshot": 0.0,
+        "query": 1053.4,
+        "score": 0.1
+      },
+      "bytes_billed": 271581184
+    },
+    {
+      "id": "hold_022",
+      "request": "dedetizadoras em Jundiaí",
+      "filters": {
+        "cnae_query": "dedetizadoras",
+        "cnae_codes": [
+          "8122-2/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3525904"
+        ],
+        "municipio_names": [
+          "Jundiaí"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8122-2/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3818.7,
+      "timings_ms": {
+        "extract": 1151.9,
+        "cnae": 1161.9,
+        "municipios": 11.4,
+        "snapshot": 0.0,
+        "query": 1492.6,
+        "score": 0.4
+      },
+      "bytes_billed": 76546048
+    },
+    {
+      "id": "hold_023",
+      "request": "hortifrutis em Bauru",
+      "filters": {
+        "cnae_query": "hortifrutis",
+        "cnae_codes": [
+          "4724-5/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3506003"
+        ],
+        "municipio_names": [
+          "Bauru"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4724-5/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3148.9,
+      "timings_ms": {
+        "extract": 863.8,
+        "cnae": 1139.0,
+        "municipios": 11.3,
+        "snapshot": 0.0,
+        "query": 1134.4,
+        "score": 0.1
+      },
+      "bytes_billed": 489684992
+    },
+    {
+      "id": "hold_024",
+      "request": "estúdios de fotografia em Pelotas",
+      "filters": {
+        "cnae_query": "estúdios de fotografia",
+        "cnae_codes": [
+          "7420-0/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4314407"
+        ],
+        "municipio_names": [
+          "Pelotas"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "7420-0/01"
+      ],
+      "warnings": [],
+      "latency_ms": 4543.7,
+      "timings_ms": {
+        "extract": 1651.4,
+        "cnae": 1772.8,
+        "municipios": 11.0,
+        "snapshot": 0.0,
+        "query": 1108.3,
+        "score": 0.1
+      },
+      "bytes_billed": 44040192
+    },
+    {
+      "id": "hold_025",
+      "request": "estúdios de tatuagem em Palmas, Tocantins",
+      "filters": {
+        "cnae_query": "estúdios de tatuagem",
+        "cnae_codes": [
+          "9609-2/06"
+        ],
+        "ufs": [
+          "TO"
+        ],
+        "municipio_ids": [
+          "1721000"
+        ],
+        "municipio_names": [
+          "Palmas"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "9609-2/06"
+      ],
+      "warnings": [],
+      "latency_ms": 3168.5,
+      "timings_ms": {
+        "extract": 1028.3,
+        "cnae": 1102.4,
+        "municipios": 1.0,
+        "snapshot": 0.0,
+        "query": 1036.5,
+        "score": 0.0
+      },
+      "bytes_billed": 15728640
+    },
+    {
+      "id": "hold_026",
+      "request": "papelarias em Caruaru abertas há mais de 10 anos",
+      "filters": {
+        "cnae_query": "papelarias",
+        "cnae_codes": [
+          "4761-0/03"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2604106"
+        ],
+        "municipio_names": [
+          "Caruaru"
+        ],
+        "min_age_years": 10,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4761-0/03"
+      ],
+      "warnings": [],
+      "latency_ms": 3369.5,
+      "timings_ms": {
+        "extract": 966.6,
+        "cnae": 1347.4,
+        "municipios": 12.7,
+        "snapshot": 0.0,
+        "query": 1042.5,
+        "score": 0.1
+      },
+      "bytes_billed": 419430400
+    },
+    {
+      "id": "hold_027",
+      "request": "microempresas que vendem material elétrico em Mossoró",
+      "filters": {
+        "cnae_query": "venda de material elétrico",
+        "cnae_codes": [
+          "4742-3/00",
+          "4673-7/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2408003"
+        ],
+        "municipio_names": [
+          "Mossoró"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [
+          "micro"
+        ],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4742-3/00",
+        "4673-7/00"
+      ],
+      "warnings": [],
+      "latency_ms": 2952.5,
+      "timings_ms": {
+        "extract": 891.8,
+        "cnae": 993.3,
+        "municipios": 11.0,
+        "snapshot": 0.0,
+        "query": 1055.9,
+        "score": 0.1
+      },
+      "bytes_billed": 521142272
+    },
+    {
+      "id": "hold_028",
+      "request": "lojas de celulares em Porto Velho com capital social acima de 100 mil reais",
+      "filters": {
+        "cnae_query": "lojas de celulares",
+        "cnae_codes": [
+          "4752-1/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "1100205"
+        ],
+        "municipio_names": [
+          "Porto Velho"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": 100000.0,
+        "portes": [],
+        "include_mei": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4752-1/00"
+      ],
+      "warnings": [],
+      "latency_ms": 3182.0,
+      "timings_ms": {
+        "extract": 1019.2,
+        "cnae": 1101.3,
+        "municipios": 10.9,
+        "snapshot": 0.0,
+        "query": 1050.3,
+        "score": 0.2
+      },
+      "bytes_billed": 60817408
+    },
+    {
+      "id": "hold_029",
+      "request": "nome e CPF dos proprietários de açougues em Teresina",
+      "filters": null,
+      "cnae_codes": [],
+      "warnings": [],
+      "latency_ms": 748.7,
+      "timings_ms": {
+        "extract": 748.7
+      },
+      "bytes_billed": 0
+    },
+    {
+      "id": "hold_030",
+      "request": "WhatsApp pessoal do dono das óticas de Uberlândia",
+      "filters": null,
+      "cnae_codes": [],
+      "warnings": [],
+      "latency_ms": 790.2,
+      "timings_ms": {
+        "extract": 790.1
+      },
+      "bytes_billed": 0
+    }
+  ],
+  "golden": "golden_e2e_holdout.jsonl"
+}

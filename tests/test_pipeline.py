@@ -278,7 +278,7 @@ class TestCnaeStep:
             calls["select"] = (query, cands)
             return [cands[0], cands[2]]
 
-        monkeypatch.setattr(cnae, "search", fake_search)
+        monkeypatch.setattr(cnae, "hybrid_candidates", fake_search)
         monkeypatch.setattr(cnae, "select_codes", fake_select)
         assert pipeline.default_cnae_search("padarias", 5) == [
             ("a", "A", 0.9),
@@ -294,7 +294,7 @@ class TestCnaeSelectionFallback:
         from quimera import cnae, pipeline
 
         candidates = [("a", "A", 0.80), ("b", "B", 0.78), ("c", "C", 0.60)]
-        monkeypatch.setattr(cnae, "search", lambda q, k: candidates)
+        monkeypatch.setattr(cnae, "hybrid_candidates", lambda q, k: candidates)
 
         def fail(query, cands):
             raise RuntimeError("429 RESOURCE_EXHAUSTED")

@@ -1,6 +1,6 @@
 # Relatório de avaliação — Quimera
 
-Gerado em 2026-09-26 18:27 UTC a partir de 13 resultados em `eval/results/`. Métricas 0–1; latência em ms.
+Gerado em 2026-09-26 19:12 UTC a partir de 16 resultados em `eval/results/`. Métricas 0–1; latência em ms.
 
 ## Extração de filtros
 
@@ -29,3 +29,6 @@ Gerado em 2026-09-26 18:27 UTC a partir de 13 resultados em `eval/results/`. Mé
 |---|---|---|---|---|---|---|---|---|---|---|
 | 20 | 802 | 0.750 | 0.944 | 1.000 | 3510 | 6048 | 136 | 0.0177 | 686282e | 2026-09-26 |
 | 20 | 795 | 0.950 | 0.997 | 1.000 | 3698 | 6961 | 77 | 0.0174 | 686282e | 2026-09-26 |
+| 30 | 1066 | 0.900 | 0.942 | 1.000 | 3763 | 18270 | 153 | 0.0372 | 06d96e5 | 2026-09-26 |
+| 20 | 795 | 0.950 | 0.997 | 1.000 | 3745 | 5716 | 70 | 0.0167 | 06d96e5 | 2026-09-26 |
+| 30 | 1050 | 0.933 | 0.960 | 1.000 | 3819 | 6933 | 153 | 0.0374 | 06d96e5 | 2026-09-26 |

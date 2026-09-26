@@ -137,7 +137,11 @@ def run_cnae_suite(
 
 
 def run_e2e_suite(
-    cases: Sequence[dict], run_fn: RunFn, *, policy: str = "public"
+    cases: Sequence[dict],
+    run_fn: RunFn,
+    *,
+    policy: str = "public",
+    golden: str = GOLDEN_E2E.name,
 ) -> dict:
     """Roda o pipeline inteiro por pedido e confere cada empresa devolvida.
 
@@ -199,6 +203,7 @@ def run_e2e_suite(
         model=os.environ.get("EXTRACT_MODEL", DEFAULT_MODEL),
         stage_latency_ms=stage_latency,
         detail=detail,
+        golden=golden,
     )
 
 
@@ -292,6 +297,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--limit", type=int, default=None, help="rodar só os N primeiros casos"
     )
+    parser.add_argument(
+        "--golden",
+        default=None,
+        help="golden da suíte e2e (padrão: golden_e2e.jsonl; "
+        "conjunto separado: golden_e2e_holdout.jsonl)",
+    )
     args = parser.parse_args(argv)
 
     thresholds = load_thresholds()
@@ -327,12 +338,15 @@ def main(argv: list[str] | None = None) -> int:
         failures += check_thresholds(payload["metrics"], thresholds)
 
     if args.suite in ("e2e", "all"):
-        cases = load_cases(GOLDEN_E2E)
+        golden_path = Path(args.golden) if args.golden else GOLDEN_E2E
+        if not golden_path.is_absolute() and not golden_path.exists():
+            golden_path = EVAL_DIR / golden_path
+        cases = load_cases(golden_path)
         if args.limit:
             cases = cases[: args.limit]
         from quimera.policy import PUBLIC
 
-        payload = run_e2e_suite(cases, _real_run_fn(PUBLIC))
+        payload = run_e2e_suite(cases, _real_run_fn(PUBLIC), golden=golden_path.name)
         path = save_result(payload)
         m = payload["metrics"]
         print(

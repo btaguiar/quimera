@@ -44,7 +44,7 @@ def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
     Só a busca punha vizinhos semânticos errados no filtro ("padarias" trazia
     chaveiros e atacado de pães); o LLM só escolhe entre os candidatos.
     """
-    candidates = cnae.search(query, cnae.SELECT_CANDIDATES)
+    candidates = cnae.hybrid_candidates(query, cnae.SELECT_CANDIDATES)
     try:
         return cnae.select_codes(query, candidates)[:k]
     except Exception as exc:  # 429/timeout: não segura o pedido por ~20 s

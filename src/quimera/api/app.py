@@ -237,9 +237,7 @@ def create_app(
                 "a base de empresas está sendo atualizada; tente mais tarde",
             ) from None
         except ExtractionError as exc:
-            logger.warning(
-                "erro de extração (%s)", type(exc.__cause__ or exc).__name__
-            )
+            logger.warning("erro de extração (%s)", type(exc.__cause__ or exc).__name__)
             raise ApiError(
                 502,
                 "erro de extração",

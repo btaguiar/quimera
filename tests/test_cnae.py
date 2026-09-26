@@ -278,3 +278,43 @@ class TestFallbackCodes:
         cands = [(str(i), "x", 0.9) for i in range(10)]
         assert len(fallback_codes(cands)) == 5
         assert fallback_codes([]) == []
+
+
+class TestLexicalAndHybrid:
+    """O embedding confundia "borracharias" com artigos de borracha e nem
+    trazia 4520-0/06 entre os 15 candidatos (medido no conjunto separado)."""
+
+    def test_stems_drop_plural_accents_and_stopwords(self):
+        from quimera.cnae import _query_stems
+
+        assert _query_stems("Borracharias de Anápolis") == ["borracharia", "anapoli"]
+        assert _query_stems("lojas de roupas") == ["roupa"]
+
+    def test_word_prefix_match_on_shipped_source(self):
+        from quimera.cnae import lexical_search
+
+        codes = [c for c, _ in lexical_search("borracharias")]
+        assert codes[0] == "4520-0/06"
+        assert "2219-6/00" not in codes  # "borracha" não casa "borracharia"
+
+    def test_all_words_must_match(self):
+        from quimera.cnae import lexical_search
+
+        assert lexical_search("borracharias espaciais") == []
+        assert lexical_search("de em para") == []
+
+    def test_hybrid_appends_lexical_after_embedding(self, monkeypatch):
+        from quimera import cnae
+
+        monkeypatch.setattr(
+            cnae, "search", lambda q, k, **kw: [("2219-6/00", "Borracha", 0.8)]
+        )
+        monkeypatch.setattr(
+            cnae,
+            "lexical_search",
+            lambda q: [("4520-0/06", "Borracharia"), ("2219-6/00", "Borracha")],
+        )
+        assert cnae.hybrid_candidates("borracharias", 15) == [
+            ("2219-6/00", "Borracha", 0.8),
+            ("4520-0/06", "Borracharia", 0.0),
+        ]

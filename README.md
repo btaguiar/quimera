@@ -161,6 +161,25 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 empresas de outro modal. Limiares no CI: casos ≥ 0,90, precisão ≥ 0,98,
 recusa = 1,00.
 
+**Conjunto separado** (`eval/golden_e2e_holdout.jsonl`) — 30 pedidos com
+atividades e cidades fora de todos os goldens, rótulos commitados antes da
+1ª execução. Os 20 casos acima serviram para ajustar o prompt; este mede
+generalização:
+
+| execução | casos 100% corretos | precisão por empresa |
+|---|---|---|
+| **1ª execução, inédita (medida honesta)** | **0,900** | **0,942** |
+| após busca híbrida (já não é inédito) | 0,933 | 0,960 |
+
+Todas as falhas são de CNAE (UF, município, idade, capital e porte: 100%).
+A 1ª execução mostrou: "borracharias" confundido com artigos de borracha
+pelo embedding (corrigido com busca por palavra somada ao embedding);
+variação do Gemini entre chamadas em casos de fronteira (seed não resolve);
+"cervejarias artesanais" ambíguo — o Gemini inclui bares de cerveja, uso
+comum no Brasil, e o rótulo (estrito, mantido) não. Pendente: "joalherias"
+incluiu a fabricação de joias — o prompt de nota perdeu a regra "não inclua
+fabricantes/fornecedores" do prompt anterior.
+
 **Latência** (servidor aquecido): p50 ~3,7–5 s por pedido, antes ~25 s. O
 tempo por etapa vem em `timings_ms` no resultado. A cauda (p95 ~7 s, picos
 de 10–20 s) é o Gemini esperando cota (429 em `us-central1`); resolve no

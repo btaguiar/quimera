@@ -308,6 +308,96 @@ def search(
 
 
 # ---------------------------------------------------------------------------
+# Candidatos híbridos: embedding + palavra
+# ---------------------------------------------------------------------------
+
+# Candidatos por palavra somados aos do embedding. O embedding confunde
+# palavras parecidas: "borracharias" trazia fabricantes de artigos de borracha
+# e nem punha 4520-0/06 ("serviços de borracharia") entre os 15 (medido no
+# conjunto separado, 2026-09-26).
+LEXICAL_CANDIDATES = 5
+_STOPWORDS = frozenset(
+    "a as o os de da das do dos e em no na nos nas para por com sem que "
+    "empresa empresas loja lojas servico servicos".split()
+)
+
+
+def _normalize(text: str) -> str:
+    from .text import strip_accents
+
+    return " ".join(strip_accents(text).lower().split())
+
+
+def _query_stems(query: str) -> list[str]:
+    """Palavras relevantes do pedido, sem plural simples ("borracharias")."""
+    stems = []
+    for word in _normalize(query).replace("-", " ").split():
+        word = "".join(ch for ch in word if ch.isalnum())
+        if len(word) < 4 or word in _STOPWORDS:
+            continue
+        stems.append(word[:-1] if word.endswith("s") else word)
+    return stems
+
+
+@lru_cache(maxsize=1)
+def _lexical_documents() -> tuple[tuple[str, str, tuple[tuple[str, ...], ...]], ...]:
+    """(codigo, descricao, palavras de cada texto) — descrição e atividades."""
+    docs = []
+    for sub in load_subclasses():
+        texts = [sub["descricao"], *sub["atividades"]]
+        words = tuple(
+            tuple(_normalize(t).replace("-", " ").replace("(", " ").split())
+            for t in texts
+        )
+        docs.append((sub["codigo"], sub["descricao"], words))
+    return tuple(docs)
+
+
+def lexical_search(query: str, k: int = LEXICAL_CANDIDATES) -> list[tuple[str, str]]:
+    """Subclasses com algum texto contendo TODAS as palavras do pedido.
+
+    Casa por prefixo de palavra ("borracharia" casa "borracharia", não
+    "borracha"); ordena pelo nº de textos da subclasse que casam.
+    """
+    stems = _query_stems(query)
+    if not stems:
+        return []
+    scored = []
+    for code, descricao, texts in _lexical_documents():
+        hits = sum(
+            all(any(w.startswith(stem) for w in words) for stem in stems)
+            for words in texts
+        )
+        if hits:
+            scored.append((hits, code, descricao))
+    scored.sort(key=lambda item: -item[0])
+    return [(code, descricao) for _, code, descricao in scored[:k]]
+
+
+def hybrid_candidates(
+    query: str,
+    k: int | None = None,
+    *,
+    index_path: str | Path | None = None,
+    embedder: Embedder | None = None,
+) -> list[tuple[str, str, float]]:
+    """Top-k do embedding + até ``LEXICAL_CANDIDATES`` achados por palavra.
+
+    Os achados por palavra que o embedding não trouxe entram no fim da lista,
+    com a similaridade do embedding (quando existir) só para exibição.
+    """
+    k = k or SELECT_CANDIDATES
+    by_embedding = search(query, k, index_path=index_path, embedder=embedder)
+    seen = {code for code, _, _ in by_embedding}
+    extra = [
+        (code, descricao, 0.0)
+        for code, descricao in lexical_search(query)
+        if code not in seen
+    ]
+    return by_embedding + extra
+
+
+# ---------------------------------------------------------------------------
 # Seleção final: quais candidatos viram filtro
 # ---------------------------------------------------------------------------
 
