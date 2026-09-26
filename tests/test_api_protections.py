@@ -42,6 +42,9 @@ class TestTokenOk:
     def test_correct_token_passes(self):
         assert token_ok("segredo", "segredo") is True
 
+    def test_empty_provided_token_fails_when_required(self):
+        assert token_ok("", "segredo") is False
+
 
 class TestApiConfigFromEnv:
     def test_defaults(self, monkeypatch):
@@ -67,3 +70,22 @@ class TestApiConfigFromEnv:
     def test_empty_api_token_means_disabled(self, monkeypatch):
         monkeypatch.setenv("API_TOKEN", "")
         assert ApiConfig.from_env().api_token is None
+
+
+class TestNormalizationMatchesPipeline:
+    def test_normalize_request_equals_pipeline_request_normalized(self):
+        import json
+
+        from quimera.pipeline import run
+        from quimera.policy import PUBLIC
+
+        from fakes import FakeGenaiClient, FakePipelineBQ
+
+        raw = "  clínicas   em  \nSP "
+        extract = FakeGenaiClient(
+            json.dumps(
+                {"refused": True, "refusal_reason": "dado pessoal"}, ensure_ascii=False
+            )
+        )
+        result = run(raw, PUBLIC, extract_client=extract, bq_client=FakePipelineBQ())
+        assert result.request_normalized == normalize_request(raw)
