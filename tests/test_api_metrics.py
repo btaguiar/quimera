@@ -74,3 +74,34 @@ class TestLoadMetrics:
         )
         monkeypatch.setenv("EVAL_DIR", str(tmp_path))
         assert load_metrics()["cnae"][0]["metrics"]["mrr"] == 0.5
+
+    def test_non_dict_json_payloads_are_skipped(self, tmp_path):
+        results = tmp_path / "results"
+        results.mkdir()
+        (results / "lista.json").write_text("[1, 2, 3]", encoding="utf-8")
+        (results / "texto.json").write_text('"apenas texto"', encoding="utf-8")
+        (results / "suite_lista.json").write_text(
+            json.dumps({"suite": ["x"], "metrics": {}}), encoding="utf-8"
+        )
+        _write(
+            results / "valido.json",
+            {"suite": "cnae", "metrics": {"mrr": 0.5}},
+        )
+        metrics = load_metrics(eval_dir=tmp_path)
+        assert metrics["cnae"] == [{"suite": "cnae", "metrics": {"mrr": 0.5}}]
+
+    def test_non_dict_thresholds_ignored(self, tmp_path):
+        (tmp_path / "thresholds.json").write_text("[1, 2]", encoding="utf-8")
+        metrics = load_metrics(eval_dir=tmp_path)
+        assert metrics["thresholds"] == {}
+
+    def test_results_dir_override(self, tmp_path):
+        results = tmp_path / "results"
+        results.mkdir()
+        _write(
+            results / "cnae_m.json",
+            {"suite": "cnae", "metrics": {"recall@5": 0.7}},
+        )
+        (tmp_path / "thresholds.json").write_text("{}", encoding="utf-8")
+        metrics = load_metrics(results_dir=results, eval_dir=tmp_path)
+        assert metrics["cnae"][0]["metrics"]["recall@5"] == 0.7

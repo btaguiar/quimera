@@ -34,11 +34,13 @@ def load_metrics(
         for path in sorted(results.glob("*.json")):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if not isinstance(payload, dict):
                 continue
             payload = _strip_per_case(payload)
             suite = payload.get("suite")
-            if suite in suites:
+            if isinstance(suite, str) and suite in suites:
                 suites[suite].append(payload)
 
     thresholds: dict = {}
@@ -46,7 +48,9 @@ def load_metrics(
     if thresholds_path.exists():
         try:
             thresholds = json.loads(thresholds_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             thresholds = {}
+    if not isinstance(thresholds, dict):
+        thresholds = {}
     thresholds.pop("_comentario", None)
     return {"thresholds": thresholds, **suites}
