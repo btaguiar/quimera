@@ -215,3 +215,52 @@ class TestCacheHitSmoke:
         assert resp2.json()["cached"] is True
         assert len(extract.calls) == 1
         assert resp2.json()["rows"] == resp1.json()["rows"]
+
+
+class TestTokenProtection:
+    def test_wrong_token_returns_401(self):
+        client = TestClient(_app(api_token="segredo"))
+        resp = client.post(
+            "/leads",
+            json={"request": "clínicas em SP"},
+            headers={"X-Api-Token": "errado"},
+        )
+        assert resp.status_code == 401
+        assert resp.json()["error"] == "unauthorized"
+
+    def test_missing_token_returns_401(self):
+        client = TestClient(_app(api_token="segredo"))
+        resp = client.post("/leads", json={"request": "clínicas em SP"})
+        assert resp.status_code == 401
+
+    def test_correct_token_passes(self):
+        client = TestClient(_app(api_token="segredo"))
+        resp = client.post(
+            "/leads",
+            json={"request": "clínicas em SP"},
+            headers={"X-Api-Token": "segredo"},
+        )
+        assert resp.status_code == 200
+
+    def test_unset_token_disables_check(self):
+        client = TestClient(_app(api_token=None))
+        resp = client.post("/leads", json={"request": "clínicas em SP"})
+        assert resp.status_code == 200
+
+
+class TestBodyValidation:
+    def test_empty_request_returns_422(self):
+        client = TestClient(_app())
+        resp = client.post("/leads", json={"request": ""})
+        assert resp.status_code == 422
+        assert resp.json()["error"] == "validação"
+
+    def test_too_long_request_returns_422(self):
+        client = TestClient(_app())
+        resp = client.post("/leads", json={"request": "x" * 501})
+        assert resp.status_code == 422
+
+    def test_missing_request_field_returns_422(self):
+        client = TestClient(_app())
+        resp = client.post("/leads", json={})
+        assert resp.status_code == 422

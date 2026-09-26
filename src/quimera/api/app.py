@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from .. import __version__
 from ..policy import Policy, resolve_policy
 from .metrics import load_metrics
-from .protections import ApiConfig, normalize_request, request_hash
+from .protections import ApiConfig, normalize_request, request_hash, token_ok
 from .state import MemoryStateStore, StateStore
 
 logger = logging.getLogger("quimera.api")
@@ -92,7 +92,19 @@ def create_app(
         )
 
     @app.post("/leads")
-    def leads(body: LeadsRequestBody, request: Request):
+    def leads(
+        body: LeadsRequestBody,
+        request: Request,
+        x_api_token: str | None = Header(default=None),
+    ):
+        if not token_ok(x_api_token, config.api_token):
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": "unauthorized",
+                    "reason": "token ausente ou inválido (X-Api-Token)",
+                },
+            )
         key = request_hash(normalize_request(body.request))
         cached = state.cache_get(key)
         if cached is not None:
