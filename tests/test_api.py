@@ -488,9 +488,10 @@ class TestUnexpectedErrors:
             def models(self):
                 return self._Models(self)
 
+        exploding = ExplodingClient()
         app = create_app(
             config=_config(),
-            extract_client=ExplodingClient(),
+            extract_client=exploding,
             cnae_search=_cnae_search(CNAE_MATCHES),
             bq_client=FakePipelineBQ(),
         )
@@ -501,3 +502,13 @@ class TestUnexpectedErrors:
         assert data["error"] == "erro interno"
         assert data["reason"]
         assert "boom" not in data["reason"]
+        assert exploding.calls == 1
+
+
+class TestLifecycle:
+    def test_shutdown_event_shuts_down_executor(self):
+        app = _app()
+        with TestClient(app) as client:
+            resp = client.get("/health")
+            assert resp.status_code == 200
+        assert app.state.store.cache_mode() is False
