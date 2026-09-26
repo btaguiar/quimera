@@ -17,7 +17,7 @@ def _result(**overrides) -> PipelineResult:
         refused=False,
         filters=LeadFilters(ufs=["SP"], cnae_codes=["8630-5/01"]),
         cnae_matches=[("8630-5/01", "Atividades odontológicas", 0.92)],
-        municipio_resolution={"Santo André": "3547807"},
+        municipio_resolution={"Santo André": ["3547807"]},
         rows=[
             {
                 "razao_social": "CLINICA ALFA",

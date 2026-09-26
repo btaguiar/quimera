@@ -26,8 +26,12 @@ Decisões de projeto (detalhes na especificação `QUIMERA_SPEC.md`):
   nossa, parametrizada.
 - **Público vs. privado vive em um único lugar:** `core/policy.py`. Nenhum outro
   módulo decide isso, e `apply_policy` roda sempre depois do LLM.
-- **Teto de custo em toda consulta:** dry run obrigatório +
-  `maximum_bytes_billed`; acima do teto, a consulta é recusada.
+- **Teto de custo em toda consulta:** estimativa prévia obrigatória +
+  `maximum_bytes_billed`; acima do teto, a consulta é recusada. O dry run não
+  estima as tabelas de CNPJ, então a estimativa vem de uma sonda com teto de
+  1 byte (recusada sem custo, informando os bytes exigidos).
+- **Consulta direta custa ~13 GB** (filtros não reduzem bytes; medições em
+  `docs/schema.md`) — acima do teto padrão de 5 GiB.
 - **Consulta sempre presa ao snapshot mensal mais recente** de cada tabela
   particionada (resolvido via `INFORMATION_SCHEMA.PARTITIONS`, custo zero).
   Sem isso, ~45 snapshots empilhados custariam ~132 GB e duplicariam cada
@@ -117,7 +121,9 @@ partir do diretório `br_bd_diretorios_brasil.cnae_2`).
 
 ## Roadmap
 
-- [x] Fase 0 — schema validado no BigQuery (`docs/schema.md`; 3 pendências documentadas lá)
+- [x] Fase 0 — schema validado no BigQuery (`docs/schema.md`; pendências resolvidas)
+- [x] Auditoria de qualidade dos dados (`docs/schema.md`: porte, pessoa física,
+      homônimos, idade, capital, filiais, contabilidade de bytes)
 - [x] Fase 1 — núcleo (`filters`, `policy`, `cnae`, `extract`, `query`, `score`, `pipeline`, CLI) + testes
 - [x] Fase 2 — infraestrutura de avaliação (`eval/`: golden sets, métricas, limiares, relatório)
 - [x] Primeira medição real (extraction + CNAE) e baseline de recall@5 (0,742)

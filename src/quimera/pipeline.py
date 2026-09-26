@@ -17,6 +17,7 @@ from .extract import DEFAULT_MODEL, extract_filters
 from .filters import LeadFilters
 from .policy import Policy, apply_policy
 from .query import (
+    PORTE_LABELS_DEMAIS,
     QueryResult,
     build_query,
     resolve_latest_snapshots,
@@ -46,7 +47,7 @@ class PipelineResult:
     refusal_reason: str | None = None
     filters: LeadFilters | None = None
     cnae_matches: list[tuple[str, str, float]] = field(default_factory=list)
-    municipio_resolution: dict[str, str] = field(default_factory=dict)
+    municipio_resolution: dict[str, list[str]] = field(default_factory=dict)
     snapshot: dict[str, str] = field(default_factory=dict)
     rows: list[dict] = field(default_factory=list)
     bytes_processed: int = 0
@@ -56,6 +57,8 @@ class PipelineResult:
     model: str = ""
     policy: str = ""
     request_normalized: str = ""
+    # Limitações dos dados que afetaram ESTE resultado, em pt-BR.
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -73,6 +76,7 @@ class PipelineResult:
             "model": self.model,
             "policy": self.policy,
             "request_normalized": self.request_normalized,
+            "warnings": self.warnings,
         }
 
     def log_record(self) -> dict:
@@ -138,14 +142,58 @@ def run(
     # 2. Limites da policy aplicados DEPOIS do LLM e ANTES da query.
     filters = apply_policy(filters, policy)
 
-    # 3. Nome de município -> código IBGE por lookup no diretório.
-    municipio_resolution: dict[str, str] = {}
+    warnings: list[str] = []
+    if PORTE_LABELS_DEMAIS.intersection(filters.portes):
+        warnings.append(
+            "O cadastro não distingue porte médio de grande: ambos vêm do porte "
+            "'Demais' da Receita (tudo acima de pequeno porte), restrito a "
+            "entidades empresariais."
+        )
+
+    # 3. Nome de município -> códigos IBGE por lookup no diretório.
+    municipio_resolution: dict[str, list[str]] = {}
     if filters.municipio_names:
         municipio_resolution = resolve_municipality_ids(
-            filters.municipio_names, client=bq_client
+            filters.municipio_names, ufs=filters.ufs or None, client=bq_client
         )
+        unresolved = [
+            name for name in filters.municipio_names if name not in municipio_resolution
+        ]
+        if unresolved:
+            warnings.append(
+                "Município não encontrado no diretório do IBGE: "
+                + ", ".join(unresolved)
+                + "."
+            )
+        for name, ids in municipio_resolution.items():
+            if len(ids) > 1:
+                warnings.append(
+                    f"'{name}' existe em {len(ids)} municípios de UFs diferentes; "
+                    "todos foram incluídos. Informe a UF para restringir."
+                )
+        if not municipio_resolution:
+            # Sem nenhum município resolvido, rodar a query sem esse filtro
+            # devolveria empresas de qualquer lugar como se fossem do local pedido.
+            result = PipelineResult(
+                refused=False,
+                filters=filters,
+                cnae_matches=cnae_matches,
+                model=resolved_model,
+                policy=policy.name,
+                request_normalized=request_normalized,
+                warnings=warnings,
+            )
+            result.latency_ms = (time.perf_counter() - started) * 1000
+            logger.info("nenhum município resolvido; consulta não executada")
+            return result
         filters = filters.model_copy(
-            update={"municipio_ids": list(dict.fromkeys(municipio_resolution.values()))}
+            update={
+                "municipio_ids": list(
+                    dict.fromkeys(
+                        mid for ids in municipio_resolution.values() for mid in ids
+                    )
+                )
+            }
         )
 
     # 4. Snapshot mensal mais recente (metadados, sem custo) + query
@@ -178,6 +226,7 @@ def run(
         model=resolved_model,
         policy=policy.name,
         request_normalized=request_normalized,
+        warnings=warnings,
     )
     result.latency_ms = (time.perf_counter() - started) * 1000
     logger.info("execução concluída: %s", result.log_record())

@@ -17,17 +17,27 @@ from .filters import LeadFilters
 class Policy:
     name: str
     allow_mei: bool
+    # Natureza jurídica 4xxx (pessoa física: produtor rural, candidato etc.).
+    allow_pessoa_fisica: bool = False
     contact_fields: tuple[str, ...] = field(default=())
     max_rows: int = 50
 
 
-# Deploy público (portfólio): sem MEI, sem qualquer campo de contato/pessoa.
-PUBLIC = Policy(name="public", allow_mei=False, contact_fields=(), max_rows=50)
+# Deploy público (portfólio): sem MEI, sem pessoa física, sem qualquer campo
+# de contato/pessoa.
+PUBLIC = Policy(
+    name="public",
+    allow_mei=False,
+    allow_pessoa_fisica=False,
+    contact_fields=(),
+    max_rows=50,
+)
 
 # Deploy privado (Turno 24): MEI conforme filtros e contato do estabelecimento.
 PRIVATE = Policy(
     name="private",
     allow_mei=True,
+    allow_pessoa_fisica=True,
     contact_fields=("correio_eletronico", "telefone"),
     max_rows=1000,
 )

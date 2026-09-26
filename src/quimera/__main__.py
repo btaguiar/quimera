@@ -63,11 +63,15 @@ def _print_human(result: PipelineResult) -> None:
             parts.append("CNAEs=" + ",".join(result.filters.cnae_codes))
         if result.municipio_resolution:
             names = ", ".join(
-                f"{nome} ({cod})" for nome, cod in result.municipio_resolution.items()
+                f"{nome} ({', '.join(ids)})"
+                for nome, ids in result.municipio_resolution.items()
             )
             parts.append(f"municípios={names}")
         if parts:
             print("Filtros: " + " | ".join(parts))
+
+    for aviso in result.warnings:
+        print(f"Aviso: {aviso}")
 
     if result.cnae_matches:
         print("CNAEs escolhidos (similaridade):")
@@ -89,7 +93,8 @@ def _print_human(result: PipelineResult) -> None:
         motivo = row.get("motivos_score") or []
         primeiro_motivo = motivo[0] if motivo else ""
         print(
-            f"  {i}. {row.get('razao_social', '?')} ({municipio}/{uf}) — "
+            f"  {i}. {row.get('razao_social', '?')} [{row.get('cnpj', '?')}] "
+            f"({municipio}/{uf}) — "
             f"score {row.get('score', 0.0)} — {primeiro_motivo}"
         )
 

@@ -2,19 +2,21 @@
 
 Regras inegociáveis:
 - O LLM nunca escreve SQL: este módulo monta a query a partir de LeadFilters.
-- Toda execução passa por dry run obrigatório + ``maximum_bytes_billed``.
+- Toda execução passa por estimativa prévia obrigatória + ``maximum_bytes_billed``
+  (o dry run não estima estas tabelas — ver ``run_query``).
 - Valores do usuário vão SEMPRE como parâmetros nomeados, nunca interpolados.
 - Toda query filtra ``data`` (snapshot mensal): as tabelas empilham ~45 snapshots
   e sem o filtro cada empresa aparece ~45x e o custo explode (~132 GB vs ~1,7 GB;
   docs/schema.md).
 
-Nomes de tabelas/colunas validados na Fase 0 contra o BigQuery (docs/schema.md).
-Pendências marcadas com PENDENTE.
+Nomes de tabelas/colunas e qualidade dos dados medidos contra o BigQuery
+(docs/schema.md).
 """
 
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Mapping
@@ -33,7 +35,9 @@ TABLE_SIMPLES = f"`{DATASET}.simples`"  # não particionada
 # Diretório de municípios (lookup nome -> código IBGE); o LLM devolve nome, nunca código.
 TABLE_DIRETORIO_MUNICIPIOS = "`basedosdados.br_bd_diretorios_brasil.municipio`"
 
-COL_CNPJ_BASICO = "cnpj_basico"
+COL_CNPJ = "cnpj"  # 14 dígitos — identifica o estabelecimento (matriz ou filial)
+COL_CNPJ_BASICO = "cnpj_basico"  # 8 dígitos — identifica a empresa
+COL_MATRIZ_FILIAL = "identificador_matriz_filial"  # 1 = matriz, 2 = filial
 COL_SITUACAO_CADASTRAL = "situacao_cadastral"
 SITUACAO_CADASTRAL_ATIVA = "2"  # dicionário: chave de 1 dígito, sem zero à esquerda
 COL_SIGLA_UF = "sigla_uf"
@@ -46,9 +50,7 @@ COL_PORTE = "porte"  # códigos 0/1/3/5 — ver PORTE_LABEL_TO_CODES
 COL_RAZAO_SOCIAL = "razao_social"
 COL_NOME_FANTASIA = "nome_fantasia"
 COL_NATUREZA_JURIDICA = "natureza_juridica"
-COL_OPCAO_MEI = (
-    "opcao_mei"  # INTEGER; valores 0/1 presumidos (PENDENTE item 3 do schema.md)
-)
+COL_OPCAO_MEI = "opcao_mei"  # INTEGER 0/1 (medido; simples tem 1 linha por cnpj_basico)
 COL_CORREIO_ELETRONICO = "email"
 COL_TELEFONE = "telefone_1"
 COL_DATA_SNAPSHOT = "data"  # coluna de partição (snapshots mensais completos)
@@ -57,6 +59,16 @@ COL_DATA_SNAPSHOT = "data"  # coluna de partição (snapshots mensais completos)
 # Confirmado no diretório br_bd_diretorios_brasil.natureza_juridica:
 # 2135 = "Empresário (Individual)".
 NATUREZA_EMPRESARIO_INDIVIDUAL = "2135"
+# Primeiro dígito da natureza jurídica: 1 = administração pública,
+# 2 = entidade empresarial, 3 = sem fins lucrativos, 4 = pessoa física,
+# 5 = organização internacional.
+NATUREZA_PREFIXO_EMPRESARIAL = "2"
+# 4xxx é pessoa física (ex.: 4120 produtor rural, ~0,7 M ativos) — dado pessoal.
+NATUREZA_PREFIXO_PESSOA_FISICA = "4"
+
+# Valor sentinela de capital social (124 empresas com exatamente este valor,
+# medido em 2026-09-26) — tratado como "não informado", assim como 0.
+CAPITAL_SOCIAL_SENTINELA = 999_999_999_999.0
 
 # Tabelas particionadas por snapshot mensal — build_query exige a data de cada uma.
 SNAPSHOT_TABLES = ("estabelecimentos", "empresas")
@@ -71,15 +83,16 @@ SNAPSHOT_DISCOVERY_MAX_BYTES = 16 * 1024**3
 # Janelas que recuem até cobrir o início do dataset (~2021) — vazias não custam.
 SNAPSHOT_DISCOVERY_MAX_STEPS = 24
 
-# Fase 0: porte só distingue 1=Micro, 3=Pequeno Porte, 5=Demais. "media" e
-# "grande" são indistinguíveis (ambas caem em '5') — PENDENTE decisão de produto
-# (item 2 do schema.md).
+# Porte só distingue 1=Micro, 3=Pequeno Porte, 5=Demais. "media" e "grande"
+# são indistinguíveis: ambas viram '5' restrito a entidades empresariais (2xxx).
+# Sem essa restrição, 53% do '5' ativo é associação, condomínio, igreja, órgão
+# público ou pessoa física (medido em 2026-09-26; docs/schema.md).
 PORTE_LABEL_TO_CODES: dict[str, tuple[str, ...]] = {
     "micro": ("1",),
     "pequena": ("3",),
-    "media": ("5",),
-    "grande": ("5",),
 }
+PORTE_DEMAIS = "5"
+PORTE_LABELS_DEMAIS = frozenset({"media", "grande"})
 PORTE_CODES_TO_LABELS: dict[str, str] = {
     "1": "micro",
     "3": "pequena",
@@ -161,7 +174,12 @@ def build_query(
         )
 
     select_cols = [
+        # cnpj (14 dígitos) identifica o estabelecimento: com só cnpj_basico,
+        # matriz e filiais da mesma empresa sairiam como linhas repetidas.
+        f"est.{COL_CNPJ}",
         f"est.{COL_CNPJ_BASICO}",
+        f"CASE est.{COL_MATRIZ_FILIAL} WHEN '1' THEN 'matriz'"
+        " WHEN '2' THEN 'filial' ELSE NULL END AS matriz_filial",
         f"emp.{COL_RAZAO_SOCIAL}",
         f"est.{COL_NOME_FANTASIA}",
         f"est.{COL_SIGLA_UF}",
@@ -216,31 +234,69 @@ def build_query(
             )
         )
 
+    # Idade em anos COMPLETOS. DATE_DIFF(..., YEAR) conta viradas de ano
+    # (31/12/2024 -> 26/09/2026 dá 2), então "mais de 2 anos" aceitaria
+    # empresas com 1 ano e 9 meses.
     if filters.min_age_years is not None:
         where.append(
-            f"DATE_DIFF(CURRENT_DATE(), est.{COL_DATA_INICIO_ATIVIDADE}, YEAR)"
-            " >= @min_age_years"
+            f"est.{COL_DATA_INICIO_ATIVIDADE}"
+            " <= DATE_SUB(CURRENT_DATE(), INTERVAL @min_age_years YEAR)"
         )
         params.append(QueryParam("min_age_years", "INT64", filters.min_age_years))
 
     if filters.max_age_years is not None:
+        # Idade completa <= N  <=>  início > hoje - (N + 1) anos.
         where.append(
-            f"DATE_DIFF(CURRENT_DATE(), est.{COL_DATA_INICIO_ATIVIDADE}, YEAR)"
-            " <= @max_age_years"
+            f"est.{COL_DATA_INICIO_ATIVIDADE}"
+            " > DATE_SUB(CURRENT_DATE(), INTERVAL @max_age_years + 1 YEAR)"
         )
         params.append(QueryParam("max_age_years", "INT64", filters.max_age_years))
 
     if filters.min_capital is not None:
-        where.append(f"emp.{COL_CAPITAL_SOCIAL} >= @min_capital")
+        # O sentinela 999.999.999.999 passaria em qualquer mínimo.
+        where.append(
+            f"emp.{COL_CAPITAL_SOCIAL} >= @min_capital"
+            f" AND emp.{COL_CAPITAL_SOCIAL} < @capital_sentinela"
+        )
         params.append(QueryParam("min_capital", "FLOAT64", filters.min_capital))
+        params.append(
+            QueryParam("capital_sentinela", "FLOAT64", CAPITAL_SOCIAL_SENTINELA)
+        )
 
     if filters.portes:
-        # Rótulos do usuário (micro/pequena/media/grande) -> códigos do dataset.
+        # Rótulos do usuário -> códigos do dataset. media/grande viram "Demais"
+        # restrito a entidades empresariais (ver PORTE_LABELS_DEMAIS).
+        porte_clauses: list[str] = []
         codes = [
-            code for label in filters.portes for code in PORTE_LABEL_TO_CODES[label]
+            code
+            for label in filters.portes
+            for code in PORTE_LABEL_TO_CODES.get(label, ())
         ]
-        where.append(f"emp.{COL_PORTE} IN UNNEST(@portes)")
-        params.append(QueryParam("portes", "ARRAY<STRING>", codes))
+        if codes:
+            porte_clauses.append(f"emp.{COL_PORTE} IN UNNEST(@portes)")
+            params.append(QueryParam("portes", "ARRAY<STRING>", codes))
+        if PORTE_LABELS_DEMAIS.intersection(filters.portes):
+            porte_clauses.append(
+                f"(emp.{COL_PORTE} = @porte_demais"
+                f" AND STARTS_WITH(emp.{COL_NATUREZA_JURIDICA}, @natureza_empresarial))"
+            )
+            params.append(QueryParam("porte_demais", "STRING", PORTE_DEMAIS))
+            params.append(
+                QueryParam(
+                    "natureza_empresarial", "STRING", NATUREZA_PREFIXO_EMPRESARIAL
+                )
+            )
+        where.append("(" + " OR ".join(porte_clauses) + ")")
+
+    if not policy.allow_pessoa_fisica:
+        where.append(
+            f"NOT STARTS_WITH(emp.{COL_NATUREZA_JURIDICA}, @natureza_pessoa_fisica)"
+        )
+        params.append(
+            QueryParam(
+                "natureza_pessoa_fisica", "STRING", NATUREZA_PREFIXO_PESSOA_FISICA
+            )
+        )
 
     exclude_mei = (not policy.allow_mei) or (not filters.include_mei)
     if exclude_mei:
@@ -369,27 +425,37 @@ def resolve_latest_snapshots(*, client: Any | None = None) -> dict[str, date]:
 def resolve_municipality_ids(
     names: list[str],
     *,
+    ufs: list[str] | None = None,
     client: Any | None = None,
-) -> dict[str, str]:
-    """Resolve nomes de municípios (como escritos pelo usuário) para código IBGE.
+) -> dict[str, list[str]]:
+    """Resolve nomes de municípios (como escritos pelo usuário) para códigos IBGE.
 
     Lookup na tabela de diretório — nunca confiamos em código inventado pelo LLM.
     A tabela é pequena (~5,5 mil municípios); lê-se inteira e casa no cliente com
     normalização (sem acento, maiúscula), então "santo andre" acha "Santo André".
-    Devolve apenas os nomes resolvidos: ``{nome_digitado: id_ibge}``.
+
+    Nomes se repetem entre UFs (233 nomes; "Santo André" existe em SP e na PB),
+    então cada nome resolve para uma LISTA de códigos: restrita às ``ufs`` do
+    pedido quando houver, ou todos os homônimos quando não houver.
+    Devolve apenas os nomes resolvidos: ``{nome_digitado: [id_ibge, ...]}``.
     """
     client = client or _default_client()
     sql = (
-        f"SELECT {COL_NOME_MUNICIPIO}, {COL_ID_MUNICIPIO}\n"
+        f"SELECT {COL_NOME_MUNICIPIO}, {COL_SIGLA_UF}, {COL_ID_MUNICIPIO}\n"
         f"FROM {TABLE_DIRETORIO_MUNICIPIOS}"
     )
     job = client.query(sql)
-    lookup = {
-        normalize_name(row[COL_NOME_MUNICIPIO]): str(row[COL_ID_MUNICIPIO])
-        for row in job.result()
-    }
+    wanted_ufs = set(ufs or ())
+    lookup: dict[str, list[str]] = {}
+    for row in job.result():
+        if wanted_ufs and row.get(COL_SIGLA_UF) not in wanted_ufs:
+            continue
+        key = normalize_name(row[COL_NOME_MUNICIPIO])
+        lookup.setdefault(key, []).append(str(row[COL_ID_MUNICIPIO]))
     return {
-        name: lookup[key] for name in names if (key := normalize_name(name)) in lookup
+        name: sorted(lookup[key])
+        for name in names
+        if (key := normalize_name(name)) in lookup
     }
 
 
@@ -409,15 +475,47 @@ def _is_bytes_limit_error(exc: Exception) -> bool:
     )
 
 
+_REQUIRED_BYTES_RE = re.compile(r"(\d+) or higher required")
+
+
+def _required_bytes(exc: Exception) -> int | None:
+    """Bytes exigidos, lidos da mensagem de ``bytesBilledLimitExceeded``."""
+    messages = [str(exc)] + [
+        str(err.get("message", ""))
+        for err in (getattr(exc, "errors", None) or [])
+        if isinstance(err, dict)
+    ]
+    for message in messages:
+        match = _REQUIRED_BYTES_RE.search(message)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _budget_error(max_bytes: int, required: int | None) -> BytesBudgetExceededError:
+    detail = f"exige {required} bytes, " if required is not None else ""
+    return BytesBudgetExceededError(
+        f"Consulta recusada: {detail}acima do teto de {max_bytes} bytes "
+        "(MAX_BYTES_BILLED). "
+        "Refine os filtros (UF, município, CNAE) para reduzir o volume."
+    )
+
+
 def run_query(
     spec: QuerySpec,
     *,
     client: Any | None = None,
     max_bytes_billed: int | None = None,
 ) -> QueryResult:
-    """Executa com dry run obrigatório + maximum_bytes_billed.
+    """Executa com estimativa prévia obrigatória + maximum_bytes_billed.
 
-    Se o dry run estimar acima do teto, a consulta é recusada antes de rodar.
+    Nas tabelas de CNPJ o BigQuery não informa bytes: dry run, job e
+    INFORMATION_SCHEMA.JOBS devolvem ``None`` (medido em 2026-09-26). A
+    estimativa vem de uma sonda com ``maximum_bytes_billed=1``: o BigQuery
+    recusa o job sem cobrar e informa "N or higher required". Esse N decide
+    a recusa antes de rodar e é o valor contabilizado quando o job não
+    reporta bytes (sem isso o orçamento diário da API nunca baixaria).
+    Se a sonda passar (cache hit, custo zero), o resultado dela é usado.
     """
     from google.cloud import bigquery  # lazy import — extra ``gcp``
 
@@ -425,19 +523,25 @@ def run_query(
     client = client or _default_client()
     bq_params = _to_bq_parameters(spec.params)
 
-    dry_run_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
-    dry_run_job = client.query(spec.sql, job_config=dry_run_config)
-    estimated = dry_run_job.total_bytes_processed
-    # Fase 0 (PENDENTE 4 do schema.md): o dry run destas tabelas devolve None
-    # em vez de estimativa. None NÃO pode quebrar a execução — a barreira dura
-    # continua sendo o maximum_bytes_billed do job real, que o BigQuery recusa
-    # se a consulta ultrapassar.
-    if estimated is not None and estimated > max_bytes:
-        raise BytesBudgetExceededError(
-            f"Consulta recusada: dry run estimou {estimated} bytes, "
-            f"acima do teto de {max_bytes} bytes (MAX_BYTES_BILLED). "
-            "Refine os filtros (UF, município, CNAE) para reduzir o volume."
+    probe_config = bigquery.QueryJobConfig(
+        query_parameters=bq_params, maximum_bytes_billed=1
+    )
+    try:
+        probe = client.query(spec.sql, job_config=probe_config)
+        rows = [dict(row) for row in probe.result()]
+    except Exception as exc:
+        if not _is_bytes_limit_error(exc):
+            raise
+        estimated = _required_bytes(exc)
+    else:
+        return QueryResult(
+            rows=rows,
+            bytes_processed=probe.total_bytes_processed or 0,
+            bytes_billed=probe.total_bytes_billed or 0,
         )
+
+    if estimated is not None and estimated > max_bytes:
+        raise _budget_error(max_bytes, estimated)
 
     job_config = bigquery.QueryJobConfig(
         query_parameters=bq_params,
@@ -448,14 +552,16 @@ def run_query(
         rows = [dict(row) for row in job.result()]
     except Exception as exc:
         if _is_bytes_limit_error(exc):
-            raise BytesBudgetExceededError(
-                f"Consulta recusada: a execução ultrapassaria o teto de "
-                f"{max_bytes} bytes (MAX_BYTES_BILLED). "
-                "Refine os filtros (UF, município, CNAE) para reduzir o volume."
-            ) from exc
+            raise _budget_error(max_bytes, _required_bytes(exc)) from exc
         raise
+    # Job sem bytes reportados: contabiliza a estimativa da sonda.
+    fallback = estimated or 0
     return QueryResult(
         rows=rows,
-        bytes_processed=job.total_bytes_processed or 0,
-        bytes_billed=job.total_bytes_billed or 0,
+        bytes_processed=job.total_bytes_processed
+        if job.total_bytes_processed is not None
+        else fallback,
+        bytes_billed=job.total_bytes_billed
+        if job.total_bytes_billed is not None
+        else fallback,
     )

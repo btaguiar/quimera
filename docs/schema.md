@@ -105,20 +105,26 @@ Confirmados como já corretos: todos os nomes de tabela, `cnpj_basico`,
 `cnae_fiscal_principal`, `data_inicio_atividade`, `capital_social`, `porte`,
 `razao_social`, `nome_fantasia`, `natureza_juridica`, `opcao_mei`, `telefone_1`.
 
-## PENDENTE — não validável neste dataset
+## Pendências da Fase 0 — todas resolvidas (2026-09-26)
 
-1. ~~**`NATUREZA_EMPRESARIO_INDIVIDUAL = "2135"`**~~ **RESOLVIDO (2026-09-26)**:
-   o diretório `br_bd_diretorios_brasil.natureza_juridica` confirma
-   `2135 = "Empresário (Individual)"`.
-2. **`porte` não tem "média" nem "grande".** `filters.py` aceita
-   `{micro, pequena, media, grande}`, e `score.py` usa `preferred_portes=("media",)`
-   — mas a coluna só distingue Micro / Pequeno Porte / Demais. "Média" e "grande"
-   caem juntas em `"5"` (Demais), indistinguíveis. Decisão de produto pendente.
-3. **`opcao_mei` é INTEGER**, não `'S'/'N'` como o comentário no código supunha.
-   Valores (provavelmente 0/1) não estão no `dicionario`.
-4. **Dry run não estima bytes** em `estabelecimentos`/`empresas`:
-   `total_bytes_processed` volta `None`. Em tabelas normais (`dicionario`,
-   `municipio`) volta normalmente. O job real reporta bytes — só o dry run não.
+1. **`NATUREZA_EMPRESARIO_INDIVIDUAL = "2135"`** — confirmado no diretório
+   `br_bd_diretorios_brasil.natureza_juridica` (`2135 = "Empresário (Individual)"`).
+2. **`porte` não tem "média" nem "grande"** — a coluna só distingue Micro /
+   Pequeno Porte / Demais. Decisão: `media` e `grande` viram `'5'` **restrito a
+   natureza jurídica 2xxx** (entidade empresarial), e o resultado traz um aviso
+   de que médio e grande são indistinguíveis. Sem a restrição, "empresa média"
+   devolvia sobretudo associação, condomínio e igreja (ver qualidade abaixo).
+3. **`opcao_mei` é INTEGER 0/1** — medido: `simples` tem 49,9 M linhas e 49,9 M
+   `cnpj_basico` distintos (o LEFT JOIN não duplica). Distribuição
+   (`opcao_mei`, `opcao_simples`): (0,0) 24,3 M · (1,1) 17,3 M · (0,1) 8,2 M ·
+   (1,0) 477.
+4. **O BigQuery não informa bytes nas tabelas de CNPJ** — nem no dry run, nem
+   no job real, nem em `INFORMATION_SCHEMA.JOBS` (`total_bytes_billed = None`).
+   O `maximum_bytes_billed` **é respeitado** (testado com teto de 10 MB:
+   recusado). A recusa informa o custo: `"N or higher required"`. `run_query`
+   usa isso como estimativa: sonda com `maximum_bytes_billed=1` (recusada sem
+   custo, ~1,6 s), compara N com o teto e contabiliza N quando o job não
+   reporta bytes — senão o orçamento diário da API nunca baixava.
 
 ## Achados de 2026-09-26 (primeira medição real)
 
@@ -135,3 +141,72 @@ Confirmados como já corretos: todos os nomes de tabela, `cnpj_basico`,
 - **Modelos validados na conta** (Vertex AI, `us-central1`): `gemini-2.5-flash`,
   `text-embedding-004` (768 dim), `text-embedding-005` (768 dim),
   `gemini-embedding-001` (3072 dim).
+
+## Custo real por consulta (medido 2026-09-26, snapshot 2026-01-11)
+
+As tabelas são clusterizadas só por `ano, mes`: filtros de UF, município e
+CNAE **não reduzem bytes**. Cada coluna lida custa a coluna inteira da
+partição (~1,8–4 GB por coluna, contando o overhead da partição).
+
+| consulta | bytes |
+|---|---|
+| `build_query` antes desta revisão (qualquer filtro) | **11,86 GB** |
+| `build_query` atual (+ `cnpj`, matriz/filial) | **13,17 GB** |
+| teto padrão `MAX_BYTES_BILLED` | 5 GiB |
+
+**Consequência: com o teto padrão, toda consulta de leads é recusada.** O dry
+run sem estimativa escondia isso. Custo on-demand ≈ US$ 0,08 por consulta.
+
+## Qualidade dos dados (medida 2026-09-26, snapshot 2026-01-11)
+
+`estabelecimentos` (69,2 M linhas; `cnpj` único por linha):
+
+| situação | linhas |
+|---|---|
+| 8 Baixada | 32,3 M |
+| **2 Ativa** | **27,8 M** |
+| 4 Inapta | 8,7 M |
+| 3 Suspensa | 0,3 M |
+| 1 Nula | 0,1 M |
+
+Entre as **ativas**: 1,33 M filiais (por isso o resultado traz `cnpj` de 14
+dígitos e `matriz_filial` — com só `cnpj_basico` saíam linhas repetidas);
+79 mil sem `id_municipio` (0,3%); 10 mil com CNAE placeholder `8888888` (não
+está no índice de embeddings, logo nunca é filtrado); 0 sem
+`data_inicio_atividade`, 0 com data futura, 4 anteriores a 1900; 0 CNAE
+malformado. 2.452 ativos sem linha em `empresas` (somem no JOIN).
+
+`empresas` (66,0 M linhas; `cnpj_basico` único): 42,5 M são 2135 (Empresário
+Individual). `capital_social`: 0 nulos, **17,5 M com 0** (= não informado),
+4,5 M entre R$ 1 e R$ 99, **124 com o sentinela 999.999.999.999** — 0 e o
+sentinela são tratados como "não informado" no score e o sentinela é excluído
+do filtro de capital mínimo. Não há teto seguro abaixo disso: há capitais
+legítimos acima de R$ 100 bi.
+
+Porte × natureza jurídica (estabelecimentos ativos):
+
+| natureza (1º dígito) | porte 1 Micro | porte 3 EPP | porte 5 Demais |
+|---|---|---|---|
+| 1 administração pública | — | — | 84 mil |
+| **2 entidade empresarial** | 22,2 M | 1,54 M | **1,88 M** |
+| 3 sem fins lucrativos | 15 | 3 | 1,33 M |
+| **4 pessoa física** | 2 | 1 | **698 mil** |
+| 5 organização internacional | — | — | 589 |
+
+- Porte "Demais" ativo: só 47% é entidade empresarial; o resto é associação
+  (3999), condomínio (3085), organização religiosa (3220), produtor rural
+  pessoa física (4120), órgão público. 90% das empresas "Demais" têm capital 0.
+- **Natureza 4xxx é pessoa física** (4120 produtor rural = 692 mil ativos). O
+  deploy público excluía só 2135 — agora exclui toda natureza 4xxx
+  (`Policy.allow_pessoa_fisica`).
+
+Diretório de municípios: **233 nomes se repetem entre UFs** (Bom Jesus e São
+Domingos em 5 UFs; **Santo André em SP e na PB**). O lookup guardava um id por
+nome (o último lido, arbitrário); agora devolve todos, restritos às UFs do
+pedido quando houver, com aviso de ambiguidade. Município não encontrado não
+amplia mais a busca para o país inteiro: a consulta não é executada.
+
+Idade: `DATE_DIFF(CURRENT_DATE(), inicio, YEAR)` conta viradas de ano
+(31/12/2024 → 26/09/2026 = "2 anos"). O filtro agora compara com
+`DATE_SUB(CURRENT_DATE(), INTERVAL n YEAR)` (anos completos), e o score usa a
+mesma regra. Validado no real: "≥ 2 anos" devolveu idade mínima de 2,06 anos.

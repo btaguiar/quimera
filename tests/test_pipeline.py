@@ -102,8 +102,12 @@ class TestHappyPath:
                 ),
             ]
         )
+        # "Santo André" existe em SP e na PB: a UF do pedido desempata.
         bq = FakePipelineBQ(
-            municipio_rows=[{"nome": "Santo André", "id_municipio": "3547807"}],
+            municipio_rows=[
+                {"nome": "Santo André", "sigla_uf": "SP", "id_municipio": "3547807"},
+                {"nome": "Santo André", "sigla_uf": "PB", "id_municipio": "2513851"},
+            ],
             lead_rows=LEAD_ROWS,
         )
         result = run(
@@ -127,8 +131,9 @@ class TestHappyPath:
         assert result.filters.limit == 50
         assert result.filters.include_mei is False
         # município resolvido por lookup no diretório
-        assert result.municipio_resolution == {"Santo André": "3547807"}
+        assert result.municipio_resolution == {"Santo André": ["3547807"]}
         assert result.filters.municipio_ids == ["3547807"]
+        assert result.warnings == []
         # snapshot mensal resolvido por descoberta e aplicado na query
         assert bq.snapshot_queries and "MAX(data)" in bq.snapshot_queries[0][0]
         assert result.snapshot == {
@@ -176,17 +181,55 @@ class TestOptionalSteps:
         assert cnae_search.calls == []
         assert result.filters.cnae_codes == []
 
-    def test_unresolved_municipality_drops_municipio_filter(self):
+    def test_unresolved_municipality_does_not_broaden_search(self):
+        # Rodar sem o filtro devolveria empresas de qualquer lugar como se
+        # fossem de "Narnia": sem município resolvido, nada é consultado.
         extract = FakeGenaiClient(_extraction_payload(municipio_names=["Narnia"]))
         bq = FakePipelineBQ(
-            municipio_rows=[{"nome": "Campinas", "id_municipio": "3509502"}],
-            lead_rows=[],
+            municipio_rows=[
+                {"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}
+            ],
+            lead_rows=LEAD_ROWS,
         )
         result = run("empresas em Narnia", PUBLIC, extract_client=extract, bq_client=bq)
         assert result.municipio_resolution == {}
-        assert result.filters.municipio_ids == []
-        sql, _ = bq.executed[0]
-        assert "@municipio_ids" not in sql
+        assert result.rows == []
+        assert bq.executed == []
+        assert any("Narnia" in w for w in result.warnings)
+
+    def test_partially_resolved_municipalities_warn_and_query(self):
+        extract = FakeGenaiClient(
+            _extraction_payload(municipio_names=["Campinas", "Narnia"])
+        )
+        bq = FakePipelineBQ(
+            municipio_rows=[
+                {"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}
+            ],
+            lead_rows=[],
+        )
+        result = run("empresas", PUBLIC, extract_client=extract, bq_client=bq)
+        assert result.filters.municipio_ids == ["3509502"]
+        assert any("Narnia" in w for w in result.warnings)
+        assert len(bq.executed) == 1
+
+    def test_homonym_without_uf_includes_all_and_warns(self):
+        extract = FakeGenaiClient(_extraction_payload(municipio_names=["Santo André"]))
+        bq = FakePipelineBQ(
+            municipio_rows=[
+                {"nome": "Santo André", "sigla_uf": "SP", "id_municipio": "3547807"},
+                {"nome": "Santo André", "sigla_uf": "PB", "id_municipio": "2513851"},
+            ],
+            lead_rows=[],
+        )
+        result = run("empresas", PUBLIC, extract_client=extract, bq_client=bq)
+        assert sorted(result.filters.municipio_ids) == ["2513851", "3547807"]
+        assert any("Informe a UF" in w for w in result.warnings)
+
+    def test_media_or_grande_porte_warns_about_dataset_limit(self):
+        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"], portes=["media"]))
+        bq = FakePipelineBQ(lead_rows=[])
+        result = run("empresas médias", PUBLIC, extract_client=extract, bq_client=bq)
+        assert any("médio de grande" in w for w in result.warnings)
 
     def test_private_flow_keeps_contact_columns(self):
         extract = FakeGenaiClient(

@@ -14,6 +14,10 @@ from .text import strip_accents
 
 MEI_TRUTHY = {"s", "sim", "1", "true", "y", "yes"}
 
+# Capital social 0 (17,5 M empresas) e o sentinela 999.999.999.999 significam
+# "não informado" no cadastro, não capital baixo/alto (docs/schema.md).
+CAPITAL_SENTINELA = 999_999_999_999.0
+
 
 @dataclass(frozen=True)
 class ICPConfig:
@@ -21,10 +25,10 @@ class ICPConfig:
 
     ``preferred_portes`` usa os rótulos que o SELECT devolve: micro/pequena/demais.
     "demais" = tudo que não é micro nem pequeno porte — média e grande são
-    indistinguíveis no dataset (docs/schema.md, item 2 pendente).
+    indistinguíveis no dataset (docs/schema.md).
     """
 
-    preferred_portes: tuple[str, ...] = ("media", "demais")
+    preferred_portes: tuple[str, ...] = ("demais",)
     target_min_age_years: int = 2
     target_min_capital: float = 50_000.0
     mei_factor: float = 0.5  # peso reduzido para MEI
@@ -65,13 +69,18 @@ def _parse_date(value: Any) -> date | None:
     return None
 
 
-def _age_years(lead: Mapping[str, Any]) -> int | None:
+def _age_years(lead: Mapping[str, Any], today: date | None = None) -> int | None:
+    """Idade em anos completos — mesma regra do filtro de idade da query."""
     if lead.get("idade_anos") is not None:
         return int(lead["idade_anos"])
     start = _parse_date(lead.get("data_inicio_atividade"))
     if start is None:
         return None
-    return (date.today() - start).days // 365
+    today = today or date.today()
+    years = today.year - start.year
+    if (today.month, today.day) < (start.month, start.day):
+        years -= 1
+    return years
 
 
 def score_lead(lead: Mapping[str, Any], icp: ICPConfig) -> tuple[float, list[str]]:
@@ -97,7 +106,9 @@ def score_lead(lead: Mapping[str, Any], icp: ICPConfig) -> tuple[float, list[str
     capital = lead.get("capital_social")
     if capital is not None:
         capital = float(capital)
-        if capital >= icp.target_min_capital:
+        if capital <= 0 or capital >= CAPITAL_SENTINELA:
+            motivos.append("capital social não informado no cadastro")
+        elif capital >= icp.target_min_capital:
             score += icp.w_capital
             motivos.append(f"capital social de R$ {capital:,.0f} acima do alvo do ICP")
         else:

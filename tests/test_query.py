@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 
+from fakes import FakeRejectedJob, is_estimate_probe
 from quimera.filters import LeadFilters
 from quimera.policy import PRIVATE, PUBLIC
 from quimera.query import (
@@ -40,6 +41,15 @@ class TestBuildQueryPublic:
         assert "natureza_juridica" in spec.sql
         assert _param(spec, "natureza_empresario_individual").value == "2135"
 
+    def test_public_excludes_pessoa_fisica(self):
+        # Natureza 4xxx = pessoa física (ex.: 4120 produtor rural).
+        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
+        assert (
+            "NOT STARTS_WITH(emp.natureza_juridica, @natureza_pessoa_fisica)"
+            in spec.sql
+        )
+        assert _param(spec, "natureza_pessoa_fisica").value == "4"
+
     def test_active_situation_uses_one_digit_code(self):
         spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
         assert _param(spec, "situacao_ativa").value == "2"
@@ -55,6 +65,10 @@ class TestBuildQueryPrivate:
     def test_private_without_mei_still_excludes_mei(self):
         spec = build_query(LeadFilters(include_mei=False), PRIVATE, snapshots=SNAPSHOTS)
         assert "COALESCE(sim.opcao_mei, 0) != 1" in spec.sql
+
+    def test_private_allows_pessoa_fisica(self):
+        spec = build_query(LeadFilters(), PRIVATE, snapshots=SNAPSHOTS)
+        assert "@natureza_pessoa_fisica" not in spec.sql
 
     def test_private_with_mei_selects_mei_flag(self):
         spec = build_query(LeadFilters(include_mei=True), PRIVATE, snapshots=SNAPSHOTS)
@@ -125,19 +139,56 @@ class TestBuildQueryClauses:
         assert _param(spec, "max_age_years").value == 10
         assert _param(spec, "min_capital").value == 5000.0
 
-    def test_age_uses_date_column_directly(self):
-        # data_inicio_atividade é DATE (Fase 0) — sem PARSE_DATE de string.
+    def test_age_counts_complete_years(self):
+        # DATE_DIFF(..., YEAR) conta viradas de ano: 31/12/2024 -> 26/09/2026
+        # daria 2 "anos". A comparação com DATE_SUB exige anos completos.
         filters = LeadFilters(min_age_years=2, max_age_years=10)
         spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
-        assert "DATE_DIFF(CURRENT_DATE(), est.data_inicio_atividade, YEAR)" in spec.sql
+        assert (
+            "est.data_inicio_atividade"
+            " <= DATE_SUB(CURRENT_DATE(), INTERVAL @min_age_years YEAR)"
+        ) in spec.sql
+        assert (
+            "est.data_inicio_atividade"
+            " > DATE_SUB(CURRENT_DATE(), INTERVAL @max_age_years + 1 YEAR)"
+        ) in spec.sql
+        assert "DATE_DIFF" not in spec.sql
         assert "SAFE.PARSE_DATE" not in spec.sql
 
     def test_portes_translated_to_dataset_codes(self):
-        # Fase 0: porte só distingue 1=Micro, 3=Pequeno Porte, 5=Demais;
-        # "media" e "grande" são indistinguíveis — ambas caem em '5'.
-        filters = LeadFilters(portes=["media", "micro"])
+        filters = LeadFilters(portes=["pequena", "micro"])
         spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
-        assert _param(spec, "portes").value == ["5", "1"]
+        assert _param(spec, "portes").value == ["3", "1"]
+        assert "@porte_demais" not in spec.sql
+
+    def test_media_grande_are_demais_restricted_to_business_entities(self):
+        # Porte só distingue 1/3/5; '5' (Demais) ativo é 53% associação,
+        # condomínio, igreja, órgão público e pessoa física (medido).
+        filters = LeadFilters(portes=["media", "grande", "micro"])
+        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        assert _param(spec, "portes").value == ["1"]
+        assert _param(spec, "porte_demais").value == "5"
+        assert _param(spec, "natureza_empresarial").value == "2"
+        assert (
+            "(emp.porte IN UNNEST(@portes) OR (emp.porte = @porte_demais"
+            " AND STARTS_WITH(emp.natureza_juridica, @natureza_empresarial)))"
+        ) in spec.sql
+
+    def test_only_media_has_no_exact_porte_param(self):
+        spec = build_query(LeadFilters(portes=["media"]), PUBLIC, snapshots=SNAPSHOTS)
+        assert "@portes" not in spec.sql
+        assert "@porte_demais" in spec.sql
+
+    def test_min_capital_excludes_sentinel(self):
+        spec = build_query(LeadFilters(min_capital=1e6), PUBLIC, snapshots=SNAPSHOTS)
+        assert "emp.capital_social < @capital_sentinela" in spec.sql
+        assert _param(spec, "capital_sentinela").value == 999_999_999_999.0
+
+    def test_selects_full_cnpj_and_matriz_filial(self):
+        # Com só cnpj_basico, matriz e filiais sairiam como linhas repetidas.
+        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
+        assert "est.cnpj,\n" in spec.sql
+        assert "AS matriz_filial" in spec.sql
 
     def test_porte_select_translated_to_labels(self):
         spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
@@ -165,20 +216,27 @@ class _FakeJob:
 
 
 class FakeBQClient:
-    """Cliente BigQuery falso: dry run devolve estimativa, execução devolve rows."""
+    """Cliente BigQuery falso: a sonda de 1 byte é recusada com a estimativa
+    ("N or higher required"), a execução devolve rows.
 
-    def __init__(self, dry_run_bytes=1000, rows=None, dry_run_estimate_none=False):
-        self.dry_run_bytes = dry_run_bytes
+    ``job_reports_bytes=False`` imita as tabelas de CNPJ, cujo job real devolve
+    ``total_bytes_billed=None`` (medido em 2026-09-26).
+    """
+
+    def __init__(self, estimate_bytes=1000, rows=None, job_reports_bytes=True):
+        self.estimate_bytes = estimate_bytes
         self.rows = rows or []
-        self.dry_run_estimate_none = dry_run_estimate_none
+        self.job_reports_bytes = job_reports_bytes
         self.executed = []
+        self.probes = []
 
     def query(self, sql, job_config=None):
-        if job_config is not None and job_config.dry_run:
-            estimate = None if self.dry_run_estimate_none else self.dry_run_bytes
-            return _FakeJob(estimate)
+        if is_estimate_probe(job_config):
+            self.probes.append((sql, job_config))
+            return FakeRejectedJob(1, self.estimate_bytes)
         self.executed.append((sql, job_config))
-        return _FakeJob(self.dry_run_bytes, self.rows)
+        reported = self.estimate_bytes if self.job_reports_bytes else None
+        return _FakeJob(reported, self.rows)
 
 
 class FakeDirectoryClient:
@@ -320,22 +378,53 @@ class TestResolveMunicipalityIds:
     def test_resolves_names_ignoring_accents_and_case(self):
         client = FakeDirectoryClient(
             [
-                {"nome": "Santo André", "id_municipio": 3547807},
-                {"nome": "Campinas", "id_municipio": "3509502"},
+                {"nome": "Santo André", "sigla_uf": "SP", "id_municipio": 3547807},
+                {"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"},
             ]
         )
         resolved = resolve_municipality_ids(["santo andre", "CAMPINAS"], client=client)
-        assert resolved == {"santo andre": "3547807", "CAMPINAS": "3509502"}
+        assert resolved == {"santo andre": ["3547807"], "CAMPINAS": ["3509502"]}
 
     def test_unresolved_names_are_absent(self):
-        client = FakeDirectoryClient([{"nome": "Campinas", "id_municipio": "3509502"}])
+        client = FakeDirectoryClient(
+            [{"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}]
+        )
         resolved = resolve_municipality_ids(["Narnia", "Campinas"], client=client)
-        assert resolved == {"Campinas": "3509502"}
+        assert resolved == {"Campinas": ["3509502"]}
+
+    def test_homonyms_resolve_to_every_match_without_uf(self):
+        # 233 nomes se repetem entre UFs; "Santo André" existe em SP e na PB.
+        # Antes, um dict nome->id guardava só o último lido (arbitrário).
+        client = FakeDirectoryClient(
+            [
+                {"nome": "Santo André", "sigla_uf": "PB", "id_municipio": "2513851"},
+                {"nome": "Santo André", "sigla_uf": "SP", "id_municipio": "3547809"},
+            ]
+        )
+        resolved = resolve_municipality_ids(["Santo André"], client=client)
+        assert resolved == {"Santo André": ["2513851", "3547809"]}
+
+    def test_ufs_restrict_homonyms(self):
+        client = FakeDirectoryClient(
+            [
+                {"nome": "Santo André", "sigla_uf": "PB", "id_municipio": "2513851"},
+                {"nome": "Santo André", "sigla_uf": "SP", "id_municipio": "3547809"},
+            ]
+        )
+        resolved = resolve_municipality_ids(["Santo André"], ufs=["SP"], client=client)
+        assert resolved == {"Santo André": ["3547809"]}
+
+    def test_name_outside_requested_ufs_is_unresolved(self):
+        client = FakeDirectoryClient(
+            [{"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}]
+        )
+        assert resolve_municipality_ids(["Campinas"], ufs=["RJ"], client=client) == {}
 
     def test_queries_directory_table_without_user_input(self):
         client = FakeDirectoryClient([])
         resolve_municipality_ids(["São Paulo"], client=client)
         assert "municipio" in client.queries[0]
+        assert "sigla_uf" in client.queries[0]
         assert "São Paulo" not in client.queries[0]
 
 
@@ -354,67 +443,102 @@ class TestResolveMaxBytesBilled:
 
 
 class TestRunQuery:
-    def test_dry_run_above_cap_refuses_before_executing(self, spec):
-        client = FakeBQClient(dry_run_bytes=10 * 1024**3)
-        with pytest.raises(BytesBudgetExceededError, match="teto"):
+    """Nas tabelas de CNPJ o BigQuery não informa bytes (dry run, job e
+    INFORMATION_SCHEMA devolvem None — medido). A estimativa vem de uma sonda
+    com teto de 1 byte, recusada sem custo com "N or higher required"."""
+
+    def test_estimate_above_cap_refuses_before_executing(self, spec):
+        client = FakeBQClient(estimate_bytes=10 * 1024**3)
+        with pytest.raises(BytesBudgetExceededError, match=str(10 * 1024**3)):
             run_query(spec, client=client, max_bytes_billed=1024)
         assert client.executed == []
 
-    def test_dry_run_without_estimate_still_proceeds(self, spec):
-        # Fase 0 (PENDENTE 4): dry run nestas tabelas volta None em vez de
-        # estimativa. Não pode quebrar: a barreira dura é o maximum_bytes_billed
-        # do job real.
-        client = FakeBQClient(dry_run_estimate_none=True, rows=[{"razao_social": "X"}])
-        result = run_query(spec, client=client, max_bytes_billed=1024**3)
-        assert len(client.executed) == 1
-        assert result.rows == [{"razao_social": "X"}]
+    def test_probe_carries_parameters_and_one_byte_cap(self, spec):
+        client = FakeBQClient(estimate_bytes=1000)
+        run_query(spec, client=client, max_bytes_billed=1024**3)
+        _, probe_config = client.probes[0]
+        assert probe_config.maximum_bytes_billed == 1
+        names = {p.name for p in probe_config.query_parameters}
+        assert {"ufs", "limit", "snapshot_est", "snapshot_emp"} <= names
 
     def test_execution_returns_rows_and_bytes(self, spec):
         rows = [{"razao_social": "CLINICA EXEMPLO ME", "porte": "demais"}]
-        client = FakeBQClient(dry_run_bytes=1000, rows=rows)
+        client = FakeBQClient(estimate_bytes=1000, rows=rows)
         result = run_query(spec, client=client, max_bytes_billed=1024**3)
         assert result.rows == rows
         assert result.bytes_processed == 1000
         assert len(client.executed) == 1
 
+    def test_job_without_reported_bytes_accounts_the_estimate(self, spec):
+        # Sem isso bytes_billed seria 0 e o orçamento diário da API nunca baixaria.
+        client = FakeBQClient(estimate_bytes=3_580_887_040, job_reports_bytes=False)
+        result = run_query(spec, client=client, max_bytes_billed=5 * 1024**3)
+        assert result.bytes_billed == 3_580_887_040
+        assert result.bytes_processed == 3_580_887_040
+
+    def test_probe_that_runs_returns_its_result_without_second_job(self, spec):
+        # Cache hit: a sonda passa com 0 bytes e o resultado dela já serve.
+        class Client(FakeBQClient):
+            def query(self, sql, job_config=None):
+                self.probes.append((sql, job_config))
+                return _FakeJob(0, [{"razao_social": "X"}])
+
+        client = Client()
+        result = run_query(spec, client=client, max_bytes_billed=1024**3)
+        assert result.rows == [{"razao_social": "X"}]
+        assert result.bytes_billed == 0
+        assert len(client.probes) == 1
+
+    def test_probe_error_without_number_still_proceeds(self, spec):
+        # Mensagem sem "N or higher required": sem estimativa, a barreira dura
+        # continua sendo o maximum_bytes_billed do job real.
+        class Client(FakeBQClient):
+            def query(self, sql, job_config=None):
+                if is_estimate_probe(job_config):
+                    return FakeRejectedJob(1, None)
+                return super().query(sql, job_config)
+
+        client = Client(rows=[{"razao_social": "X"}], job_reports_bytes=False)
+        result = run_query(spec, client=client, max_bytes_billed=1024**3)
+        assert result.rows == [{"razao_social": "X"}]
+        assert result.bytes_billed == 0
+
     def test_execution_enforces_maximum_bytes_billed(self, spec):
-        client = FakeBQClient(dry_run_bytes=1000)
+        client = FakeBQClient(estimate_bytes=1000)
         run_query(spec, client=client, max_bytes_billed=2048)
         _, job_config = client.executed[0]
         assert job_config.maximum_bytes_billed == 2048
 
     def test_bytes_limit_error_on_execution_becomes_budget_error(self, spec):
-        # Dry run sem estimativa (PENDENTE 4): quem barra é o
-        # maximum_bytes_billed do job real, e o erro precisa virar o mesmo
-        # BytesBudgetExceededError do dry run.
-        class BytesLimitError(Exception):
-            errors = [{"reason": "bytesBilledLimitExceeded", "message": "x"}]
-
-        class FailingJob(_FakeJob):
-            def result(self):
-                raise BytesLimitError("Query exceeded limit for bytes billed")
-
         class Client(FakeBQClient):
             def query(self, sql, job_config=None):
-                if job_config is not None and job_config.dry_run:
-                    return _FakeJob(None)
-                return FailingJob(0)
+                if is_estimate_probe(job_config):
+                    return FakeRejectedJob(1, None)
+                return FakeRejectedJob(2048, 4096)
 
-        with pytest.raises(BytesBudgetExceededError, match="2048"):
+        with pytest.raises(BytesBudgetExceededError, match="exige 4096 bytes"):
+            run_query(spec, client=Client(), max_bytes_billed=2048)
+
+    def test_probe_errors_other_than_bytes_limit_propagate(self, spec):
+        class Client(FakeBQClient):
+            def query(self, sql, job_config=None):
+                raise RuntimeError("sintaxe inválida")
+
+        with pytest.raises(RuntimeError, match="sintaxe inválida"):
             run_query(spec, client=Client(), max_bytes_billed=2048)
 
     def test_other_execution_errors_propagate(self, spec):
         class Client(FakeBQClient):
             def query(self, sql, job_config=None):
-                if job_config is not None and job_config.dry_run:
-                    return _FakeJob(1000)
+                if is_estimate_probe(job_config):
+                    return FakeRejectedJob(1, 1000)
                 raise RuntimeError("falha de rede")
 
         with pytest.raises(RuntimeError, match="falha de rede"):
             run_query(spec, client=Client(), max_bytes_billed=2048)
 
     def test_query_parameters_passed_to_job(self, spec):
-        client = FakeBQClient(dry_run_bytes=1000)
+        client = FakeBQClient(estimate_bytes=1000)
         run_query(spec, client=client, max_bytes_billed=1024**3)
         _, job_config = client.executed[0]
         names = {p.name for p in job_config.query_parameters}

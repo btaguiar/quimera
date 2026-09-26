@@ -33,13 +33,41 @@ class FakeJob:
         return self._rows
 
 
+class FakeBytesLimitError(Exception):
+    """Imita o erro real do BigQuery ao estourar ``maximum_bytes_billed``."""
+
+    def __init__(self, limit, required=None):
+        message = f"Query exceeded limit for bytes billed: {limit}."
+        if required is not None:
+            message += f" {required} or higher required."
+        super().__init__(message)
+        self.errors = [{"reason": "bytesBilledLimitExceeded", "message": message}]
+
+
+class FakeRejectedJob(FakeJob):
+    """Job recusado pelo teto: o erro sai em ``result()``, como no real."""
+
+    def __init__(self, limit, required):
+        super().__init__(None)
+        self._error = FakeBytesLimitError(limit, required)
+
+    def result(self):
+        raise self._error
+
+
+def is_estimate_probe(job_config) -> bool:
+    """Sonda de estimativa de run_query: teto de 1 byte."""
+    return getattr(job_config, "maximum_bytes_billed", None) == 1
+
+
 class FakePipelineBQ:
     """Cliente BigQuery falso para o pipeline completo.
 
     Sequência de chamadas (todas com client.query):
     1. job_config com MAX(data)     -> descoberta de snapshot (janela, com teto);
     2. job_config ausente           -> consulta ao diretório de municípios;
-    3. job_config com dry_run=True  -> estimativa de bytes;
+    3. job_config com teto de 1 byte -> sonda de estimativa (recusada com
+       "N or higher required", N = ``dry_run_bytes``);
     4. job_config de execução        -> consulta de leads (registrada em ``executed``).
     """
 
@@ -69,8 +97,8 @@ class FakePipelineBQ:
         if "MAX(data)" in sql:
             self.snapshot_queries.append((sql, job_config))
             return FakeJob(0, self.snapshot_rows)
-        if job_config is not None and getattr(job_config, "dry_run", False):
-            return FakeJob(self.dry_run_bytes)
+        if is_estimate_probe(job_config):
+            return FakeRejectedJob(1, self.dry_run_bytes)
         if job_config is None:
             self.directory_queries.append(sql)
             return FakeJob(0, self.municipio_rows)
