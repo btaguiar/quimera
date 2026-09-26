@@ -16,7 +16,7 @@ pedido (pt-BR)
         └─ filters
              └─► [cnae] cnae_query → top-k CNAEs (embeddings)
                   └─► [policy] apply_policy — limites do deploy
-                       └─► [query] SQL parametrizado → dry run → teto de bytes
+                       └─► [query] SQL parametrizado (tabela própria) → estimativa → teto de bytes
                             └─► [score] 0-100 + motivos legíveis
 ```
 
@@ -30,12 +30,16 @@ Decisões de projeto (detalhes na especificação `QUIMERA_SPEC.md`):
   `maximum_bytes_billed`; acima do teto, a consulta é recusada. O dry run não
   estima as tabelas de CNPJ, então a estimativa vem de uma sonda com teto de
   1 byte (recusada sem custo, informando os bytes exigidos).
-- **Consulta direta custa ~13 GB** (filtros não reduzem bytes; medições em
-  `docs/schema.md`) — acima do teto padrão de 5 GiB.
-- **Consulta sempre presa ao snapshot mensal mais recente** de cada tabela
-  particionada (resolvido via `INFORMATION_SCHEMA.PARTITIONS`, custo zero).
-  Sem isso, ~45 snapshots empilhados custariam ~132 GB e duplicariam cada
-  empresa ~45× (medições em `docs/schema.md`).
+- **Tabela própria, não consulta direta.** Consultar a Base dos Dados custa
+  ~13 GB por pedido (filtros não reduzem bytes). `python -m quimera.dados build`
+  materializa 1×/mês os ~27,8 M estabelecimentos ativos numa tabela
+  particionada por divisão CNAE e clusterizada por UF/município/CNAE, com
+  checagens de qualidade antes de substituir a versão em uso. Um pedido típico
+  passa a custar 70–500 MB (medições em `docs/schema.md`).
+- **Sempre o snapshot mensal mais recente**: o build lê só a última partição
+  de cada tabela (sem isso, ~45 snapshots empilhados custariam ~132 GB e
+  duplicariam cada empresa ~45×) e grava a data nos labels da tabela própria,
+  lidos sem custo a cada pedido.
 - **Sem dado pessoal** no deploy público, em logs ou em eval.
 
 ## Uso
@@ -46,6 +50,10 @@ pip install -e ".[gcp]"        # dependências GCP (import lazy nos módulos)
 python -m quimera "clínicas odontológicas em Santo André abertas há mais de 2 anos" --mode public
 python -m quimera "pedido..." --json          # saída estruturada
 python -m quimera.cnae build --fonte pares.jsonl   # índice de embeddings CNAE
+
+python -m quimera.dados build             # tabela própria (1×/mês, ~US$ 0,10)
+python -m quimera.dados build --contatos  # + tabela de contatos (só ambiente privado)
+python -m quimera.dados status            # snapshot, linhas e tamanho (sem custo)
 ```
 
 Servidor da demo (API):
@@ -65,7 +73,8 @@ bytes com modo cache (`DAILY_BYTES_BUDGET`) e timeout por request
 (`REQUEST_TIMEOUT_S`).
 
 Variáveis de ambiente: `GOOGLE_CLOUD_PROJECT`, `BQ_LOCATION`, `VERTEX_LOCATION`,
-`EXTRACT_MODEL`, `EMBED_MODEL`, `MAX_BYTES_BILLED`, `DEPLOY_MODE` (vazio =
+`EXTRACT_MODEL`, `EMBED_MODEL`, `MAX_BYTES_BILLED`, `LEADS_DATASET` (dataset da
+tabela própria; padrão `quimera`), `DEPLOY_MODE` (vazio =
 público; `private` só no ambiente da Turno 24), `API_TOKEN`, `RATE_LIMIT_MAX`,
 `RATE_LIMIT_WINDOW_S`, `CACHE_TTL_S`, `DAILY_BYTES_BUDGET`,
 `REQUEST_TIMEOUT_S`, `EVAL_DIR`.
@@ -124,6 +133,8 @@ partir do diretório `br_bd_diretorios_brasil.cnae_2`).
 - [x] Fase 0 — schema validado no BigQuery (`docs/schema.md`; pendências resolvidas)
 - [x] Auditoria de qualidade dos dados (`docs/schema.md`: porte, pessoa física,
       homônimos, idade, capital, filiais, contabilidade de bytes)
+- [x] Tabela própria `quimera.estabelecimentos_ativos` com checagens de
+      qualidade no build (custo por pedido: ~13 GB → 70–500 MB)
 - [x] Fase 1 — núcleo (`filters`, `policy`, `cnae`, `extract`, `query`, `score`, `pipeline`, CLI) + testes
 - [x] Fase 2 — infraestrutura de avaliação (`eval/`: golden sets, métricas, limiares, relatório)
 - [x] Primeira medição real (extraction + CNAE) e baseline de recall@5 (0,742)
@@ -133,4 +144,5 @@ partir do diretório `br_bd_diretorios_brasil.cnae_2`).
   - [x] 3a — API + proteções (FastAPI: token, rate limit, orçamento diário
         com modo cache, timeout; `src/quimera/api/`)
   - [ ] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
+  - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
 - [ ] Fase 5 — uso privado (repositório da Turno 24)

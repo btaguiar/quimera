@@ -1,7 +1,7 @@
-"""Smoke real: resolve snapshots e roda a query base contra o BigQuery.
+"""Smoke real: roda a query base contra a tabela própria (quimera.dados build).
 
-Custo: INFORMATION_SCHEMA é grátis; a query lê 1 snapshot com teto de 5 GiB
-(~US$ 0,01 no pior caso). Deletar depois do uso.
+Custo: labels da tabela são grátis; a query lê a tabela própria (dezenas de
+MB com filtro de CNAE; até ~4 GB estimados sem ele). Deletar depois do uso.
 """
 
 import os
@@ -11,14 +11,21 @@ os.environ.setdefault("BQ_LOCATION", "US")
 
 from quimera.filters import LeadFilters
 from quimera.policy import PUBLIC
-from quimera.query import build_query, resolve_latest_snapshots, run_query
+from quimera.query import (
+    build_query,
+    read_leads_snapshot,
+    resolve_leads_tables,
+    run_query,
+)
 
-snapshots = resolve_latest_snapshots()
-print("snapshots:", snapshots)
+tables = resolve_leads_tables()
+print("snapshot:", read_leads_snapshot(tables))
 
-spec = build_query(LeadFilters(ufs=["SP"], limit=5), PUBLIC, snapshots=snapshots)
+spec = build_query(
+    LeadFilters(ufs=["SP"], cnae_codes=["8630-5/04"], limit=5), PUBLIC, tables=tables
+)
 result = run_query(spec)
 print("linhas:", len(result.rows))
-print("bytes:", result.bytes_processed)
+print("bytes:", result.bytes_billed)
 for row in result.rows[:5]:
-    print(" ", row["razao_social"], "|", row["municipio"], "|", row["porte"])
+    print(" ", row["cnpj"], "|", row["razao_social"], "|", row["municipio"], "|", row["porte"])

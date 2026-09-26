@@ -131,7 +131,9 @@ Confirmados como já corretos: todos os nomes de tabela, `cnpj_basico`,
 - **O panorama de partições mudou.** `MAX(data)` de `estabelecimentos` agora é
   **2026-01-11**; a partição 2026-07-12 (mais recente na validação original)
   não existe mais — a Base dos Dados reorganizou os snapshots. A descoberta por
-  janelas de `resolve_latest_snapshots` absorve a mudança sem intervenção.
+  janelas de `resolve_latest_snapshots` (hoje só no build) absorve a mudança
+  sem intervenção. A base está ~8,5 meses atrás da data de hoje — o snapshot
+  vem no resultado (`snapshot`) para quem usa o lead saber a idade do dado.
 - **`cnae_fiscal_principal` guarda o código SEM máscara** (`"8630501"`), enquanto
   o formato oficial CNAE 2.3 é `"8630-5/01"`. `query.py` normaliza na fronteira
   (`_unmask_cnae`); filters, índice de embeddings e golden set seguem no formato
@@ -154,8 +156,42 @@ partição (~1,8–4 GB por coluna, contando o overhead da partição).
 | `build_query` atual (+ `cnpj`, matriz/filial) | **13,17 GB** |
 | teto padrão `MAX_BYTES_BILLED` | 5 GiB |
 
-**Consequência: com o teto padrão, toda consulta de leads é recusada.** O dry
-run sem estimativa escondia isso. Custo on-demand ≈ US$ 0,08 por consulta.
+**Consequência: com o teto padrão, toda consulta de leads era recusada.** O
+dry run sem estimativa escondia isso. Custo on-demand ≈ US$ 0,08 por consulta.
+Além disso, `resolve_latest_snapshots` rodava a cada pedido (lê a coluna
+`data`, ~1,6 GiB por partição por tabela).
+
+## Tabela própria `quimera.estabelecimentos_ativos` (2026-09-26)
+
+`python -m quimera.dados build` grava os estabelecimentos **ativos** do
+snapshot mais recente, já cruzados com `empresas`, `simples` e o diretório de
+municípios. 27.784.536 linhas, 4,25 GB, build em ~45 s (~US$ 0,10).
+
+- **Partição por divisão CNAE** (`cnae_divisao`, 2 primeiros dígitos). O
+  BigQuery aplica `maximum_bytes_billed` sobre a estimativa pré-execução, e a
+  estimativa só enxerga poda de partição. Só com clusterização, toda consulta
+  estimava 4,03 GB (tabela inteira) e custava ~100 MB — um teto de 500 MB
+  recusava tudo (testado). A poda funciona com `IN UNNEST(@param)`.
+- **Clusterização** por `sigla_uf, id_municipio, cnae_fiscal_principal`.
+- **Snapshot nos labels** (`snapshot_est`, `snapshot_emp`): o pipeline lê via
+  `get_table`, sem custo, em vez de descobrir o snapshot a cada pedido.
+- **Checagens antes de publicar**: o build grava `_staging`, checa volume
+  (≥ 20 M), `cnpj` único e com 14 dígitos, UF presente, município ausente
+  ≤ 1%, CNAE com 7 dígitos, início de atividade válido, `opcao_mei` ∈ {0,1},
+  porte presente — e só então copia sobre a tabela final. Falhou, a versão em
+  uso fica intacta.
+- **Sem contato.** `--contatos` grava `contatos_ativos` (só ambiente privado),
+  com telefone = `ddd_1 || telefone_1` — a base guarda o número sem DDD.
+
+Custo medido por pedido (teto necessário / cobrado):
+
+| pedido | estimado | cobrado |
+|---|---|---|
+| odontologia (div. 86) + UF + município | 136 MB | 70 MB |
+| varejo (div. 47) + UF | 812 MB | 221 MB |
+| 3 divisões CNAE | 633 MB | 633 MB |
+| só UF (sem CNAE) | 4,03 GB | 10 MB |
+| pipeline completo, 5 CNAEs em 4 divisões | — | 487 MB (US$ 0,003) |
 
 ## Qualidade dos dados (medida 2026-09-26, snapshot 2026-01-11)
 

@@ -73,7 +73,7 @@ class TestRefusal:
         assert result.rows == []
         assert bq.executed == []
         assert bq.directory_queries == []
-        assert bq.snapshot_queries == []
+        assert bq.table_lookups == []
 
 
 class TestHappyPath:
@@ -134,8 +134,8 @@ class TestHappyPath:
         assert result.municipio_resolution == {"Santo André": ["3547807"]}
         assert result.filters.municipio_ids == ["3547807"]
         assert result.warnings == []
-        # snapshot mensal resolvido por descoberta e aplicado na query
-        assert bq.snapshot_queries and "MAX(data)" in bq.snapshot_queries[0][0]
+        # snapshot lido dos labels da tabela própria (sem consulta)
+        assert bq.table_lookups == ["projeto-teste.quimera.estabelecimentos_ativos"]
         assert result.snapshot == {
             "estabelecimentos": "2026-07-12",
             "empresas": "2026-07-12",
@@ -151,8 +151,9 @@ class TestHappyPath:
         sql, _ = bq.executed[0]
         assert "@municipio_ids" in sql
         assert "@cnae_codes" in sql
-        assert "@snapshot_est" in sql and "@snapshot_emp" in sql
-        assert "COALESCE(sim.opcao_mei, 0) != 1" in sql  # exclusão de MEI
+        assert "`projeto-teste.quimera.estabelecimentos_ativos`" in sql
+        assert "basedosdados" not in sql  # consulta direta custava ~13 GB
+        assert "t.opcao_mei != 1" in sql  # exclusão de MEI
         # custo e latência registrados
         assert result.bytes_processed == 1000
         assert result.estimated_cost_usd > 0

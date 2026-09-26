@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 
 class FakeGenaiClient:
     """Cliente genai falso: devolve resposta fixa e registra chamadas."""
@@ -63,8 +65,8 @@ def is_estimate_probe(job_config) -> bool:
 class FakePipelineBQ:
     """Cliente BigQuery falso para o pipeline completo.
 
-    Sequência de chamadas (todas com client.query):
-    1. job_config com MAX(data)     -> descoberta de snapshot (janela, com teto);
+    Sequência de chamadas:
+    1. client.get_table              -> labels de snapshot da tabela própria;
     2. job_config ausente           -> consulta ao diretório de municípios;
     3. job_config com teto de 1 byte -> sonda de estimativa (recusada com
        "N or higher required", N = ``dry_run_bytes``);
@@ -76,27 +78,25 @@ class FakePipelineBQ:
         municipio_rows=None,
         lead_rows=None,
         dry_run_bytes=1000,
-        snapshot_rows=None,
+        table_labels=None,
     ):
         self.municipio_rows = municipio_rows or []
         self.lead_rows = lead_rows or []
         self.dry_run_bytes = dry_run_bytes
-        self.snapshot_rows = (
-            snapshot_rows
-            if snapshot_rows is not None
-            else [
-                {"table_name": "estabelecimentos", "latest_partition": "2026-07-12"},
-                {"table_name": "empresas", "latest_partition": "2026-07-12"},
-            ]
+        self.table_labels = (
+            table_labels
+            if table_labels is not None
+            else {"snapshot_est": "2026-07-12", "snapshot_emp": "2026-07-12"}
         )
         self.executed: list[tuple[str, object]] = []
         self.directory_queries: list[str] = []
-        self.snapshot_queries: list[tuple[str, object]] = []
+        self.table_lookups: list[str] = []
+
+    def get_table(self, table_id):
+        self.table_lookups.append(table_id)
+        return SimpleNamespace(labels=self.table_labels)
 
     def query(self, sql, job_config=None):
-        if "MAX(data)" in sql:
-            self.snapshot_queries.append((sql, job_config))
-            return FakeJob(0, self.snapshot_rows)
         if is_estimate_probe(job_config):
             return FakeRejectedJob(1, self.dry_run_bytes)
         if job_config is None:

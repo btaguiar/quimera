@@ -1,13 +1,18 @@
-"""Query parametrizada sobre a base pública de CNPJ (Base dos Dados).
+"""Query parametrizada sobre a tabela própria de estabelecimentos ativos.
+
+A consulta de leads NÃO lê a Base dos Dados direto: lá cada consulta custa
+~13 GB (filtros não reduzem bytes; docs/schema.md). ``quimera.dados build``
+materializa mensalmente o snapshot mais recente numa tabela enxuta,
+clusterizada por UF, município e CNAE; ``build_query`` lê essa tabela.
 
 Regras inegociáveis:
 - O LLM nunca escreve SQL: este módulo monta a query a partir de LeadFilters.
 - Toda execução passa por estimativa prévia obrigatória + ``maximum_bytes_billed``
-  (o dry run não estima estas tabelas — ver ``run_query``).
+  (o dry run não estima as tabelas de CNPJ — ver ``run_query``).
 - Valores do usuário vão SEMPRE como parâmetros nomeados, nunca interpolados.
-- Toda query filtra ``data`` (snapshot mensal): as tabelas empilham ~45 snapshots
-  e sem o filtro cada empresa aparece ~45x e o custo explode (~132 GB vs ~1,7 GB;
-  docs/schema.md).
+- Leitura direta da Base dos Dados (materialização, descoberta de snapshot)
+  filtra ``data``: as tabelas empilham ~45 snapshots e sem o filtro cada
+  empresa aparece ~45x e o custo explode (~132 GB; docs/schema.md).
 
 Nomes de tabelas/colunas e qualidade dos dados medidos contra o BigQuery
 (docs/schema.md).
@@ -19,7 +24,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Mapping
+from typing import Any
 
 from .filters import LeadFilters
 from .policy import Policy
@@ -52,7 +57,8 @@ COL_NOME_FANTASIA = "nome_fantasia"
 COL_NATUREZA_JURIDICA = "natureza_juridica"
 COL_OPCAO_MEI = "opcao_mei"  # INTEGER 0/1 (medido; simples tem 1 linha por cnpj_basico)
 COL_CORREIO_ELETRONICO = "email"
-COL_TELEFONE = "telefone_1"
+COL_DDD = "ddd_1"
+COL_TELEFONE = "telefone_1"  # sem DDD na base — a tabela de contatos concatena
 COL_DATA_SNAPSHOT = "data"  # coluna de partição (snapshots mensais completos)
 
 # Natureza jurídica de Empresário Individual — excluída no deploy público.
@@ -100,7 +106,7 @@ PORTE_CODES_TO_LABELS: dict[str, str] = {
 }
 # Tradução do porte para o SELECT (o resultado usa rótulos, não códigos).
 PORTE_SELECT_EXPR = (
-    "CASE emp."
+    "CASE t."
     + COL_PORTE
     + " "
     + " ".join(
@@ -109,13 +115,63 @@ PORTE_SELECT_EXPR = (
     + " ELSE NULL END"
 )
 
-DEFAULT_MAX_BYTES_BILLED = 5 * 1024**3  # 5 GiB; ajustar após dry runs reais
+DEFAULT_MAX_BYTES_BILLED = 5 * 1024**3  # 5 GiB
 
-# Mapeamento de rótulos de contato do policy para colunas reais do dataset.
+# Tabela própria (quimera.dados build). Colunas com os nomes finais do resultado.
+DEFAULT_LEADS_DATASET = "quimera"
+LEADS_TABLE_NAME = "estabelecimentos_ativos"
+CONTATOS_TABLE_NAME = "contatos_ativos"  # só no ambiente privado (--contatos)
+# Partição da tabela própria: divisão CNAE (2 primeiros dígitos, 1..99).
+# O BigQuery aplica o maximum_bytes_billed sobre a estimativa ANTES de rodar,
+# e a estimativa só enxerga poda de PARTIÇÃO (clusterização só poda na
+# execução): sem partição, toda consulta estimava a tabela inteira (4 GB) e
+# custava ~100 MB. Medido em 2026-09-26.
+COL_CNAE_DIVISAO = "cnae_divisao"
+
+# Labels da tabela com a data do snapshot de origem — lidos sem custo.
+LABEL_SNAPSHOT = {"estabelecimentos": "snapshot_est", "empresas": "snapshot_emp"}
+
+# Rótulos de contato do policy -> colunas da tabela de contatos.
 CONTACT_FIELD_COLUMNS = {
-    "correio_eletronico": COL_CORREIO_ELETRONICO,
-    "telefone": COL_TELEFONE,
+    "correio_eletronico": "correio_eletronico",
+    "telefone": "telefone",
 }
+
+_TABLE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$")
+
+
+@dataclass(frozen=True)
+class LeadsTables:
+    """Ids ``projeto.dataset.tabela`` da tabela de leads e da de contatos."""
+
+    leads: str
+    contatos: str
+
+    def __post_init__(self) -> None:
+        # Ids vêm de env/config, nunca do usuário — ainda assim, só o formato
+        # esperado entra no SQL (são identificadores, não parâmetros).
+        for table_id in (self.leads, self.contatos):
+            if not _TABLE_ID_RE.match(table_id):
+                raise ValueError(f"Id de tabela inválido: {table_id!r}")
+
+
+def resolve_leads_tables(project: str | None = None) -> LeadsTables:
+    """Tabelas próprias em ``GOOGLE_CLOUD_PROJECT``.``LEADS_DATASET`` (default quimera)."""
+    project = project or os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
+    if not project:
+        raise ValueError(
+            "GOOGLE_CLOUD_PROJECT não definido — necessário para localizar a "
+            "tabela de leads (quimera.dados build)."
+        )
+    dataset = os.environ.get("LEADS_DATASET", "").strip() or DEFAULT_LEADS_DATASET
+    return LeadsTables(
+        leads=f"{project}.{dataset}.{LEADS_TABLE_NAME}",
+        contatos=f"{project}.{dataset}.{CONTATOS_TABLE_NAME}",
+    )
+
+
+class LeadsTableMissingError(RuntimeError):
+    """A tabela de leads não existe ou não tem snapshot — rode quimera.dados build."""
 
 
 class BytesBudgetExceededError(RuntimeError):
@@ -158,88 +214,75 @@ def build_query(
     filters: LeadFilters,
     policy: Policy,
     *,
-    snapshots: Mapping[str, date],
+    tables: LeadsTables,
 ) -> QuerySpec:
     """Monta SQL parametrizado a partir dos filtros (já passados por apply_policy).
 
-    ``snapshots`` é obrigatório: data da última partição de cada tabela em
-    ``SNAPSHOT_TABLES`` (use ``resolve_latest_snapshots``). Sem isso, a query
-    leria ~45 snapshots mensais (~132 GB) — por isso o parâmetro não tem default.
+    Lê a tabela própria (``tables.leads``), que já contém só estabelecimentos
+    ativos do snapshot mais recente, cruzados com empresas, simples e
+    município. Contatos só entram via ``tables.contatos`` e só quando a policy
+    permite.
     """
-    missing = [table for table in SNAPSHOT_TABLES if table not in snapshots]
-    if missing:
-        raise ValueError(
-            f"Snapshots ausentes para: {missing}. "
-            "Resolva com resolve_latest_snapshots() antes de montar a query."
-        )
-
     select_cols = [
         # cnpj (14 dígitos) identifica o estabelecimento: com só cnpj_basico,
         # matriz e filiais da mesma empresa sairiam como linhas repetidas.
-        f"est.{COL_CNPJ}",
-        f"est.{COL_CNPJ_BASICO}",
-        f"CASE est.{COL_MATRIZ_FILIAL} WHEN '1' THEN 'matriz'"
-        " WHEN '2' THEN 'filial' ELSE NULL END AS matriz_filial",
-        f"emp.{COL_RAZAO_SOCIAL}",
-        f"est.{COL_NOME_FANTASIA}",
-        f"est.{COL_SIGLA_UF}",
-        f"est.{COL_ID_MUNICIPIO}",
-        f"mun.{COL_NOME_MUNICIPIO} AS municipio",
-        f"est.{COL_CNAE_PRINCIPAL}",
-        f"est.{COL_DATA_INICIO_ATIVIDADE}",
-        f"emp.{COL_CAPITAL_SOCIAL}",
+        f"t.{COL_CNPJ}",
+        f"t.{COL_CNPJ_BASICO}",
+        "t.matriz_filial",
+        f"t.{COL_RAZAO_SOCIAL}",
+        f"t.{COL_NOME_FANTASIA}",
+        f"t.{COL_SIGLA_UF}",
+        f"t.{COL_ID_MUNICIPIO}",
+        "t.municipio",
+        f"t.{COL_CNAE_PRINCIPAL}",
+        f"t.{COL_DATA_INICIO_ATIVIDADE}",
+        f"t.{COL_CAPITAL_SOCIAL}",
         f"{PORTE_SELECT_EXPR} AS porte",
     ]
     if policy.allow_mei:
-        select_cols.append(f"COALESCE(sim.{COL_OPCAO_MEI}, 0) AS opcao_mei")
+        select_cols.append(f"t.{COL_OPCAO_MEI}")
     for contact_field in policy.contact_fields:
         select_cols.append(
-            f"est.{CONTACT_FIELD_COLUMNS[contact_field]} AS {contact_field}"
+            f"c.{CONTACT_FIELD_COLUMNS[contact_field]} AS {contact_field}"
         )
 
-    where: list[str] = [
-        f"est.{COL_SITUACAO_CADASTRAL} = @situacao_ativa",
-        # Snapshot mensal: cada tabela particionada na SUA última partição
-        # (empresas pode atrasar em relação a estabelecimentos; um único
-        # snapshot compartilhado deixaria o join silenciosamente vazio).
-        f"est.{COL_DATA_SNAPSHOT} = @snapshot_est",
-        f"emp.{COL_DATA_SNAPSHOT} = @snapshot_emp",
-    ]
-    params: list[QueryParam] = [
-        QueryParam("situacao_ativa", "STRING", SITUACAO_CADASTRAL_ATIVA),
-        QueryParam("snapshot_est", "DATE", snapshots["estabelecimentos"]),
-        QueryParam("snapshot_emp", "DATE", snapshots["empresas"]),
-    ]
+    # Situação ativa e snapshot já foram aplicados na materialização.
+    where: list[str] = []
+    params: list[QueryParam] = []
 
     if filters.ufs:
-        where.append(f"est.{COL_SIGLA_UF} IN UNNEST(@ufs)")
+        where.append(f"t.{COL_SIGLA_UF} IN UNNEST(@ufs)")
         params.append(QueryParam("ufs", "ARRAY<STRING>", list(filters.ufs)))
 
     if filters.municipio_ids:
         # ids resolvidos por lookup no diretório de municípios — nunca vindos do LLM.
-        where.append(f"est.{COL_ID_MUNICIPIO} IN UNNEST(@municipio_ids)")
+        where.append(f"t.{COL_ID_MUNICIPIO} IN UNNEST(@municipio_ids)")
         params.append(
             QueryParam("municipio_ids", "ARRAY<STRING>", list(filters.municipio_ids))
         )
 
     if filters.cnae_codes:
-        where.append(f"est.{COL_CNAE_PRINCIPAL} IN UNNEST(@cnae_codes)")
         # A base guarda o código sem máscara ("8630501"); filters/índice/golden
         # usam a forma oficial "8630-5/01". Normaliza aqui, na fronteira.
+        codes = [_unmask_cnae(code) for code in filters.cnae_codes]
+        # Filtro na coluna de partição: é o que reduz a estimativa (e o teto).
+        where.append(f"t.{COL_CNAE_DIVISAO} IN UNNEST(@cnae_divisoes)")
         params.append(
             QueryParam(
-                "cnae_codes",
-                "ARRAY<STRING>",
-                [_unmask_cnae(code) for code in filters.cnae_codes],
+                "cnae_divisoes",
+                "ARRAY<INT64>",
+                sorted({int(code[:2]) for code in codes if len(code) >= 2}),
             )
         )
+        where.append(f"t.{COL_CNAE_PRINCIPAL} IN UNNEST(@cnae_codes)")
+        params.append(QueryParam("cnae_codes", "ARRAY<STRING>", codes))
 
     # Idade em anos COMPLETOS. DATE_DIFF(..., YEAR) conta viradas de ano
     # (31/12/2024 -> 26/09/2026 dá 2), então "mais de 2 anos" aceitaria
     # empresas com 1 ano e 9 meses.
     if filters.min_age_years is not None:
         where.append(
-            f"est.{COL_DATA_INICIO_ATIVIDADE}"
+            f"t.{COL_DATA_INICIO_ATIVIDADE}"
             " <= DATE_SUB(CURRENT_DATE(), INTERVAL @min_age_years YEAR)"
         )
         params.append(QueryParam("min_age_years", "INT64", filters.min_age_years))
@@ -247,7 +290,7 @@ def build_query(
     if filters.max_age_years is not None:
         # Idade completa <= N  <=>  início > hoje - (N + 1) anos.
         where.append(
-            f"est.{COL_DATA_INICIO_ATIVIDADE}"
+            f"t.{COL_DATA_INICIO_ATIVIDADE}"
             " > DATE_SUB(CURRENT_DATE(), INTERVAL @max_age_years + 1 YEAR)"
         )
         params.append(QueryParam("max_age_years", "INT64", filters.max_age_years))
@@ -255,8 +298,8 @@ def build_query(
     if filters.min_capital is not None:
         # O sentinela 999.999.999.999 passaria em qualquer mínimo.
         where.append(
-            f"emp.{COL_CAPITAL_SOCIAL} >= @min_capital"
-            f" AND emp.{COL_CAPITAL_SOCIAL} < @capital_sentinela"
+            f"t.{COL_CAPITAL_SOCIAL} >= @min_capital"
+            f" AND t.{COL_CAPITAL_SOCIAL} < @capital_sentinela"
         )
         params.append(QueryParam("min_capital", "FLOAT64", filters.min_capital))
         params.append(
@@ -273,12 +316,12 @@ def build_query(
             for code in PORTE_LABEL_TO_CODES.get(label, ())
         ]
         if codes:
-            porte_clauses.append(f"emp.{COL_PORTE} IN UNNEST(@portes)")
+            porte_clauses.append(f"t.{COL_PORTE} IN UNNEST(@portes)")
             params.append(QueryParam("portes", "ARRAY<STRING>", codes))
         if PORTE_LABELS_DEMAIS.intersection(filters.portes):
             porte_clauses.append(
-                f"(emp.{COL_PORTE} = @porte_demais"
-                f" AND STARTS_WITH(emp.{COL_NATUREZA_JURIDICA}, @natureza_empresarial))"
+                f"(t.{COL_PORTE} = @porte_demais"
+                f" AND STARTS_WITH(t.{COL_NATUREZA_JURIDICA}, @natureza_empresarial))"
             )
             params.append(QueryParam("porte_demais", "STRING", PORTE_DEMAIS))
             params.append(
@@ -290,7 +333,7 @@ def build_query(
 
     if not policy.allow_pessoa_fisica:
         where.append(
-            f"NOT STARTS_WITH(emp.{COL_NATUREZA_JURIDICA}, @natureza_pessoa_fisica)"
+            f"NOT STARTS_WITH(t.{COL_NATUREZA_JURIDICA}, @natureza_pessoa_fisica)"
         )
         params.append(
             QueryParam(
@@ -301,8 +344,8 @@ def build_query(
     exclude_mei = (not policy.allow_mei) or (not filters.include_mei)
     if exclude_mei:
         # Público: sem MEI e sem empresário individual (pessoa natural).
-        where.append(f"COALESCE(sim.{COL_OPCAO_MEI}, 0) != 1")
-        where.append(f"emp.{COL_NATUREZA_JURIDICA} != @natureza_empresario_individual")
+        where.append(f"t.{COL_OPCAO_MEI} != 1")
+        where.append(f"t.{COL_NATUREZA_JURIDICA} != @natureza_empresario_individual")
         params.append(
             QueryParam(
                 "natureza_empresario_individual",
@@ -314,15 +357,17 @@ def build_query(
     limit = min(filters.limit, policy.max_rows)
     params.append(QueryParam("limit", "INT64", limit))
 
+    from_clause = f"FROM `{tables.leads}` AS t\n"
+    if policy.contact_fields:
+        from_clause += f"LEFT JOIN `{tables.contatos}` AS c USING ({COL_CNPJ})\n"
+    where_clause = ("WHERE\n  " + "\n  AND ".join(where) + "\n") if where else ""
     sql = (
-        "SELECT\n  " + ",\n  ".join(select_cols) + "\n"
-        f"FROM {TABLE_ESTABELECIMENTOS} AS est\n"
-        f"JOIN {TABLE_EMPRESAS} AS emp USING ({COL_CNPJ_BASICO})\n"
-        f"LEFT JOIN {TABLE_SIMPLES} AS sim USING ({COL_CNPJ_BASICO})\n"
-        f"LEFT JOIN {TABLE_DIRETORIO_MUNICIPIOS} AS mun"
-        f" ON mun.{COL_ID_MUNICIPIO} = est.{COL_ID_MUNICIPIO}\n"
-        "WHERE\n  " + "\n  AND ".join(where) + "\n"
-        "LIMIT @limit"
+        "SELECT\n  "
+        + ",\n  ".join(select_cols)
+        + "\n"
+        + from_clause
+        + where_clause
+        + "LIMIT @limit"
     )
     return QuerySpec(sql=sql, params=tuple(params))
 
@@ -333,7 +378,10 @@ def _to_bq_parameters(params: tuple[QueryParam, ...]) -> list[Any]:
     bq_params = []
     for p in params:
         if p.type.startswith("ARRAY<"):
-            bq_params.append(bigquery.ArrayQueryParameter(p.name, "STRING", p.value))
+            element_type = p.type[len("ARRAY<") : -1]
+            bq_params.append(
+                bigquery.ArrayQueryParameter(p.name, element_type, p.value)
+            )
         else:
             bq_params.append(bigquery.ScalarQueryParameter(p.name, p.type, p.value))
     return bq_params
@@ -420,6 +468,37 @@ def resolve_latest_snapshots(*, client: Any | None = None) -> dict[str, date]:
         f"em {DATASET}. Verifique BQ_LOCATION e o acesso ao dataset, ou fixe a "
         "partição com a variável SNAPSHOT_DATE (ISO, ex.: 2026-07-12)."
     )
+
+
+def read_leads_snapshot(
+    tables: LeadsTables, *, client: Any | None = None
+) -> dict[str, date]:
+    """Snapshot de origem da tabela de leads, lido dos labels (sem custo).
+
+    Substitui a descoberta por consulta no caminho do pedido: a descoberta lê a
+    coluna ``data`` da Base dos Dados (GBs por chamada) e só roda no build.
+    """
+    from google.api_core.exceptions import NotFound  # lazy — extra ``gcp``
+
+    client = client or _default_client()
+    try:
+        table = client.get_table(tables.leads)
+    except NotFound as exc:
+        raise LeadsTableMissingError(
+            f"Tabela de leads {tables.leads} não existe. "
+            "Rode: python -m quimera.dados build"
+        ) from exc
+    labels = table.labels or {}
+    try:
+        return {
+            source: date.fromisoformat(labels[label])
+            for source, label in LABEL_SNAPSHOT.items()
+        }
+    except (KeyError, ValueError) as exc:
+        raise LeadsTableMissingError(
+            f"Tabela de leads {tables.leads} sem label de snapshot válido "
+            f"({labels!r}). Rode: python -m quimera.dados build"
+        ) from exc
 
 
 def resolve_municipality_ids(
@@ -509,12 +588,16 @@ def run_query(
 ) -> QueryResult:
     """Executa com estimativa prévia obrigatória + maximum_bytes_billed.
 
-    Nas tabelas de CNPJ o BigQuery não informa bytes: dry run, job e
-    INFORMATION_SCHEMA.JOBS devolvem ``None`` (medido em 2026-09-26). A
-    estimativa vem de uma sonda com ``maximum_bytes_billed=1``: o BigQuery
-    recusa o job sem cobrar e informa "N or higher required". Esse N decide
-    a recusa antes de rodar e é o valor contabilizado quando o job não
-    reporta bytes (sem isso o orçamento diário da API nunca baixaria).
+    A estimativa vem de uma sonda com ``maximum_bytes_billed=1``: o BigQuery
+    recusa o job sem cobrar e informa "N or higher required". Funciona onde o
+    dry run não funciona — nas tabelas da Base dos Dados, dry run, job e
+    INFORMATION_SCHEMA.JOBS devolvem ``None`` (medido em 2026-09-26).
+
+    Na tabela própria, N é o limite superior após a poda de PARTIÇÃO (a
+    clusterização só poda na execução, então o custo real costuma ser menor:
+    136 MB estimados para 70 MB cobrados, medido). O próprio BigQuery aplica o
+    ``maximum_bytes_billed`` sobre esse N, por isso a recusa antecipada usa o
+    mesmo número. Quando o job não reporta bytes, N é o valor contabilizado.
     Se a sonda passar (cache hit, custo zero), o resultado dela é usado.
     """
     from google.cloud import bigquery  # lazy import — extra ``gcp``

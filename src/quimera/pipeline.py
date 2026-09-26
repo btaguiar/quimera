@@ -18,9 +18,11 @@ from .filters import LeadFilters
 from .policy import Policy, apply_policy
 from .query import (
     PORTE_LABELS_DEMAIS,
+    LeadsTables,
     QueryResult,
     build_query,
-    resolve_latest_snapshots,
+    read_leads_snapshot,
+    resolve_leads_tables,
     resolve_municipality_ids,
     run_query,
 )
@@ -108,6 +110,7 @@ def run(
     cnae_search: CnaeSearchFn | None = None,
     bq_client: Any | None = None,
     max_bytes_billed: int | None = None,
+    tables: LeadsTables | None = None,
 ) -> PipelineResult:
     """Executa o fluxo completo e devolve o resultado explicável."""
     started = time.perf_counter()
@@ -196,10 +199,11 @@ def run(
             }
         )
 
-    # 4. Snapshot mensal mais recente (metadados, sem custo) + query
-    #    parametrizada com dry run + teto de bytes.
-    snapshots = resolve_latest_snapshots(client=bq_client)
-    spec = build_query(filters, policy, snapshots=snapshots)
+    # 4. Tabela própria (snapshot lido dos labels, sem custo) + query
+    #    parametrizada com estimativa prévia + teto de bytes.
+    tables = tables or resolve_leads_tables()
+    snapshots = read_leads_snapshot(tables, client=bq_client)
+    spec = build_query(filters, policy, tables=tables)
     query_result: QueryResult = run_query(
         spec, client=bq_client, max_bytes_billed=max_bytes_billed
     )

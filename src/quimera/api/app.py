@@ -27,7 +27,11 @@ from pydantic import BaseModel, Field
 from .. import __version__
 from ..extract import ExtractionError
 from ..policy import Policy, resolve_policy
-from ..query import BytesBudgetExceededError, resolve_max_bytes_billed
+from ..query import (
+    BytesBudgetExceededError,
+    LeadsTableMissingError,
+    resolve_max_bytes_billed,
+)
 from .metrics import load_metrics
 from .protections import ApiConfig, normalize_request, request_hash, token_ok
 from .state import MemoryStateStore, StateStore
@@ -218,6 +222,13 @@ def create_app(
                     "meia-noite UTC",
                 ) from None
             raise ApiError(503, "teto de bytes", str(exc)) from None
+        except LeadsTableMissingError:
+            logger.error("tabela de leads indisponível")
+            raise ApiError(
+                503,
+                "dados indisponíveis",
+                "a base de empresas está sendo atualizada; tente mais tarde",
+            ) from None
         except ExtractionError as exc:
             logger.warning(
                 "erro de extração (%s)", type(exc.__cause__ or exc).__name__

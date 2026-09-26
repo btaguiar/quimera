@@ -1,8 +1,9 @@
-"""Testes de build_query: cláusulas, parâmetros, snapshots e regras por policy."""
+"""Testes de build_query, descoberta de snapshot, municípios e run_query."""
 
 from __future__ import annotations
 
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,8 +13,12 @@ from quimera.policy import PRIVATE, PUBLIC
 from quimera.query import (
     DEFAULT_MAX_BYTES_BILLED,
     BytesBudgetExceededError,
+    LeadsTableMissingError,
+    LeadsTables,
     build_query,
+    read_leads_snapshot,
     resolve_latest_snapshots,
+    resolve_leads_tables,
     resolve_max_bytes_billed,
     resolve_municipality_ids,
     run_query,
@@ -23,6 +28,14 @@ SNAPSHOTS = {
     "estabelecimentos": date(2026, 7, 12),
     "empresas": date(2026, 7, 12),
 }
+TABLES = LeadsTables(
+    leads="projeto-teste.quimera.estabelecimentos_ativos",
+    contatos="projeto-teste.quimera.contatos_ativos",
+)
+
+
+def _build(filters=None, policy=PUBLIC):
+    return build_query(filters or LeadFilters(), policy, tables=TABLES)
 
 
 def _param(spec, name):
@@ -31,81 +44,114 @@ def _param(spec, name):
 
 class TestBuildQueryPublic:
     def test_no_contact_columns_in_public_sql(self):
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
-        for col in ("email", "telefone_1", "correio_eletronico"):
+        spec = _build()
+        for col in ("email", "telefone", "correio_eletronico", "contatos_ativos"):
             assert col not in spec.sql
 
     def test_public_sql_excludes_mei_and_empresario_individual(self):
-        spec = build_query(LeadFilters(include_mei=True), PUBLIC, snapshots=SNAPSHOTS)
-        assert "COALESCE(sim.opcao_mei, 0) != 1" in spec.sql
-        assert "natureza_juridica" in spec.sql
+        spec = _build(LeadFilters(include_mei=True))
+        assert "t.opcao_mei != 1" in spec.sql
+        assert "t.natureza_juridica != @natureza_empresario_individual" in spec.sql
         assert _param(spec, "natureza_empresario_individual").value == "2135"
 
     def test_public_excludes_pessoa_fisica(self):
         # Natureza 4xxx = pessoa física (ex.: 4120 produtor rural).
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build()
         assert (
-            "NOT STARTS_WITH(emp.natureza_juridica, @natureza_pessoa_fisica)"
-            in spec.sql
+            "NOT STARTS_WITH(t.natureza_juridica, @natureza_pessoa_fisica)" in spec.sql
         )
         assert _param(spec, "natureza_pessoa_fisica").value == "4"
 
-    def test_active_situation_uses_one_digit_code(self):
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
-        assert _param(spec, "situacao_ativa").value == "2"
-        assert "@situacao_ativa" in spec.sql
-
 
 class TestBuildQueryPrivate:
-    def test_private_sql_includes_contact_columns(self):
-        spec = build_query(LeadFilters(), PRIVATE, snapshots=SNAPSHOTS)
-        assert "est.email AS correio_eletronico" in spec.sql
-        assert "est.telefone_1 AS telefone" in spec.sql
+    def test_private_sql_joins_contacts_table(self):
+        spec = _build(policy=PRIVATE)
+        assert (
+            "LEFT JOIN `projeto-teste.quimera.contatos_ativos` AS c USING (cnpj)"
+            in spec.sql
+        )
+        assert "c.correio_eletronico AS correio_eletronico" in spec.sql
+        assert "c.telefone AS telefone" in spec.sql
 
     def test_private_without_mei_still_excludes_mei(self):
-        spec = build_query(LeadFilters(include_mei=False), PRIVATE, snapshots=SNAPSHOTS)
-        assert "COALESCE(sim.opcao_mei, 0) != 1" in spec.sql
+        spec = _build(LeadFilters(include_mei=False), PRIVATE)
+        assert "t.opcao_mei != 1" in spec.sql
 
     def test_private_allows_pessoa_fisica(self):
-        spec = build_query(LeadFilters(), PRIVATE, snapshots=SNAPSHOTS)
+        spec = _build(policy=PRIVATE)
         assert "@natureza_pessoa_fisica" not in spec.sql
 
     def test_private_with_mei_selects_mei_flag(self):
-        spec = build_query(LeadFilters(include_mei=True), PRIVATE, snapshots=SNAPSHOTS)
-        assert "COALESCE(sim.opcao_mei, 0) AS opcao_mei" in spec.sql
+        spec = _build(LeadFilters(include_mei=True), PRIVATE)
+        assert "t.opcao_mei,\n" in spec.sql
         assert "!= 1" not in spec.sql
         assert "natureza_empresario_individual" not in " ".join(
             p.name for p in spec.params
         )
 
 
-class TestBuildQuerySnapshots:
-    """Fase 0: tabelas empilham ~45 snapshots mensais — SEM filtro de data,
-    toda consulta custa ~132 GB e devolve empresas duplicadas ~45x."""
+class TestBuildQueryTable:
+    """A consulta lê a tabela própria: direto na Base dos Dados custava
+    ~13 GB por pedido (filtros não reduzem bytes; docs/schema.md)."""
 
-    def test_snapshots_are_required(self):
-        with pytest.raises(TypeError):
-            build_query(LeadFilters(), PUBLIC)
+    def test_reads_only_the_leads_table(self):
+        spec = _build(LeadFilters(ufs=["SP"]))
+        assert "FROM `projeto-teste.quimera.estabelecimentos_ativos` AS t" in spec.sql
+        assert "basedosdados" not in spec.sql
+        assert "JOIN" not in spec.sql  # cruzamentos já feitos na materialização
 
-    def test_incomplete_snapshots_rejected(self):
-        with pytest.raises(ValueError, match="empresas"):
-            build_query(
-                LeadFilters(),
-                PUBLIC,
-                snapshots={"estabelecimentos": date(2026, 7, 12)},
-            )
+    def test_where_omitted_when_there_is_nothing_to_filter(self):
+        assert "WHERE" in _build().sql  # público sempre exclui MEI/pessoa física
+        private = _build(LeadFilters(include_mei=True), PRIVATE)
+        assert "WHERE" not in private.sql
+        assert private.sql.endswith("LIMIT @limit")
 
-    def test_filters_latest_partition_of_est_and_emp(self):
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
-        assert "est.data = @snapshot_est" in spec.sql
-        assert "emp.data = @snapshot_emp" in spec.sql
-        assert _param(spec, "snapshot_est").type == "DATE"
-        assert _param(spec, "snapshot_est").value == date(2026, 7, 12)
-        assert _param(spec, "snapshot_emp").value == date(2026, 7, 12)
+    def test_invalid_table_id_rejected(self):
+        with pytest.raises(ValueError, match="inválido"):
+            LeadsTables(leads="x`; DROP TABLE y; --", contatos="a.b.c")
 
-    def test_simples_has_no_partition_filter(self):
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
-        assert "sim.data" not in spec.sql  # simples não é particionada (docs/schema.md)
+    def test_resolve_leads_tables_from_env(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "meu-projeto")
+        monkeypatch.setenv("LEADS_DATASET", "dados")
+        tables = resolve_leads_tables()
+        assert tables.leads == "meu-projeto.dados.estabelecimentos_ativos"
+        assert tables.contatos == "meu-projeto.dados.contatos_ativos"
+
+    def test_resolve_leads_tables_requires_project(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+            resolve_leads_tables()
+
+
+class TestReadLeadsSnapshot:
+    class _Client:
+        def __init__(self, labels=None, missing=False):
+            self.labels = labels
+            self.missing = missing
+
+        def get_table(self, table_id):
+            if self.missing:
+                from google.api_core.exceptions import NotFound
+
+                raise NotFound("tabela")
+            return SimpleNamespace(labels=self.labels)
+
+    def test_reads_snapshot_from_labels(self):
+        client = self._Client(
+            {"snapshot_est": "2026-07-12", "snapshot_emp": "2026-06-14"}
+        )
+        assert read_leads_snapshot(TABLES, client=client) == {
+            "estabelecimentos": date(2026, 7, 12),
+            "empresas": date(2026, 6, 14),
+        }
+
+    def test_missing_table_points_to_build(self):
+        with pytest.raises(LeadsTableMissingError, match="quimera.dados build"):
+            read_leads_snapshot(TABLES, client=self._Client(missing=True))
+
+    def test_missing_labels_points_to_build(self):
+        with pytest.raises(LeadsTableMissingError, match="quimera.dados build"):
+            read_leads_snapshot(TABLES, client=self._Client({}))
 
 
 class TestBuildQueryClauses:
@@ -113,7 +159,7 @@ class TestBuildQueryClauses:
         filters = LeadFilters(
             ufs=["SP"], cnae_codes=["8630-5/01"], municipio_ids=["3547807"]
         )
-        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(filters)
         assert "IN UNNEST(@ufs)" in spec.sql
         assert "IN UNNEST(@cnae_codes)" in spec.sql
         assert "IN UNNEST(@municipio_ids)" in spec.sql
@@ -122,9 +168,17 @@ class TestBuildQueryClauses:
     def test_cnae_codes_unmasked_for_dataset(self):
         # A base guarda o CNAE sem máscara ("8630501"); filters usam a forma
         # oficial "8630-5/01" — a normalização acontece na fronteira (query.py).
-        filters = LeadFilters(cnae_codes=["8630-5/01", "4781400"])
-        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(LeadFilters(cnae_codes=["8630-5/01", "4781400"]))
         assert _param(spec, "cnae_codes").value == ["8630501", "4781400"]
+
+    def test_cnae_filters_partition_column(self):
+        # O teto de bytes é checado sobre a estimativa pré-execução, que só vê
+        # poda de partição: sem este filtro toda consulta estimava 4 GB.
+        spec = _build(LeadFilters(cnae_codes=["8630-5/01", "8630-5/04", "4781400"]))
+        assert "t.cnae_divisao IN UNNEST(@cnae_divisoes)" in spec.sql
+        divisoes = _param(spec, "cnae_divisoes")
+        assert divisoes.type == "ARRAY<INT64>"
+        assert divisoes.value == [47, 86]
 
     def test_param_values_reflect_filters(self):
         filters = LeadFilters(
@@ -133,7 +187,7 @@ class TestBuildQueryClauses:
             max_age_years=10,
             min_capital=5000.0,
         )
-        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(filters)
         assert _param(spec, "ufs").value == ["SP", "RJ"]
         assert _param(spec, "min_age_years").value == 2
         assert _param(spec, "max_age_years").value == 10
@@ -142,67 +196,57 @@ class TestBuildQueryClauses:
     def test_age_counts_complete_years(self):
         # DATE_DIFF(..., YEAR) conta viradas de ano: 31/12/2024 -> 26/09/2026
         # daria 2 "anos". A comparação com DATE_SUB exige anos completos.
-        filters = LeadFilters(min_age_years=2, max_age_years=10)
-        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(LeadFilters(min_age_years=2, max_age_years=10))
         assert (
-            "est.data_inicio_atividade"
+            "t.data_inicio_atividade"
             " <= DATE_SUB(CURRENT_DATE(), INTERVAL @min_age_years YEAR)"
         ) in spec.sql
         assert (
-            "est.data_inicio_atividade"
+            "t.data_inicio_atividade"
             " > DATE_SUB(CURRENT_DATE(), INTERVAL @max_age_years + 1 YEAR)"
         ) in spec.sql
         assert "DATE_DIFF" not in spec.sql
-        assert "SAFE.PARSE_DATE" not in spec.sql
 
     def test_portes_translated_to_dataset_codes(self):
-        filters = LeadFilters(portes=["pequena", "micro"])
-        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(LeadFilters(portes=["pequena", "micro"]))
         assert _param(spec, "portes").value == ["3", "1"]
         assert "@porte_demais" not in spec.sql
 
     def test_media_grande_are_demais_restricted_to_business_entities(self):
         # Porte só distingue 1/3/5; '5' (Demais) ativo é 53% associação,
         # condomínio, igreja, órgão público e pessoa física (medido).
-        filters = LeadFilters(portes=["media", "grande", "micro"])
-        spec = build_query(filters, PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(LeadFilters(portes=["media", "grande", "micro"]))
         assert _param(spec, "portes").value == ["1"]
         assert _param(spec, "porte_demais").value == "5"
         assert _param(spec, "natureza_empresarial").value == "2"
         assert (
-            "(emp.porte IN UNNEST(@portes) OR (emp.porte = @porte_demais"
-            " AND STARTS_WITH(emp.natureza_juridica, @natureza_empresarial)))"
+            "(t.porte IN UNNEST(@portes) OR (t.porte = @porte_demais"
+            " AND STARTS_WITH(t.natureza_juridica, @natureza_empresarial)))"
         ) in spec.sql
 
     def test_only_media_has_no_exact_porte_param(self):
-        spec = build_query(LeadFilters(portes=["media"]), PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(LeadFilters(portes=["media"]))
         assert "@portes" not in spec.sql
         assert "@porte_demais" in spec.sql
 
     def test_min_capital_excludes_sentinel(self):
-        spec = build_query(LeadFilters(min_capital=1e6), PUBLIC, snapshots=SNAPSHOTS)
-        assert "emp.capital_social < @capital_sentinela" in spec.sql
+        spec = _build(LeadFilters(min_capital=1e6))
+        assert "t.capital_social < @capital_sentinela" in spec.sql
         assert _param(spec, "capital_sentinela").value == 999_999_999_999.0
 
     def test_selects_full_cnpj_and_matriz_filial(self):
         # Com só cnpj_basico, matriz e filiais sairiam como linhas repetidas.
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
-        assert "est.cnpj,\n" in spec.sql
-        assert "AS matriz_filial" in spec.sql
+        spec = _build()
+        assert "t.cnpj,\n" in spec.sql
+        assert "t.matriz_filial" in spec.sql
 
     def test_porte_select_translated_to_labels(self):
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build()
         assert "WHEN '5' THEN 'demais'" in spec.sql
 
     def test_limit_param_capped_by_policy(self):
-        spec = build_query(LeadFilters(limit=10_000), PUBLIC, snapshots=SNAPSHOTS)
+        spec = _build(LeadFilters(limit=10_000))
         assert _param(spec, "limit").value == 50
-
-    def test_joins_estabelecimentos_empresas_simples(self):
-        spec = build_query(LeadFilters(), PUBLIC, snapshots=SNAPSHOTS)
-        assert "estabelecimentos" in spec.sql
-        assert "empresas" in spec.sql
-        assert "simples" in spec.sql
 
 
 class _FakeJob:
@@ -271,7 +315,7 @@ class FakeInfoClient:
 
 @pytest.fixture
 def spec():
-    return build_query(LeadFilters(ufs=["SP"]), PUBLIC, snapshots=SNAPSHOTS)
+    return _build(LeadFilters(ufs=["SP"]))
 
 
 class TestResolveLatestSnapshots:
@@ -459,7 +503,7 @@ class TestRunQuery:
         _, probe_config = client.probes[0]
         assert probe_config.maximum_bytes_billed == 1
         names = {p.name for p in probe_config.query_parameters}
-        assert {"ufs", "limit", "snapshot_est", "snapshot_emp"} <= names
+        assert {"ufs", "limit"} <= names
 
     def test_execution_returns_rows_and_bytes(self, spec):
         rows = [{"razao_social": "CLINICA EXEMPLO ME", "porte": "demais"}]
@@ -542,4 +586,4 @@ class TestRunQuery:
         run_query(spec, client=client, max_bytes_billed=1024**3)
         _, job_config = client.executed[0]
         names = {p.name for p in job_config.query_parameters}
-        assert {"ufs", "limit", "snapshot_est", "snapshot_emp"} <= names
+        assert {"ufs", "limit"} <= names
