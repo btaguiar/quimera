@@ -23,7 +23,7 @@ com as colunas que cada onda precisa. Os schemas vêm de `bq show`.
 | `br_me_cnpj.estabelecimentos` (colunas não usadas) | `cnpj` | CNAE secundário, CEP, bairro, domínio do e-mail (só flag), situação especial | 3,7 GB (só `cnae_fiscal_secundaria`) | público (flag) |
 | `br_me_cnpj.estabelecimentos` (histórico, ~45 snapshots) | `cnpj` | eventos: abertura, fechamento, filial nova, mudança de endereço ou CNAE | 9,8 GB por par de snapshots (6 col.) | público |
 | `br_me_cnpj.empresas` (histórico) | `cnpj_basico` | variação de capital social e de porte | ~2 GB por snapshot (estimado; medir) | público |
-| `br_me_cnpj.simples` | `cnpj_basico` | regime (Simples ou não), exclusão do Simples/MEI e datas | 2,3 GB (tabela toda) | público |
+| `br_me_cnpj.simples` | `cnpj_basico` | regime (MEI, Simples ou fora) | 2,3 GB (tabela toda) | público |
 | `br_me_cnpj.socios` | `cnpj_basico` | nº de sócios, sócio PJ, sócio estrangeiro, entrada recente | 0,97 GB (sem nome e sem documento) | público só agregado |
 | `br_ms_cnes.estabelecimento` | `cpf_cnpj`, `cnpj_mantenedora` | tipo de unidade, vínculo SUS, CNES↔CNPJ | 0,30 GB/mês | público |
 | `br_ms_cnes.profissional` | `id_estabelecimento_cnes` | **contagem** de profissionais por CBO (dentista, médico, fisioterapeuta…) | 2,5 GB/mês | público só contagem |
@@ -94,24 +94,32 @@ que foi medido.
   um filtro "rede, com N+ unidades" e um sinal de porte real. Para o ICP de
   clínicas é provavelmente o melhor sinal, porque `porte` não separa médio de
   grande.
-- **Regime tributário** a partir de `simples`: `simples_nacional` (bool),
-  `data_exclusao_simples` e `data_exclusao_mei`. Derivados: "fora do Simples,
-  sem ser MEI" é proxy de faturamento acima de R$ 4,8 M; "saiu do Simples nos
-  últimos 12 meses" e "ex-MEI" indicam crescimento.
-- **`ente_federativo`** e natureza 1xxx: exclusão explícita de órgão público
-  (ou o filtro inverso).
+- **Regime tributário** a partir de `simples`: `mei` / `simples` /
+  `fora_simples`. "Fora do Simples" **não** é afirmado como faturamento alto,
+  porque há empresas fora por escolha ou por atividade vedada.
 - **CEP e bairro** + **lat/long** pelo `diretorio.cep` (centroide): busca por
   raio ("até 5 km do CEP X") e por bairro. O endereço completo não entra.
-- **`email_dominio_proprio`** (bool): e-mail com domínio que não seja de
-  provedor gratuito. Serve como sinal de maturidade digital sem expor o e-mail.
-  É calculado no build e o e-mail nunca sai de lá.
+- **`dominio_proprio`** (bool): domínio de e-mail usado por no máximo 4
+  empresas. Serve como sinal de maturidade digital sem expor o e-mail. É
+  calculado no build e o e-mail nunca sai de lá.
 
-Novos filtros: `min_estabelecimentos`, `regime` (`simples`/`nao_simples`),
-`cresceu_recentemente`, `raio_km` + `cep_centro`, `bairros`, `excluir_publico`.
+**Revisto pelas medições de 2026-09-26** (detalhes no plano
+`docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md`):
+- *"Saiu do Simples" e "ex-MEI" como crescimento: descartados.* Saem ~200 mil
+  empresas por mês o ano todo, e ~1,2 M em dezembro (exclusão anual). A data
+  não diz o motivo. Crescimento vai para a Onda 3 (diff de capital e porte).
+- *`ente_federativo`: descartado.* São 84.004 preenchidos contra 84.107 com
+  natureza 1xxx, então é redundante.
+- *Domínio próprio sem lista de provedores:* o corte por nº de empresas por
+  domínio já elimina provedores, contabilidades (contabilizei.com.br: 141.903
+  empresas) e erros de digitação.
 
-**Aceite:** checagens novas no build (lat/long presente em ≥ X% após medir,
-contagem de unidades ≥ 1); custo por pedido do eval sem piora > 20%; casos
-novos no eval passando.
+Novos filtros: `min_estabelecimentos`, `regimes`, `bairros`,
+`cep_centro` + `raio_km`, `com_dominio_proprio`.
+
+**Aceite:** ver o plano da Onda 1 (checagens de build com limiares medidos,
+custo por pedido sem piora > 20%, limiares do eval mantidos, invariantes do
+público).
 
 ### Onda 2 — CNAE secundário
 
@@ -136,7 +144,7 @@ O build faz o diff entre o snapshot atual e o anterior e acumula em `eventos`:
 | `mudou_cnae` | `cnae_fiscal_principal` mudou |
 | `aumento_capital` | `capital_social` subiu (de `empresas`) |
 | `mudou_porte` | `porte` mudou |
-| `saiu_simples` | de `simples` (Onda 1), guardado como evento com data |
+| `mudou_regime` | `regime_tributario` mudou entre snapshots da tabela própria (a data de exclusão do Simples sozinha não serve: não diz o motivo) |
 
 O backfill é feito uma vez, varrendo pares de snapshots consecutivos
 (~US$ 1–1,5). Depois, custa um par por mês. O pedido ganha
