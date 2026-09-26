@@ -6,7 +6,6 @@ import json
 
 import pytest
 
-from quimera.filters import LeadFilters
 from quimera.pipeline import run
 from quimera.policy import PRIVATE, PUBLIC
 from quimera.query import BytesBudgetExceededError

@@ -10,7 +10,6 @@ from quimera.filters import LeadFilters
 from quimera.policy import PRIVATE, PUBLIC
 from quimera.query import (
     BytesBudgetExceededError,
-    QueryParam,
     build_query,
     resolve_latest_snapshots,
     resolve_municipality_ids,

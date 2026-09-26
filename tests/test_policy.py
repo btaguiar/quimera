@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from quimera.filters import LeadFilters
-from quimera.policy import PRIVATE, PUBLIC, Policy, apply_policy, resolve_policy
+from quimera.policy import PRIVATE, PUBLIC, apply_policy, resolve_policy
 
 
 class TestPolicies:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from quimera.__main__ import main
 from quimera.filters import LeadFilters
