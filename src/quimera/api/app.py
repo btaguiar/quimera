@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import FastAPI, Header, Request
+from fastapi import Depends, FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -29,6 +29,16 @@ MAX_REQUEST_CHARS = 500
 
 class LeadsRequestBody(BaseModel):
     request: str = Field(min_length=1, max_length=MAX_REQUEST_CHARS)
+
+
+class ApiError(Exception):
+    """Erro da API com envelope uniforme {"error", "reason"}."""
+
+    def __init__(self, status_code: int, error: str, reason: str) -> None:
+        super().__init__(reason)
+        self.status_code = status_code
+        self.error = error
+        self.reason = reason
 
 
 def create_app(
@@ -67,6 +77,19 @@ def create_app(
             },
         )
 
+    @app.exception_handler(ApiError)
+    async def _api_error_handler(request: Request, exc: ApiError):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": exc.error, "reason": exc.reason},
+        )
+
+    async def _require_token(x_api_token: str | None = Header(default=None)):
+        if not token_ok(x_api_token, config.api_token):
+            raise ApiError(
+                401, "unauthorized", "token ausente ou inválido (X-Api-Token)"
+            )
+
     @app.get("/health")
     def health():
         return {
@@ -91,20 +114,8 @@ def create_app(
             bq_client=app.state.pipeline_deps["bq_client"],
         )
 
-    @app.post("/leads")
-    def leads(
-        body: LeadsRequestBody,
-        request: Request,
-        x_api_token: str | None = Header(default=None),
-    ):
-        if not token_ok(x_api_token, config.api_token):
-            return JSONResponse(
-                status_code=401,
-                content={
-                    "error": "unauthorized",
-                    "reason": "token ausente ou inválido (X-Api-Token)",
-                },
-            )
+    @app.post("/leads", dependencies=[Depends(_require_token)])
+    def leads(body: LeadsRequestBody, request: Request):
         key = request_hash(normalize_request(body.request))
         cached = state.cache_get(key)
         if cached is not None:

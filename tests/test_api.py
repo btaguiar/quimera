@@ -227,6 +227,7 @@ class TestTokenProtection:
         )
         assert resp.status_code == 401
         assert resp.json()["error"] == "unauthorized"
+        assert resp.json()["reason"]
 
     def test_missing_token_returns_401(self):
         client = TestClient(_app(api_token="segredo"))
@@ -247,6 +248,18 @@ class TestTokenProtection:
         resp = client.post("/leads", json={"request": "clínicas em SP"})
         assert resp.status_code == 200
 
+    def test_401_wins_over_422_when_token_wrong_and_body_malformed(self):
+        client = TestClient(_app(api_token="segredo"))
+        resp = client.post(
+            "/leads",
+            json={"request": ""},
+            headers={"X-Api-Token": "errado"},
+        )
+        assert resp.status_code == 401
+        data = resp.json()
+        assert data["error"] == "unauthorized"
+        assert data["reason"]
+
 
 class TestBodyValidation:
     def test_empty_request_returns_422(self):
@@ -254,6 +267,7 @@ class TestBodyValidation:
         resp = client.post("/leads", json={"request": ""})
         assert resp.status_code == 422
         assert resp.json()["error"] == "validação"
+        assert resp.json()["reason"]
 
     def test_too_long_request_returns_422(self):
         client = TestClient(_app())
