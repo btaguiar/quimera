@@ -278,3 +278,69 @@ class TestBodyValidation:
         client = TestClient(_app())
         resp = client.post("/leads", json={})
         assert resp.status_code == 422
+
+
+class TestRateLimit:
+    def test_fourth_request_within_window_returns_429(self):
+        client = TestClient(_app(rate_limit_max=3))
+        for _ in range(3):
+            resp = client.post("/leads", json={"request": "empresas em SP"})
+            assert resp.status_code == 200
+        resp = client.post("/leads", json={"request": "empresas em RJ"})
+        assert resp.status_code == 429
+        assert resp.json()["error"] == "rate limit"
+        assert int(resp.headers["Retry-After"]) > 0
+
+    def test_cache_hit_does_not_help_after_rate_limit(self):
+        client = TestClient(_app(rate_limit_max=1))
+        client.post("/leads", json={"request": "empresas em SP"})
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 429
+
+    def test_other_ip_is_not_affected(self):
+        client = TestClient(_app(rate_limit_max=1))
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 200
+        resp = client.post(
+            "/leads",
+            json={"request": "empresas em SP"},
+            headers={"X-Forwarded-For": "outro-ip, proxy"},
+        )
+        assert resp.status_code == 200
+
+    def test_forwarded_for_first_hop_wins(self):
+        client = TestClient(_app(rate_limit_max=1))
+        resp = client.post(
+            "/leads",
+            json={"request": "empresas em SP"},
+            headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8"},
+        )
+        assert resp.status_code == 200
+        resp = client.post(
+            "/leads",
+            json={"request": "empresas em RJ"},
+            headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8"},
+        )
+        assert resp.status_code == 429
+
+    def test_rate_limit_precedes_body_validation(self):
+        client = TestClient(_app(rate_limit_max=1))
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 200
+        resp = client.post("/leads", json={"request": ""})
+        assert resp.status_code == 429
+
+    def test_rate_limit_runs_after_token_check(self):
+        client = TestClient(_app(api_token="segredo", rate_limit_max=1))
+        resp = client.post(
+            "/leads",
+            json={"request": "empresas em SP"},
+            headers={"X-Api-Token": "errado"},
+        )
+        assert resp.status_code == 401
+        resp = client.post(
+            "/leads",
+            json={"request": "empresas em SP"},
+            headers={"X-Api-Token": "segredo"},
+        )
+        assert resp.status_code == 200

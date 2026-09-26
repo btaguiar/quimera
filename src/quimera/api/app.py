@@ -34,11 +34,18 @@ class LeadsRequestBody(BaseModel):
 class ApiError(Exception):
     """Erro da API com envelope uniforme {"error", "reason"}."""
 
-    def __init__(self, status_code: int, error: str, reason: str) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        error: str,
+        reason: str,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(reason)
         self.status_code = status_code
         self.error = error
         self.reason = reason
+        self.headers = headers
 
 
 def create_app(
@@ -82,12 +89,30 @@ def create_app(
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": exc.error, "reason": exc.reason},
+            headers=exc.headers,
         )
 
     async def _require_token(x_api_token: str | None = Header(default=None)):
         if not token_ok(x_api_token, config.api_token):
             raise ApiError(
                 401, "unauthorized", "token ausente ou inválido (X-Api-Token)"
+            )
+
+    def _client_ip(request: Request) -> str:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    async def _enforce_rate_limit(request: Request):
+        ip = _client_ip(request)
+        if not state.allow_request(ip):
+            raise ApiError(
+                429,
+                "rate limit",
+                f"limite de {config.rate_limit_max} requisições por "
+                f"{config.rate_limit_window_s}s por IP",
+                headers={"Retry-After": str(state.retry_after(ip))},
             )
 
     @app.get("/health")
@@ -114,7 +139,10 @@ def create_app(
             bq_client=app.state.pipeline_deps["bq_client"],
         )
 
-    @app.post("/leads", dependencies=[Depends(_require_token)])
+    @app.post(
+        "/leads",
+        dependencies=[Depends(_require_token), Depends(_enforce_rate_limit)],
+    )
     def leads(body: LeadsRequestBody, request: Request):
         key = request_hash(normalize_request(body.request))
         cached = state.cache_get(key)
