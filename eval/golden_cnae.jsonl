@@ -1,0 +1,66 @@
+{"id": "cnae_001", "query": "dentistas", "acceptable": ["8630-5/01"]}
+{"id": "cnae_002", "query": "clínicas odontológicas", "acceptable": ["8630-5/01"]}
+{"id": "cnae_003", "query": "consultórios odontológicos", "acceptable": ["8630-5/01"]}
+{"id": "cnae_004", "query": "advogados", "acceptable": ["6911-7/01"]}
+{"id": "cnae_005", "query": "escritórios de advocacia", "acceptable": ["6911-7/01"]}
+{"id": "cnae_006", "query": "advocacia", "acceptable": ["6911-7/01"]}
+{"id": "cnae_007", "query": "contadores", "acceptable": ["6920-6/01"]}
+{"id": "cnae_008", "query": "escritórios de contabilidade", "acceptable": ["6920-6/01"]}
+{"id": "cnae_009", "query": "empresas de contabilidade", "acceptable": ["6920-6/01"]}
+{"id": "cnae_010", "query": "desenvolvimento de software", "acceptable": ["6201-5/01"]}
+{"id": "cnae_011", "query": "empresas de software", "acceptable": ["6201-5/01"]}
+{"id": "cnae_012", "query": "software house", "acceptable": ["6201-5/01"]}
+{"id": "cnae_013", "query": "empresas de TI", "acceptable": ["6201-5/01", "6201-5/02", "6202-3/00", "6203-1/00", "6204-0/00", "6209-1/00"]}
+{"id": "cnae_014", "query": "restaurantes", "acceptable": ["5611-2/01"]}
+{"id": "cnae_015", "query": "pizzarias", "acceptable": ["5611-2/01"]}
+{"id": "cnae_016", "query": "lanchonetes", "acceptable": ["5612-1/00"]}
+{"id": "cnae_017", "query": "hamburguerias", "acceptable": ["5611-2/01", "5612-1/00"]}
+{"id": "cnae_018", "query": "hotéis", "acceptable": ["5510-8/00"]}
+{"id": "cnae_019", "query": "farmácias", "acceptable": ["4771-7/00"]}
+{"id": "cnae_020", "query": "drogarias", "acceptable": ["4771-7/00"]}
+{"id": "cnae_021", "query": "supermercados", "acceptable": ["4711-3/01", "4711-3/02"]}
+{"id": "cnae_022", "query": "hipermercados", "acceptable": ["4711-3/02"]}
+{"id": "cnae_023", "query": "cabeleireiros", "acceptable": ["9602-5/01"]}
+{"id": "cnae_024", "query": "salões de beleza", "acceptable": ["9602-5/01", "9602-5/02"]}
+{"id": "cnae_025", "query": "barbearias", "acceptable": ["9602-5/01", "9602-5/02"]}
+{"id": "cnae_026", "query": "academias de ginástica", "acceptable": ["9311-5/00"]}
+{"id": "cnae_027", "query": "academias", "acceptable": ["9311-5/00"]}
+{"id": "cnae_028", "query": "postos de combustível", "acceptable": ["4731-8/00"]}
+{"id": "cnae_029", "query": "postos de gasolina", "acceptable": ["4731-8/00"]}
+{"id": "cnae_030", "query": "concessionárias de carros", "acceptable": ["4511-1/01"]}
+{"id": "cnae_031", "query": "revendas de automóveis", "acceptable": ["4511-1/01", "4511-1/02"]}
+{"id": "cnae_032", "query": "hospitais", "acceptable": ["8610-1/01"]}
+{"id": "cnae_033", "query": "clínicas médicas", "acceptable": ["8630-5/01", "8630-5/02", "8630-5/03"]}
+{"id": "cnae_034", "query": "médicos", "acceptable": ["8630-5/02"]}
+{"id": "cnae_035", "query": "laboratórios de exames", "acceptable": ["8640-2/01", "8640-2/02"]}
+{"id": "cnae_036", "query": "escolas particulares", "acceptable": ["8511-2/00", "8512-1/00", "8513-9/00", "8520-1/00"]}
+{"id": "cnae_037", "query": "escolas de idiomas", "acceptable": ["8593-7/00"]}
+{"id": "cnae_038", "query": "cursos livres", "acceptable": ["8599-6/03", "8599-6/04", "8599-6/99"]}
+{"id": "cnae_039", "query": "empresas de vigilância", "acceptable": ["8011-1/01"]}
+{"id": "cnae_040", "query": "segurança patrimonial", "acceptable": ["8011-1/01"]}
+{"id": "cnae_041", "query": "empresas de limpeza", "acceptable": ["8121-4/00"]}
+{"id": "cnae_042", "query": "limpeza predial", "acceptable": ["8121-4/00"]}
+{"id": "cnae_043", "query": "agências de publicidade", "acceptable": ["7311-4/00"]}
+{"id": "cnae_044", "query": "agências de marketing", "acceptable": ["7311-4/00", "7319-0/03", "7319-0/04", "7319-0/99"]}
+{"id": "cnae_045", "query": "consultorias empresariais", "acceptable": ["7020-4/00"]}
+{"id": "cnae_046", "query": "consultoria de gestão", "acceptable": ["7020-4/00"]}
+{"id": "cnae_047", "query": "engenharia civil", "acceptable": ["7112-0/00"]}
+{"id": "cnae_048", "query": "escritórios de arquitetura", "acceptable": ["7111-1/00"]}
+{"id": "cnae_049", "query": "veterinários", "acceptable": ["7500-1/00"]}
+{"id": "cnae_050", "query": "clínicas veterinárias", "acceptable": ["7500-1/00"]}
+{"id": "cnae_051", "query": "construtoras", "acceptable": ["4120-4/00"]}
+{"id": "cnae_052", "query": "incorporadoras", "acceptable": ["4110-7/00", "4120-4/00"]}
+{"id": "cnae_053", "query": "eletricistas", "acceptable": ["4321-5/00"]}
+{"id": "cnae_054", "query": "encanadores", "acceptable": ["4322-3/01"]}
+{"id": "cnae_055", "query": "pintores de prédios", "acceptable": ["4330-4/04"]}
+{"id": "cnae_056", "query": "transportadoras", "acceptable": ["4930-2/01", "4930-2/02"]}
+{"id": "cnae_057", "query": "padarias", "acceptable": ["4721-1/01", "4721-1/02"]}
+{"id": "cnae_058", "query": "lavanderias", "acceptable": ["9601-7/01"]}
+{"id": "cnae_059", "query": "call centers", "acceptable": ["8220-2/00"]}
+{"id": "cnae_060", "query": "oficinas mecânicas", "acceptable": ["4520-0/01"]}
+{"id": "cnae_061", "query": "lojas de material de construção", "acceptable": ["4744-0/01", "4744-0/03", "4744-0/04", "4744-0/05", "4744-0/99"]}
+{"id": "cnae_062", "query": "autopeças", "acceptable": ["4530-7/03", "4530-7/04"]}
+{"id": "cnae_063", "query": "clínicas de estética", "acceptable": ["9602-5/02"]}
+{"id": "cnae_064", "query": "agências de viagem", "acceptable": ["7911-2/00"]}
+{"id": "cnae_065", "query": "gráficas", "acceptable": ["1813-0/01", "1813-0/99"]}
+{"id": "cnae_066", "query": "pousadas", "acceptable": ["5590-6/03", "5590-6/99"]}

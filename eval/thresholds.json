@@ -1,0 +1,10 @@
+{
+  "correct_refusal_rate": 1.0,
+  "overall_field_accuracy": 0.85,
+  "recall_at_5": 0.74,
+  "_comentario": {
+    "correct_refusal_rate": "spec Fase 2: recusa correta = 100%",
+    "overall_field_accuracy": "spec Fase 2: acerto de extração >= 85%",
+    "recall_at_5": "baseline MEDIDO em 2026-09-26: 0,742 (text-embedding-005, 66 casos, rótulos revisados contra CNAE 2.3)"
+  }
+}

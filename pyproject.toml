@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quimera"
+version = "0.1.0"
+description = "Agente que transforma pedidos em português em listas ranqueadas de empresas (CNPJ), combinando LLM, embeddings e BigQuery."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2",
+]
+
+[project.optional-dependencies]
+# Dependências de GCP nunca são importadas no topo dos módulos:
+# todo import é lazy (dentro de funções), então `pytest` roda sem este extra.
+gcp = [
+    "google-cloud-bigquery>=3",
+    "google-genai>=1",
+]
+dev = [
+    "pytest>=8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

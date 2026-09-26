@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Ambiente e segredos — nunca commitar
+.env
+.env.*
+!.env.example
+
+# Ferramentas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
