@@ -100,10 +100,10 @@ class TestBuildQueryTable:
         assert "basedosdados" not in spec.sql
         assert "JOIN" not in spec.sql  # cruzamentos já feitos na materialização
 
-    def test_where_omitted_when_there_is_nothing_to_filter(self):
-        assert "WHERE" in _build().sql  # público sempre exclui MEI/pessoa física
+    def test_where_true_when_there_is_nothing_to_filter(self):
+        # QUALIFY exige WHERE na mesma consulta.
         private = _build(LeadFilters(include_mei=True), PRIVATE)
-        assert "WHERE" not in private.sql
+        assert "WHERE\n  TRUE\n" in private.sql
         assert private.sql.endswith("LIMIT @limit")
 
     def test_invalid_table_id_rejected(self):
@@ -152,6 +152,73 @@ class TestReadLeadsSnapshot:
     def test_missing_labels_points_to_build(self):
         with pytest.raises(LeadsTableMissingError, match="quimera.dados build"):
             read_leads_snapshot(TABLES, client=self._Client({}))
+
+    def test_contacts_table_checked_only_when_required(self):
+        class Client(self._Client):
+            def get_table(self, table_id):
+                if table_id == TABLES.contatos:
+                    from google.api_core.exceptions import NotFound
+
+                    raise NotFound("contatos")
+                return super().get_table(table_id)
+
+        client = Client({"snapshot_est": "2026-07-12", "snapshot_emp": "2026-07-12"})
+        assert read_leads_snapshot(TABLES, client=client)  # público: não confere
+        with pytest.raises(LeadsTableMissingError, match="build --contatos"):
+            read_leads_snapshot(TABLES, client=client, require_contatos=True)
+
+
+class TestBuildQueryRanking:
+    """LIMIT sem ORDER BY devolvia N linhas quaisquer entre milhares, e o score
+    só reordenava essa amostra. A ordem agora segue o ICP antes do LIMIT."""
+
+    def test_orders_by_icp_score_before_limit(self):
+        sql = _build().sql
+        order_at = sql.index("ORDER BY")
+        assert order_at < sql.index("LIMIT @limit")
+        for name in (
+            "@icp_portes",
+            "@icp_w_idade",
+            "@icp_capital_min",
+            "@icp_fator_mei",
+        ):
+            assert name in sql[order_at:]
+
+    def test_icp_params_follow_config(self):
+        from quimera.score import ICPConfig
+
+        icp = ICPConfig(
+            preferred_portes=("pequena", "demais"),
+            target_min_age_years=5,
+            target_min_capital=1e6,
+            mei_factor=0.2,
+        )
+        spec = build_query(LeadFilters(), PUBLIC, tables=TABLES, icp=icp)
+        assert _param(spec, "icp_portes").value == ["3", "5"]
+        assert _param(spec, "icp_idade_min").value == 5
+        assert _param(spec, "icp_capital_min").value == 1e6
+        assert _param(spec, "icp_fator_mei").value == 0.2
+
+    def test_default_icp_prefers_demais(self):
+        assert _param(_build(), "icp_portes").value == ["5"]
+
+    def test_unknown_or_missing_capital_is_not_ranked_as_big(self):
+        # Capital 0 e sentinela = não informado: não pontua nem desempata.
+        sql = _build().sql
+        assert (
+            "IF(t.capital_social > 0 AND t.capital_social < @capital_sentinela,"
+            " t.capital_social, -1) DESC" in sql
+        )
+
+    def test_one_establishment_per_company(self):
+        # "padarias em SP" devolvia 50 filiais do mesmo grupo varejista.
+        sql = _build().sql
+        assert "QUALIFY ROW_NUMBER() OVER (\n  PARTITION BY t.cnpj_basico" in sql
+        assert sql.index("QUALIFY") < sql.rindex("ORDER BY")
+
+    def test_deterministic_tiebreak(self):
+        sql = _build().sql
+        assert sql.rstrip().endswith("t.cnpj\nLIMIT @limit")
 
 
 class TestBuildQueryClauses:

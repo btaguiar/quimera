@@ -202,8 +202,10 @@ def run(
     # 4. Tabela própria (snapshot lido dos labels, sem custo) + query
     #    parametrizada com estimativa prévia + teto de bytes.
     tables = tables or resolve_leads_tables()
-    snapshots = read_leads_snapshot(tables, client=bq_client)
-    spec = build_query(filters, policy, tables=tables)
+    snapshots = read_leads_snapshot(
+        tables, client=bq_client, require_contatos=bool(policy.contact_fields)
+    )
+    spec = build_query(filters, policy, tables=tables, icp=icp)
     query_result: QueryResult = run_query(
         spec, client=bq_client, max_bytes_billed=max_bytes_billed
     )

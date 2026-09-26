@@ -28,6 +28,7 @@ from typing import Any
 
 from .filters import LeadFilters
 from .policy import Policy
+from .score import ICPConfig
 from .text import normalize_name
 
 # ---------------------------------------------------------------------------
@@ -215,13 +216,14 @@ def build_query(
     policy: Policy,
     *,
     tables: LeadsTables,
+    icp: ICPConfig | None = None,
 ) -> QuerySpec:
     """Monta SQL parametrizado a partir dos filtros (já passados por apply_policy).
 
     Lê a tabela própria (``tables.leads``), que já contém só estabelecimentos
     ativos do snapshot mais recente, cruzados com empresas, simples e
     município. Contatos só entram via ``tables.contatos`` e só quando a policy
-    permite.
+    permite. A ordem segue o ``icp`` (mesma regra do score) antes do LIMIT.
     """
     select_cols = [
         # cnpj (14 dígitos) identifica o estabelecimento: com só cnpj_basico,
@@ -302,9 +304,6 @@ def build_query(
             f" AND t.{COL_CAPITAL_SOCIAL} < @capital_sentinela"
         )
         params.append(QueryParam("min_capital", "FLOAT64", filters.min_capital))
-        params.append(
-            QueryParam("capital_sentinela", "FLOAT64", CAPITAL_SOCIAL_SENTINELA)
-        )
 
     if filters.portes:
         # Rótulos do usuário -> códigos do dataset. media/grande viram "Demais"
@@ -354,22 +353,80 @@ def build_query(
             )
         )
 
+    ranking, icp_params = _icp_ranking(icp or ICPConfig())
+    params.extend(icp_params)
+
     limit = min(filters.limit, policy.max_rows)
     params.append(QueryParam("limit", "INT64", limit))
 
     from_clause = f"FROM `{tables.leads}` AS t\n"
     if policy.contact_fields:
         from_clause += f"LEFT JOIN `{tables.contatos}` AS c USING ({COL_CNPJ})\n"
-    where_clause = ("WHERE\n  " + "\n  AND ".join(where) + "\n") if where else ""
+    # QUALIFY exige WHERE/GROUP BY/HAVING na mesma consulta.
+    where_clause = "WHERE\n  " + ("\n  AND ".join(where) if where else "TRUE") + "\n"
     sql = (
         "SELECT\n  "
         + ",\n  ".join(select_cols)
         + "\n"
         + from_clause
         + where_clause
+        # Um estabelecimento por empresa (o mais bem ranqueado): sem isso,
+        # "padarias em SP" devolvia 50 filiais do mesmo grupo varejista.
+        + f"QUALIFY ROW_NUMBER() OVER (\n  PARTITION BY t.{COL_CNPJ_BASICO}\n"
+        + f"  ORDER BY {ranking}) = 1\n"
+        + f"ORDER BY {ranking}"
         + "LIMIT @limit"
     )
     return QuerySpec(sql=sql, params=tuple(params))
+
+
+def _icp_ranking(icp: ICPConfig) -> tuple[str, list[QueryParam]]:
+    """Termos de ordenação com a mesma regra de ``score.score_lead``, em SQL.
+
+    Sem isso, ``LIMIT`` devolvia N linhas QUAISQUER entre milhares e o score
+    só reordenava essa amostra arbitrária. Desempate: capital informado maior,
+    empresa mais antiga, cnpj (ordem determinística). O sort do pipeline é
+    estável, então o desempate do SQL sobrevive entre scores iguais.
+    """
+    label_to_code = {label: code for code, label in PORTE_CODES_TO_LABELS.items()}
+    preferred = [label_to_code[p] for p in icp.preferred_portes if p in label_to_code]
+    capital_informado = (
+        f"t.{COL_CAPITAL_SOCIAL} > 0 AND t.{COL_CAPITAL_SOCIAL} < @capital_sentinela"
+    )
+    score = (
+        "(\n"
+        f"    CASE WHEN t.{COL_PORTE} IN UNNEST(@icp_portes) THEN @icp_w_porte\n"
+        f"      WHEN t.{COL_PORTE} IN UNNEST(@icp_portes_conhecidos)"
+        " THEN @icp_w_porte * @icp_porte_parcial\n"
+        "      ELSE 0 END\n"
+        f"    + IF(t.{COL_DATA_INICIO_ATIVIDADE}"
+        " <= DATE_SUB(CURRENT_DATE(), INTERVAL @icp_idade_min YEAR),"
+        " @icp_w_idade, 0)\n"
+        f"    + IF({capital_informado}"
+        f" AND t.{COL_CAPITAL_SOCIAL} >= @icp_capital_min, @icp_w_capital, 0)\n"
+        f"  ) * IF(t.{COL_OPCAO_MEI} = 1, @icp_fator_mei, 1)"
+    )
+    ranking = (
+        f"\n  {score} DESC,\n"
+        f"  IF({capital_informado}, t.{COL_CAPITAL_SOCIAL}, -1) DESC,\n"
+        f"  t.{COL_DATA_INICIO_ATIVIDADE} ASC,\n"
+        f"  t.{COL_CNPJ}\n"
+    )
+    params = [
+        QueryParam("capital_sentinela", "FLOAT64", CAPITAL_SOCIAL_SENTINELA),
+        QueryParam("icp_portes", "ARRAY<STRING>", preferred),
+        QueryParam(
+            "icp_portes_conhecidos", "ARRAY<STRING>", list(PORTE_CODES_TO_LABELS)
+        ),
+        QueryParam("icp_w_porte", "FLOAT64", icp.w_porte),
+        QueryParam("icp_porte_parcial", "FLOAT64", icp.porte_partial_factor),
+        QueryParam("icp_idade_min", "INT64", icp.target_min_age_years),
+        QueryParam("icp_w_idade", "FLOAT64", icp.w_age),
+        QueryParam("icp_capital_min", "FLOAT64", icp.target_min_capital),
+        QueryParam("icp_w_capital", "FLOAT64", icp.w_capital),
+        QueryParam("icp_fator_mei", "FLOAT64", icp.mei_factor),
+    ]
+    return ranking, params
 
 
 def _to_bq_parameters(params: tuple[QueryParam, ...]) -> list[Any]:
@@ -471,9 +528,15 @@ def resolve_latest_snapshots(*, client: Any | None = None) -> dict[str, date]:
 
 
 def read_leads_snapshot(
-    tables: LeadsTables, *, client: Any | None = None
+    tables: LeadsTables,
+    *,
+    client: Any | None = None,
+    require_contatos: bool = False,
 ) -> dict[str, date]:
     """Snapshot de origem da tabela de leads, lido dos labels (sem custo).
+
+    ``require_contatos`` confere também a tabela de contatos (policy com
+    campos de contato): sem ela, a consulta falharia com NotFound cru.
 
     Substitui a descoberta por consulta no caminho do pedido: a descoberta lê a
     coluna ``data`` da Base dos Dados (GBs por chamada) e só roda no build.
@@ -490,7 +553,7 @@ def read_leads_snapshot(
         ) from exc
     labels = table.labels or {}
     try:
-        return {
+        snapshots = {
             source: date.fromisoformat(labels[label])
             for source, label in LABEL_SNAPSHOT.items()
         }
@@ -499,6 +562,15 @@ def read_leads_snapshot(
             f"Tabela de leads {tables.leads} sem label de snapshot válido "
             f"({labels!r}). Rode: python -m quimera.dados build"
         ) from exc
+    if require_contatos:
+        try:
+            client.get_table(tables.contatos)
+        except NotFound as exc:
+            raise LeadsTableMissingError(
+                f"Tabela de contatos {tables.contatos} não existe. "
+                "Rode: python -m quimera.dados build --contatos"
+            ) from exc
+    return snapshots
 
 
 def resolve_municipality_ids(
