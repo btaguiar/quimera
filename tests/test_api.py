@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from fastapi.testclient import TestClient
 
@@ -414,3 +415,56 @@ class TestCache:
         assert cached["filters"] == first["filters"]
         assert cached["bytes_billed"] == first["bytes_billed"]
         assert cached["cache_mode"] is False
+
+
+def _slow_cnae_search(results, delay_s=1.0):
+    def search(query, k):
+        time.sleep(delay_s)
+        return results
+
+    return search
+
+
+class TestTimeout:
+    def test_slow_pipeline_returns_504(self):
+        extract = FakeGenaiClient(_extraction_payload(cnae_query="clínicas"))
+        app = create_app(
+            config=_config(request_timeout_s=0.05),
+            extract_client=extract,
+            cnae_search=_slow_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(lead_rows=[]),
+        )
+        client = TestClient(app)
+        resp = client.post("/leads", json={"request": "clínicas em SP"})
+        assert resp.status_code == 504
+        data = resp.json()
+        assert data["error"] == "timeout"
+
+
+class TestPipelineErrors:
+    def test_bytes_ceiling_exceeded_returns_503(self):
+        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        bq = FakePipelineBQ(lead_rows=[], dry_run_bytes=10 * 1024**3)
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=bq,
+        )
+        client = TestClient(app)
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 503
+        assert resp.json()["error"] == "teto de bytes"
+
+    def test_extraction_error_returns_502(self):
+        extract = FakeGenaiClient("não é json")
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(),
+        )
+        client = TestClient(app)
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 502
+        assert resp.json()["error"] == "erro de extração"

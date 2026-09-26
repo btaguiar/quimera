@@ -13,6 +13,8 @@ concorrência do threadpool).
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, Request
@@ -21,7 +23,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .. import __version__
+from ..extract import ExtractionError
 from ..policy import Policy, resolve_policy
+from ..query import BytesBudgetExceededError
 from .metrics import load_metrics
 from .protections import ApiConfig, normalize_request, request_hash, token_ok
 from .state import MemoryStateStore, StateStore
@@ -124,6 +128,8 @@ def create_app(
                 headers={"Retry-After": str(state.retry_after(ip))},
             )
 
+    _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="quimera-api")
+
     @app.get("/health")
     def health():
         return {
@@ -165,7 +171,20 @@ def create_app(
                 "orçamento diário esgotado; apenas pedidos já vistos são respondidos",
             )
 
-        result = _run_pipeline(body.request)
+        try:
+            future = _executor.submit(_run_pipeline, body.request)
+            result = future.result(timeout=config.request_timeout_s)
+        except FuturesTimeoutError:
+            raise ApiError(
+                504,
+                "timeout",
+                f"execução excedeu {config.request_timeout_s} segundos",
+            ) from None
+        except BytesBudgetExceededError as exc:
+            raise ApiError(503, "teto de bytes", str(exc)) from None
+        except ExtractionError as exc:
+            logger.warning("erro de extração: %s", exc)
+            raise ApiError(502, "erro de extração", str(exc)) from None
         payload = result.to_dict()
         if not result.refused:
             state.add_bytes(result.bytes_billed)
