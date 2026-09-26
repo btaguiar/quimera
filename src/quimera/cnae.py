@@ -425,6 +425,10 @@ Dê uma nota a CADA candidato:
     (inclui variações que só mudam o modelo de negócio, ex.: com ou sem produção própria);
 1 = atividade relacionada, vizinha ou mais ampla, mas não a pedida;
 0 = outra atividade.
+Fabricantes do produto, fornecedores de insumos, atacadistas, representantes
+comerciais, construção ou manutenção ligados à atividade recebem no máximo 1,
+a menos que o pedido peça isso (ex.: para "lojas de bicicletas", a fábrica de
+bicicletas e o atacadista de bicicletas recebem 1).
 Responda com a lista de notas na MESMA ordem dos candidatos."""
 # Só nota 2 vira filtro. Dar nota a cada candidato (em vez de pedir a lista
 # dos que servem) deixou o LLM mais criterioso: no golden CNAE, precisão

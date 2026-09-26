@@ -176,9 +176,11 @@ A 1ª execução mostrou: "borracharias" confundido com artigos de borracha
 pelo embedding (corrigido com busca por palavra somada ao embedding);
 variação do Gemini entre chamadas em casos de fronteira (seed não resolve);
 "cervejarias artesanais" ambíguo — o Gemini inclui bares de cerveja, uso
-comum no Brasil, e o rótulo (estrito, mantido) não. Pendente: "joalherias"
-incluiu a fabricação de joias — o prompt de nota perdeu a regra "não inclua
-fabricantes/fornecedores" do prompt anterior.
+comum no Brasil, e o rótulo (estrito, mantido) não. "Joalherias" inclui a
+fabricação de joias: a regra "fabricantes/fornecedores recebem no máximo 1"
+foi restaurada no prompt, mas o Gemini sem raciocínio a ignora nesse caso
+(métricas iguais: golden CNAE 0,970/0,819/0,895; ajuste 0,95/0,997;
+separado 0,933/0,960).
 
 **Latência** (servidor aquecido): p50 ~3,7–5 s por pedido, antes ~25 s. O
 tempo por etapa vem em `timings_ms` no resultado. A cauda (p95 ~7 s, picos
