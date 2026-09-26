@@ -290,6 +290,7 @@ class TestRateLimit:
         assert resp.status_code == 429
         assert resp.json()["error"] == "rate limit"
         assert int(resp.headers["Retry-After"]) > 0
+        assert "3 requisições" in resp.json()["reason"]
 
     def test_cache_hit_does_not_help_after_rate_limit(self):
         client = TestClient(_app(rate_limit_max=1))
@@ -308,18 +309,18 @@ class TestRateLimit:
         )
         assert resp.status_code == 200
 
-    def test_forwarded_for_first_hop_wins(self):
+    def test_forwarded_for_last_hop_wins(self):
         client = TestClient(_app(rate_limit_max=1))
         resp = client.post(
             "/leads",
             json={"request": "empresas em SP"},
-            headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8"},
+            headers={"X-Forwarded-For": "fake-1, 5.6.7.8"},
         )
         assert resp.status_code == 200
         resp = client.post(
             "/leads",
             json={"request": "empresas em RJ"},
-            headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8"},
+            headers={"X-Forwarded-For": "fake-2, 5.6.7.8"},
         )
         assert resp.status_code == 429
 
