@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from .. import __version__
 from ..policy import Policy, resolve_policy
 from .metrics import load_metrics
-from .protections import ApiConfig
+from .protections import ApiConfig, normalize_request, request_hash
 from .state import MemoryStateStore, StateStore
 
 logger = logging.getLogger("quimera.api")
@@ -79,5 +79,30 @@ def create_app(
     @app.get("/metrics")
     def metrics():
         return load_metrics()
+
+    def _run_pipeline(text: str):
+        from ..pipeline import run as run_pipeline
+
+        return run_pipeline(
+            text,
+            policy,
+            extract_client=app.state.pipeline_deps["extract_client"],
+            cnae_search=app.state.pipeline_deps["cnae_search"],
+            bq_client=app.state.pipeline_deps["bq_client"],
+        )
+
+    @app.post("/leads")
+    def leads(body: LeadsRequestBody, request: Request):
+        key = request_hash(normalize_request(body.request))
+        cached = state.cache_get(key)
+        if cached is not None:
+            return {**cached, "cached": True, "cache_mode": state.cache_mode()}
+
+        result = _run_pipeline(body.request)
+        payload = result.to_dict()
+        if not result.refused:
+            state.add_bytes(result.bytes_billed)
+            state.cache_set(key, payload)
+        return {**payload, "cached": False, "cache_mode": state.cache_mode()}
 
     return app

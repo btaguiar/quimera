@@ -129,3 +129,76 @@ class TestCreateAppLazyImport:
         import quimera.api
 
         assert callable(quimera.api.create_app)
+
+
+class TestLeadsHappyPath:
+    def test_post_leads_runs_pipeline_and_serializes(self):
+        app = _app()
+        client = TestClient(app)
+        resp = client.post("/leads", json={"request": "clínicas odontológicas em SP"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["refused"] is False
+        assert data["cached"] is False
+        assert data["policy"] == "public"
+        assert data["filters"]["ufs"] == ["SP"]
+        assert data["filters"]["cnae_codes"] == ["8630-5/01", "8630-5/02"]
+        assert data["cnae_matches"][0][0] == "8630-5/01"
+        assert [r["razao_social"] for r in data["rows"]] == [
+            "CLINICA ALFA",
+            "CLINICA BETA",
+        ]
+        assert data["rows"][0]["score"] >= data["rows"][1]["score"]
+        assert data["bytes_billed"] == 1000
+        assert data["cache_mode"] is False
+
+    def test_post_leads_uses_injected_cnae_search(self):
+        app = _app()
+        client = TestClient(app)
+        client.post("/leads", json={"request": "clínicas odontológicas"})
+        assert app.state.pipeline_deps["cnae_search"].calls == [
+            ("clínicas odontológicas", 5)
+        ]
+
+
+class TestLeadsRefusal:
+    def test_personal_data_request_is_refused_with_200(self):
+        extract = FakeGenaiClient(
+            json.dumps(
+                {"refused": True, "refusal_reason": "pedido de dado pessoal"},
+                ensure_ascii=False,
+            )
+        )
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(),
+        )
+        client = TestClient(app)
+        resp = client.post("/leads", json={"request": "telefone do dono"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["refused"] is True
+        assert data["refusal_reason"] == "pedido de dado pessoal"
+        assert data["cached"] is False
+
+    def test_refusal_is_not_cached_or_budgeted(self):
+        extract = FakeGenaiClient(
+            json.dumps(
+                {"refused": True, "refusal_reason": "pedido de dado pessoal"},
+                ensure_ascii=False,
+            )
+        )
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(),
+        )
+        client = TestClient(app)
+        client.post("/leads", json={"request": "telefone do dono"})
+        client.post("/leads", json={"request": "telefone do dono"})
+        assert len(extract.calls) == 2
+        health = TestClient(app).get("/health").json()
+        assert health["budget_remaining_bytes"] == 10 * 1024**3
