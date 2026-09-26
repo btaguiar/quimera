@@ -154,6 +154,13 @@ def create_app(
         if cached is not None:
             return {**cached, "cached": True, "cache_mode": state.cache_mode()}
 
+        if state.cache_mode():
+            raise ApiError(
+                503,
+                "cache mode",
+                "orçamento diário esgotado; apenas pedidos já vistos são respondidos",
+            )
+
         result = _run_pipeline(body.request)
         payload = result.to_dict()
         if not result.refused:

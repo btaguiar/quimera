@@ -345,3 +345,64 @@ class TestRateLimit:
             headers={"X-Api-Token": "segredo"},
         )
         assert resp.status_code == 200
+
+
+class TestBudgetAndCacheMode:
+    def test_budget_debited_after_real_run(self):
+        app = _app()
+        client = TestClient(app)
+        client.post("/leads", json={"request": "empresas em SP"})
+        health = client.get("/health").json()
+        assert health["budget_remaining_bytes"] == 10 * 1024**3 - 1000
+
+    def test_budget_exhausted_blocks_new_requests_with_503(self):
+        client = TestClient(_app(daily_bytes_budget=1000))
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 200
+        resp = client.post("/leads", json={"request": "empresas em RJ"})
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["error"] == "cache mode"
+        assert "orçamento" in data["reason"]
+
+    def test_cache_hit_still_served_in_cache_mode(self):
+        client = TestClient(_app(daily_bytes_budget=1000))
+        client.post("/leads", json={"request": "empresas em SP"})
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 200
+        assert resp.json()["cached"] is True
+
+
+class TestCache:
+    def test_second_identical_request_is_cached(self):
+        app = _app()
+        extract = app.state.pipeline_deps["extract_client"]
+        bq = app.state.pipeline_deps["bq_client"]
+        client = TestClient(app)
+        resp1 = client.post("/leads", json={"request": "empresas em SP"})
+        resp2 = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp1.json()["cached"] is False
+        assert resp2.json()["cached"] is True
+        assert len(extract.calls) == 1
+        assert len(bq.executed) == 1
+
+    def test_normalization_makes_variants_share_cache(self):
+        client = TestClient(_app())
+        client.post("/leads", json={"request": "empresas em SP"})
+        resp = client.post("/leads", json={"request": "empresas   em SP"})
+        assert resp.json()["cached"] is True
+
+    def test_different_request_is_not_cached(self):
+        client = TestClient(_app())
+        client.post("/leads", json={"request": "empresas em SP"})
+        resp = client.post("/leads", json={"request": "empresas em RJ"})
+        assert resp.json()["cached"] is False
+
+    def test_cached_response_keeps_payload_shape(self):
+        client = TestClient(_app())
+        first = client.post("/leads", json={"request": "empresas em SP"}).json()
+        cached = client.post("/leads", json={"request": "empresas em SP"}).json()
+        assert cached["rows"] == first["rows"]
+        assert cached["filters"] == first["filters"]
+        assert cached["bytes_billed"] == first["bytes_billed"]
+        assert cached["cache_mode"] is False
