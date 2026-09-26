@@ -44,9 +44,27 @@ python -m quimera "pedido..." --json          # saída estruturada
 python -m quimera.cnae build --fonte pares.jsonl   # índice de embeddings CNAE
 ```
 
+Servidor da demo (API):
+
+```bash
+python -m quimera.api            # uvicorn em 0.0.0.0:8000 (PORT/API_HOST)
+# POST /leads   {"request": "..."} → filtros, CNAEs, ranking, bytes, custo
+#               (header X-Api-Token quando API_TOKEN estiver definido)
+# GET  /health  → status, versão, orçamento restante, modo cache
+# GET  /metrics → resultados medidos da Fase 2 (JSON)
+```
+
+Proteções da API pública: token opcional (`API_TOKEN`), rate limit por IP
+(`RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_S`; IP = último hop do `X-Forwarded-For`),
+cache por hash do pedido normalizado (`CACHE_TTL_S`), orçamento diário de
+bytes com modo cache (`DAILY_BYTES_BUDGET`) e timeout por request
+(`REQUEST_TIMEOUT_S`).
+
 Variáveis de ambiente: `GOOGLE_CLOUD_PROJECT`, `BQ_LOCATION`, `VERTEX_LOCATION`,
 `EXTRACT_MODEL`, `EMBED_MODEL`, `MAX_BYTES_BILLED`, `DEPLOY_MODE` (vazio =
-público; `private` só no ambiente da Turno 24).
+público; `private` só no ambiente da Turno 24), `API_TOKEN`, `RATE_LIMIT_MAX`,
+`RATE_LIMIT_WINDOW_S`, `CACHE_TTL_S`, `DAILY_BYTES_BUDGET`,
+`REQUEST_TIMEOUT_S`, `EVAL_DIR`.
 
 ## Desenvolvimento
 
@@ -106,4 +124,7 @@ partir do diretório `br_bd_diretorios_brasil.cnae_2`).
 - [x] Revisão dos rótulos `flag: review` do golden CNAE contra a CNAE 2.3
 - [x] Revisão dos 5 rótulos `flag: review` restantes (golden de extração, Bruno)
 - [ ] Fase 3 — demo pública no Cloud Run
+  - [x] 3a — API + proteções (FastAPI: token, rate limit, orçamento diário
+        com modo cache, timeout; `src/quimera/api/`)
+  - [ ] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
 - [ ] Fase 5 — uso privado (repositório da Turno 24)

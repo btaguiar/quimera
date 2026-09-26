@@ -101,8 +101,29 @@ dev = ["pytest>=8", "fastapi>=0.115", "httpx>=0.27"]   # TestClient
 Execução local: `python -m quimera.api` (uvicorn via `create_app()`, import
 lazy). README ganha seção de uso; roadmap recebe a sub-fase concluída.
 
+## Limitações aceitas (decisões registradas em code review)
+
+- **504 e bytes órfãos:** no timeout, a thread do pipeline continua rodando;
+  se a query do BigQuery completar, os bytes não entram no orçamento (pior
+  caso: ~uma query de 5 GiB não contabilizada por request).
+- **Timeout conta espera de fila:** com mais de 4 requests simultâneos lentos,
+  os enfileirados podem estourar o timeout sem ter começado.
+- **Corrida conservadora no modo cache:** dois requests simultâneos podem
+  passar pelo check antes do primeiro debitar (superdébito limitado pela
+  concorrência do threadpool; direção conservadora).
+- **IP por último hop do X-Forwarded-For:** o Cloud Run anexa o IP real
+  observado; hops anteriores são controláveis pelo cliente. Correto para
+  exatamente um proxy confiável (topologia atual). Revisar se um CDN entrar
+  na frente.
+- **Estado por processo:** `MemoryStateStore` perde cache/rate limit/orçamento
+  no restart e o dicionário de IPs cresce sem varredura (aceito para
+  escala a zero; Firestore na Fase 3b resolve).
+- **Runner single-process:** `uvicorn.run(create_app(), ...)` sem
+  import-string desabilita `--reload` e múltiplos workers (irrelevante para
+  o deploy de escala a zero).
+
 ## Fora de escopo (registros explícitos)
 
 - Front (HTML/JS), Dockerfile, Cloud Run, Secret Manager, alertas de orçamento
-  GCP, service account — próxima sub-fase.
+  GCP, service account — Fase 3b.
 - Firestore, tokens do LLM no orçamento, captcha real, página HTML de métricas.
