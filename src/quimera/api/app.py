@@ -66,6 +66,8 @@ def create_app(
     bq_client: Any | None = None,
 ) -> FastAPI:
     config = config or ApiConfig.from_env()
+    if config.api_token is None:
+        logger.warning("API_TOKEN não definido; checagem de token desabilitada")
     state = state or MemoryStateStore(config)
     policy = policy or resolve_policy()
 
@@ -102,7 +104,7 @@ def create_app(
 
     @app.exception_handler(Exception)
     async def _unhandled_exception_handler(request: Request, exc: Exception):
-        logger.warning("erro não mapeado no pipeline: %s", exc)
+        logger.exception("erro não mapeado: %s", exc)
         return JSONResponse(
             status_code=500,
             content={
@@ -140,6 +142,7 @@ def create_app(
             )
 
     _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="quimera-api")
+    app.state.executor = _executor
 
     app.add_event_handler(
         "shutdown",

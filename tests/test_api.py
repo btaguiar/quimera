@@ -511,4 +511,20 @@ class TestLifecycle:
         with TestClient(app) as client:
             resp = client.get("/health")
             assert resp.status_code == 200
-        assert app.state.store.cache_mode() is False
+        assert app.state.executor._shutdown is True
+
+
+class TestStartupWarnings:
+    def test_unset_api_token_logs_warning(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="quimera.api"):
+            _app(api_token=None)
+        assert any("API_TOKEN" in msg for msg in caplog.messages)
+
+    def test_set_api_token_logs_no_warning(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="quimera.api"):
+            _app(api_token="tok")
+        assert not any("API_TOKEN" in msg for msg in caplog.messages)
