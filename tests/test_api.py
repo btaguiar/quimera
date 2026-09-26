@@ -362,6 +362,36 @@ class TestBudgetAndCacheMode:
         assert resp.status_code == 200
         assert resp.json()["cached"] is True
 
+    def test_query_cap_is_limited_by_remaining_budget(self, monkeypatch):
+        monkeypatch.delenv("MAX_BYTES_BILLED", raising=False)
+        app = _app(daily_bytes_budget=5000)
+        bq = app.state.pipeline_deps["bq_client"]
+        resp = TestClient(app).post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 200
+        _, job_config = bq.executed[0]
+        assert job_config.maximum_bytes_billed == 5000
+
+    def test_query_cap_is_per_query_ceiling_when_budget_is_larger(self, monkeypatch):
+        monkeypatch.setenv("MAX_BYTES_BILLED", "2048")
+        app = _app()
+        bq = app.state.pipeline_deps["bq_client"]
+        TestClient(app).post("/leads", json={"request": "empresas em SP"})
+        _, job_config = bq.executed[0]
+        assert job_config.maximum_bytes_billed == 2048
+
+    def test_query_above_remaining_budget_returns_503_without_running(
+        self, monkeypatch
+    ):
+        monkeypatch.delenv("MAX_BYTES_BILLED", raising=False)
+        app = _app(daily_bytes_budget=500)
+        bq = app.state.pipeline_deps["bq_client"]
+        resp = TestClient(app).post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["error"] == "orçamento diário"
+        assert "500" in data["reason"]
+        assert bq.executed == []
+
     def test_cache_mode_blocks_would_be_refusals_without_llm_call(self):
         extract = FakeGenaiClient(
             json.dumps(
@@ -468,7 +498,6 @@ class TestPipelineErrors:
         resp = client.post("/leads", json={"request": "empresas em SP"})
         assert resp.status_code == 502
         assert resp.json()["error"] == "erro de extração"
-
 
 class TestUnexpectedErrors:
     def test_unexpected_pipeline_error_returns_500_envelope(self):

@@ -393,6 +393,22 @@ def resolve_municipality_ids(
     }
 
 
+def resolve_max_bytes_billed(max_bytes_billed: int | None = None) -> int:
+    """Teto de bytes por consulta: explícito, ``MAX_BYTES_BILLED`` ou o default."""
+    return max_bytes_billed or int(
+        os.environ.get("MAX_BYTES_BILLED", DEFAULT_MAX_BYTES_BILLED)
+    )
+
+
+def _is_bytes_limit_error(exc: Exception) -> bool:
+    """Erro do BigQuery por estouro do ``maximum_bytes_billed`` do job."""
+    errors = getattr(exc, "errors", None) or []
+    return any(
+        isinstance(err, dict) and err.get("reason") == "bytesBilledLimitExceeded"
+        for err in errors
+    )
+
+
 def run_query(
     spec: QuerySpec,
     *,
@@ -405,9 +421,7 @@ def run_query(
     """
     from google.cloud import bigquery  # lazy import — extra ``gcp``
 
-    max_bytes = max_bytes_billed or int(
-        os.environ.get("MAX_BYTES_BILLED", DEFAULT_MAX_BYTES_BILLED)
-    )
+    max_bytes = resolve_max_bytes_billed(max_bytes_billed)
     client = client or _default_client()
     bq_params = _to_bq_parameters(spec.params)
 
@@ -429,8 +443,17 @@ def run_query(
         query_parameters=bq_params,
         maximum_bytes_billed=max_bytes,
     )
-    job = client.query(spec.sql, job_config=job_config)
-    rows = [dict(row) for row in job.result()]
+    try:
+        job = client.query(spec.sql, job_config=job_config)
+        rows = [dict(row) for row in job.result()]
+    except Exception as exc:
+        if _is_bytes_limit_error(exc):
+            raise BytesBudgetExceededError(
+                f"Consulta recusada: a execução ultrapassaria o teto de "
+                f"{max_bytes} bytes (MAX_BYTES_BILLED). "
+                "Refine os filtros (UF, município, CNAE) para reduzir o volume."
+            ) from exc
+        raise
     return QueryResult(
         rows=rows,
         bytes_processed=job.total_bytes_processed or 0,

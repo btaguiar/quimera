@@ -9,9 +9,11 @@ import pytest
 from quimera.filters import LeadFilters
 from quimera.policy import PRIVATE, PUBLIC
 from quimera.query import (
+    DEFAULT_MAX_BYTES_BILLED,
     BytesBudgetExceededError,
     build_query,
     resolve_latest_snapshots,
+    resolve_max_bytes_billed,
     resolve_municipality_ids,
     run_query,
 )
@@ -337,6 +339,20 @@ class TestResolveMunicipalityIds:
         assert "São Paulo" not in client.queries[0]
 
 
+class TestResolveMaxBytesBilled:
+    def test_explicit_value_wins(self, monkeypatch):
+        monkeypatch.setenv("MAX_BYTES_BILLED", "999")
+        assert resolve_max_bytes_billed(2048) == 2048
+
+    def test_reads_environment(self, monkeypatch):
+        monkeypatch.setenv("MAX_BYTES_BILLED", "999")
+        assert resolve_max_bytes_billed() == 999
+
+    def test_default(self, monkeypatch):
+        monkeypatch.delenv("MAX_BYTES_BILLED", raising=False)
+        assert resolve_max_bytes_billed() == DEFAULT_MAX_BYTES_BILLED
+
+
 class TestRunQuery:
     def test_dry_run_above_cap_refuses_before_executing(self, spec):
         client = FakeBQClient(dry_run_bytes=10 * 1024**3)
@@ -366,6 +382,36 @@ class TestRunQuery:
         run_query(spec, client=client, max_bytes_billed=2048)
         _, job_config = client.executed[0]
         assert job_config.maximum_bytes_billed == 2048
+
+    def test_bytes_limit_error_on_execution_becomes_budget_error(self, spec):
+        # Dry run sem estimativa (PENDENTE 4): quem barra é o
+        # maximum_bytes_billed do job real, e o erro precisa virar o mesmo
+        # BytesBudgetExceededError do dry run.
+        class BytesLimitError(Exception):
+            errors = [{"reason": "bytesBilledLimitExceeded", "message": "x"}]
+
+        class FailingJob(_FakeJob):
+            def result(self):
+                raise BytesLimitError("Query exceeded limit for bytes billed")
+
+        class Client(FakeBQClient):
+            def query(self, sql, job_config=None):
+                if job_config is not None and job_config.dry_run:
+                    return _FakeJob(None)
+                return FailingJob(0)
+
+        with pytest.raises(BytesBudgetExceededError, match="2048"):
+            run_query(spec, client=Client(), max_bytes_billed=2048)
+
+    def test_other_execution_errors_propagate(self, spec):
+        class Client(FakeBQClient):
+            def query(self, sql, job_config=None):
+                if job_config is not None and job_config.dry_run:
+                    return _FakeJob(1000)
+                raise RuntimeError("falha de rede")
+
+        with pytest.raises(RuntimeError, match="falha de rede"):
+            run_query(spec, client=Client(), max_bytes_billed=2048)
 
     def test_query_parameters_passed_to_job(self, spec):
         client = FakeBQClient(dry_run_bytes=1000)

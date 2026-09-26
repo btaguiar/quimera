@@ -5,9 +5,11 @@ da spec da Fase 3: token, rate limit por IP, orçamento diário de bytes
 com modo cache e timeout por request. Tudo injetável para testes sem
 GCP (mesmos fakes dos testes do pipeline).
 
-Limite aceito: dois requests simultâneos podem passar pelo modo cache
-antes do primeiro debitar (superdébito conservador, limitado pela
-concorrência do threadpool).
+Cada execução real roda com ``maximum_bytes_billed`` = menor entre o
+teto por consulta e o saldo do dia, então uma consulta sozinha nunca
+estoura o orçamento. Limite aceito: requests simultâneos leem o mesmo
+saldo antes do primeiro debitar (estouro limitado a um saldo por worker
+do executor).
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from pydantic import BaseModel, Field
 from .. import __version__
 from ..extract import ExtractionError
 from ..policy import Policy, resolve_policy
-from ..query import BytesBudgetExceededError
+from ..query import BytesBudgetExceededError, resolve_max_bytes_billed
 from .metrics import load_metrics
 from .protections import ApiConfig, normalize_request, request_hash, token_ok
 from .state import MemoryStateStore, StateStore
@@ -162,7 +164,7 @@ def create_app(
     def metrics():
         return load_metrics()
 
-    def _run_pipeline(text: str):
+    def _run_pipeline(text: str, max_bytes_billed: int):
         from ..pipeline import run as run_pipeline
 
         return run_pipeline(
@@ -171,6 +173,7 @@ def create_app(
             extract_client=app.state.pipeline_deps["extract_client"],
             cnae_search=app.state.pipeline_deps["cnae_search"],
             bq_client=app.state.pipeline_deps["bq_client"],
+            max_bytes_billed=max_bytes_billed,
         )
 
     @app.post(
@@ -183,15 +186,20 @@ def create_app(
         if cached is not None:
             return {**cached, "cached": True, "cache_mode": state.cache_mode()}
 
-        if state.cache_mode():
+        remaining = state.budget_remaining()
+        if remaining <= 0:
             raise ApiError(
                 503,
                 "cache mode",
                 "orçamento diário esgotado; apenas pedidos já vistos são respondidos",
             )
 
+        ceiling = resolve_max_bytes_billed()
+        budget_limited = remaining < ceiling
+        max_bytes = min(ceiling, remaining)
+
         try:
-            future = _executor.submit(_run_pipeline, body.request)
+            future = _executor.submit(_run_pipeline, body.request, max_bytes)
             result = future.result(timeout=config.request_timeout_s)
         except FuturesTimeoutError:
             logger.warning("timeout no pipeline (%ss)", config.request_timeout_s)
@@ -201,6 +209,14 @@ def create_app(
                 f"execução excedeu {config.request_timeout_s} segundos",
             ) from None
         except BytesBudgetExceededError as exc:
+            if budget_limited:
+                raise ApiError(
+                    503,
+                    "orçamento diário",
+                    f"orçamento diário restante ({remaining} bytes) não cobre "
+                    "esta consulta; refine os filtros ou tente após a "
+                    "meia-noite UTC",
+                ) from None
             raise ApiError(503, "teto de bytes", str(exc)) from None
         except ExtractionError as exc:
             logger.warning("erro de extração: %s", exc)

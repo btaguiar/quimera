@@ -66,7 +66,10 @@ métricas resumidas por suíte.
 4. **Modo cache** — orçamento diário estourado: cache hit responde; miss →
    **503** `reason: "orçamento diário esgotado"`. Orçamento:
    `DAILY_BYTES_BUDGET` (default **10 GiB** ≈ 2× o teto de 5 GiB por consulta);
-   debita `bytes_billed` só de execuções reais; reset à meia-noite UTC.
+   debita `bytes_billed` só de execuções reais; reset à meia-noite UTC. Cada
+   execução roda com `maximum_bytes_billed = min(MAX_BYTES_BILLED, saldo)`:
+   consulta maior que o saldo → **503** `error: "orçamento diário"` (sem executar
+   se o dry run estimar; pelo BigQuery se o dry run vier sem estimativa).
 5. **Timeout** — pipeline em thread com `REQUEST_TIMEOUT_S` (default **60 s**;
    p95 da extração ~7 s + BQ). Estourou → **504**.
 6. **Limite de linhas** — garantido pela policy (`max_rows=50` público).
@@ -108,9 +111,9 @@ lazy). README ganha seção de uso; roadmap recebe a sub-fase concluída.
   caso: ~uma query de 5 GiB não contabilizada por request).
 - **Timeout conta espera de fila:** com mais de 4 requests simultâneos lentos,
   os enfileirados podem estourar o timeout sem ter começado.
-- **Corrida conservadora no modo cache:** dois requests simultâneos podem
-  passar pelo check antes do primeiro debitar (superdébito limitado pela
-  concorrência do threadpool; direção conservadora).
+- **Corrida no orçamento:** requests simultâneos leem o mesmo saldo antes
+  do primeiro debitar; cada um é limitado a esse saldo, então o estouro fica
+  em no máximo um saldo por worker do executor (4).
 - **IP por último hop do X-Forwarded-For:** o Cloud Run anexa o IP real
   observado; hops anteriores são controláveis pelo cliente. Correto para
   exatamente um proxy confiável (topologia atual). Revisar se um CDN entrar
