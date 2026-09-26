@@ -175,6 +175,7 @@ def create_app(
             future = _executor.submit(_run_pipeline, body.request)
             result = future.result(timeout=config.request_timeout_s)
         except FuturesTimeoutError:
+            logger.warning("timeout no pipeline (%ss)", config.request_timeout_s)
             raise ApiError(
                 504,
                 "timeout",
