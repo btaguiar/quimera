@@ -202,3 +202,16 @@ class TestLeadsRefusal:
         assert len(extract.calls) == 2
         health = TestClient(app).get("/health").json()
         assert health["budget_remaining_bytes"] == 10 * 1024**3
+
+
+class TestCacheHitSmoke:
+    def test_second_identical_request_is_served_from_cache(self):
+        app = _app()
+        extract = app.state.pipeline_deps["extract_client"]
+        client = TestClient(app)
+        resp1 = client.post("/leads", json={"request": "empresas em SP"})
+        resp2 = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp1.json()["cached"] is False
+        assert resp2.json()["cached"] is True
+        assert len(extract.calls) == 1
+        assert resp2.json()["rows"] == resp1.json()["rows"]
