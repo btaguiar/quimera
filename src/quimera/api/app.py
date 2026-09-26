@@ -100,6 +100,17 @@ def create_app(
             headers=exc.headers,
         )
 
+    @app.exception_handler(Exception)
+    async def _unhandled_exception_handler(request: Request, exc: Exception):
+        logger.warning("erro não mapeado no pipeline: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "erro interno",
+                "reason": "erro inesperado; consulte os logs do deploy",
+            },
+        )
+
     async def _require_token(x_api_token: str | None = Header(default=None)):
         if not token_ok(x_api_token, config.api_token):
             raise ApiError(
@@ -129,6 +140,11 @@ def create_app(
             )
 
     _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="quimera-api")
+
+    app.add_event_handler(
+        "shutdown",
+        lambda: _executor.shutdown(wait=False, cancel_futures=True),
+    )
 
     @app.get("/health")
     def health():

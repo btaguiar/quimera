@@ -468,3 +468,36 @@ class TestPipelineErrors:
         resp = client.post("/leads", json={"request": "empresas em SP"})
         assert resp.status_code == 502
         assert resp.json()["error"] == "erro de extração"
+
+
+class TestUnexpectedErrors:
+    def test_unexpected_pipeline_error_returns_500_envelope(self):
+        class ExplodingClient:
+            def __init__(self):
+                self.calls = 0
+
+            class _Models:
+                def __init__(self, outer):
+                    self._outer = outer
+
+                def generate_content(self, **kwargs):
+                    self._outer.calls += 1
+                    raise RuntimeError("boom inesperado")
+
+            @property
+            def models(self):
+                return self._Models(self)
+
+        app = create_app(
+            config=_config(),
+            extract_client=ExplodingClient(),
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(),
+        )
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 500
+        data = resp.json()
+        assert data["error"] == "erro interno"
+        assert data["reason"]
+        assert "boom" not in data["reason"]
