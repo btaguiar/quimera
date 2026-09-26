@@ -499,6 +499,29 @@ class TestPipelineErrors:
         assert resp.status_code == 502
         assert resp.json()["error"] == "erro de extração"
 
+    def test_extraction_error_does_not_leak_model_output(self, caplog):
+        import logging
+
+        marker = "João Silva 11 99999-0000"
+        extract = FakeGenaiClient(
+            json.dumps(
+                {"refused": False, "filters": {"campo_inventado": marker}},
+                ensure_ascii=False,
+            )
+        )
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=_cnae_search(CNAE_MATCHES),
+            bq_client=FakePipelineBQ(),
+        )
+        with caplog.at_level(logging.DEBUG, logger="quimera"):
+            resp = TestClient(app).post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 502
+        assert "99999" not in resp.text
+        assert "99999" not in caplog.text
+
+
 class TestUnexpectedErrors:
     def test_unexpected_pipeline_error_returns_500_envelope(self):
         class ExplodingClient:

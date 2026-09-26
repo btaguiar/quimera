@@ -219,8 +219,15 @@ def create_app(
                 ) from None
             raise ApiError(503, "teto de bytes", str(exc)) from None
         except ExtractionError as exc:
-            logger.warning("erro de extração: %s", exc)
-            raise ApiError(502, "erro de extração", str(exc)) from None
+            logger.warning(
+                "erro de extração (%s)", type(exc.__cause__ or exc).__name__
+            )
+            raise ApiError(
+                502,
+                "erro de extração",
+                "o modelo devolveu uma resposta fora do contrato; "
+                "tente reformular o pedido",
+            ) from None
         payload = result.to_dict()
         if not result.refused:
             state.add_bytes(result.bytes_billed)

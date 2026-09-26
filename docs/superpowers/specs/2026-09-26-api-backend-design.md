@@ -76,7 +76,9 @@ métricas resumidas por suíte.
 7. **Recusa (dado pessoal)** — `refused: true` em **200** (resultado legítimo,
    não erro HTTP); não consome orçamento nem entra no cache.
 
-Erros sempre `{"error", "reason"}`: 422, 401, 429, 503, 504. Nenhum log ou
+Erros sempre `{"error", "reason"}`: 422, 401, 429, 502, 503, 504. O 502
+(resposta do LLM fora do contrato) tem razão genérica: a mensagem do pydantic
+ecoa a saída do modelo e não vai nem para a resposta nem para o log. Nenhum log ou
 resposta contém dado pessoal — o pedido só é logado após a recusa (já vale
 no pipeline).
 
