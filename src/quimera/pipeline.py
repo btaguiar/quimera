@@ -38,7 +38,13 @@ CnaeSearchFn = Callable[[str, int], list[tuple[str, str, float]]]
 
 
 def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
-    return cnae.search(query, k)
+    """Busca candidatos por embeddings e deixa o Gemini escolher entre eles.
+
+    Só a busca punha vizinhos semânticos errados no filtro ("padarias" trazia
+    chaveiros e atacado de pães); o LLM só escolhe entre os candidatos.
+    """
+    candidates = cnae.search(query, cnae.SELECT_CANDIDATES)
+    return cnae.select_codes(query, candidates)[:k]
 
 
 @dataclass
@@ -146,6 +152,24 @@ def run(
     filters = apply_policy(filters, policy)
 
     warnings: list[str] = []
+    if filters.cnae_query and not cnae_matches:
+        # Sem CNAE, a consulta devolveria empresas de qualquer atividade como
+        # se fossem da atividade pedida.
+        warnings.append(
+            f"Nenhuma atividade CNAE corresponde a '{filters.cnae_query}'; "
+            "reformule a atividade do pedido."
+        )
+        result = PipelineResult(
+            refused=False,
+            filters=filters,
+            model=resolved_model,
+            policy=policy.name,
+            request_normalized=request_normalized,
+            warnings=warnings,
+        )
+        result.latency_ms = (time.perf_counter() - started) * 1000
+        logger.info("nenhum CNAE para %r; consulta não executada", filters.cnae_query)
+        return result
     if PORTE_LABELS_DEMAIS.intersection(filters.portes):
         warnings.append(
             "O cadastro não distingue porte médio de grande: ambos vêm do porte "

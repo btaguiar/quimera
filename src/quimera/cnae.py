@@ -1,30 +1,50 @@
-"""Índice de embeddings de descrições CNAE e busca por similaridade.
+"""Índice CNAE multi-vetor (descrição + atividades oficiais do IBGE) e busca.
 
-O índice é um JSONL versionável, uma linha por CNAE:
-``{"codigo": "8630-5/01", "descricao": "...", "embedding": [...]}``
+Fonte — ``python -m quimera.cnae fonte``: as subclasses da CNAE 2.3 vigente
+segundo o IBGE/CONCLA (API servicodados), cada uma com as atividades que o
+IBGE lista como compreendidas nela, e a grafia das descrições do diretório
+``br_bd_diretorios_brasil.cnae_2``. Grava ``data/cnae_subclasses.jsonl``,
+legível e versionado.
 
-Construção: ``python -m quimera.cnae build --fonte pares.jsonl --saida indice.jsonl``
-(fonte: JSONL ou CSV com pares codigo/descricao; embeddings via Vertex AI).
+Índice — ``python -m quimera.cnae build``: um vetor para a descrição e um para
+cada atividade (~18,5 mil vetores, float16) em ``data/cnae_index.npz``. A
+similaridade de uma subclasse é a MAIOR entre os seus vetores: "dentistas"
+casa com a atividade "atividades de dentistas" mesmo que a descrição oficial
+seja "Atividade odontológica".
 
-Similaridade de cosseno em Python puro — são ~700 CNAEs, vetores pequenos,
-performance não importa (por isso, sem numpy).
+Medido no golden corrigido (66 casos, 2026-09-26): recall@5 0,818 só com as
+descrições da 2.3 → 0,955 multi-vetor. O índice anterior misturava 24 códigos
+que saíram da CNAE 2.3 (ex.: 4721-1/01 padaria, 0 empresas ativas na base).
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
-import math
 import os
 import sys
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Any, Callable, Protocol
 
 # Validado na conta em 2026-09-26 (004, 005 e gemini-embedding-001 disponíveis).
 DEFAULT_EMBED_MODEL = "text-embedding-005"
 
-DEFAULT_INDEX_PATH = Path(__file__).resolve().parent / "data" / "cnae_index.jsonl"
+DATA_DIR = Path(__file__).resolve().parent / "data"
+DEFAULT_SOURCE_PATH = DATA_DIR / "cnae_subclasses.jsonl"
+DEFAULT_INDEX_PATH = DATA_DIR / "cnae_index.npz"
+
+IBGE_SUBCLASSES_URL = "https://servicodados.ibge.gov.br/api/v2/cnae/subclasses"
+DIRETORIO_CNAE = "`basedosdados.br_bd_diretorios_brasil.cnae_2`"
+
+# Limites do endpoint de embeddings do Vertex: 250 textos e 20 mil tokens por
+# requisição. Atividades são curtas; o orçamento de caracteres cobre as longas.
+EMBED_BATCH_SIZE = 100
+EMBED_BATCH_MAX_CHARS = 30_000
+
+# Conectores que o IBGE põe no fim da atividade: "DENTISTAS; ATIVIDADES DE".
+_TRAILING_CONNECTORS = {"DE", "DA", "DO", "DAS", "DOS", "EM", "POR", "PARA"}
 
 
 class Embedder(Protocol):
@@ -52,30 +72,206 @@ def vertex_embedder(model: str | None = None) -> Embedder:
     return _VertexEmbedder()
 
 
-def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
-    return dot / (norm_a * norm_b)
+# ---------------------------------------------------------------------------
+# Fonte: CNAE 2.3 + atividades do IBGE
+# ---------------------------------------------------------------------------
 
 
-def load_index(index_path: Path) -> list[dict]:
-    if not index_path.exists():
+def mask_code(digits: str) -> str:
+    """ "8630504" -> "8630-5/04" (forma oficial usada em filters e golden)."""
+    return f"{digits[:4]}-{digits[4]}/{digits[5:]}"
+
+
+def clean_activity(text: str) -> str:
+    """Atividade do IBGE em texto corrido e minúsculo.
+
+    "DENTISTAS; ATIVIDADES DE" -> "atividades de dentistas";
+    "PÃO; COMÉRCIO VAREJISTA DE" -> "comércio varejista de pão";
+    "HOTEL" -> "hotel"; "FARMÁCIAS; COMÉRCIO VAREJISTA" ->
+    "farmácias (comércio varejista)".
+    """
+    text = " ".join(text.replace("\xa0", " ").split()).strip().rstrip(";").strip()
+    if "; " in text:
+        head, tail = text.split("; ", 1)
+        if tail.split()[-1] in _TRAILING_CONNECTORS:
+            text = f"{tail} {head}"
+        else:
+            text = f"{head} ({tail})"
+    return text.lower()
+
+
+def merge_sources(
+    diretorio: list[dict[str, Any]], ibge: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Subclasses do IBGE (CNAE 2.3 vigente) com a descrição do diretório.
+
+    ``ibge``: itens da API com ``id`` (7 dígitos), ``descricao`` e ``atividades``
+    — é a autoridade sobre QUAIS códigos existem. O ``indicador_cnae_2_3`` do
+    diretório erra ao menos um (9900-8/00, 2.070 empresas ativas, medido).
+    ``diretorio``: linhas com ``subclasse`` e ``descricao`` — só a grafia (o
+    IBGE devolve tudo em maiúsculas). Sem linha no diretório, usa a do IBGE.
+    """
+    grafia = {row["subclasse"]: row["descricao"].strip() for row in diretorio}
+    subclasses = []
+    for item in sorted(ibge, key=lambda i: str(i["id"])):
+        code = str(item["id"])
+        descricao = grafia.get(code) or str(item["descricao"]).strip().capitalize()
+        subclasses.append(
+            {
+                "codigo": mask_code(code),
+                "descricao": descricao,
+                # Sem duplicatas, na ordem do IBGE.
+                "atividades": list(
+                    dict.fromkeys(
+                        clean_activity(a) for a in item.get("atividades") or []
+                    )
+                ),
+            }
+        )
+    return subclasses
+
+
+def _fetch_diretorio(client: Any) -> list[dict[str, Any]]:
+    # Sem filtro de versão: o diretório só dá a grafia (ver merge_sources).
+    job = client.query(
+        f"SELECT subclasse, descricao_subclasse AS descricao\nFROM {DIRETORIO_CNAE}"
+    )
+    return [
+        {
+            "subclasse": "".join(ch for ch in str(r["subclasse"]) if ch.isdigit()),
+            "descricao": r["descricao"],
+        }
+        for r in job.result()
+    ]
+
+
+def _fetch_ibge(url: str = IBGE_SUBCLASSES_URL) -> list[dict[str, Any]]:
+    from urllib.request import urlopen
+
+    with urlopen(url, timeout=120) as response:  # noqa: S310 — URL fixa do IBGE
+        return json.loads(response.read().decode("utf-8"))
+
+
+def build_source(
+    output_path: str | Path = DEFAULT_SOURCE_PATH,
+    *,
+    fetch_diretorio: Callable[[], list[dict[str, Any]]] | None = None,
+    fetch_ibge: Callable[[], list[dict[str, Any]]] | None = None,
+) -> int:
+    """Gera ``cnae_subclasses.jsonl`` a partir do diretório 2.3 e do IBGE."""
+    if fetch_diretorio is None:
+        from .query import _default_client
+
+        client = _default_client()
+        fetch_diretorio = lambda: _fetch_diretorio(client)  # noqa: E731
+    subclasses = merge_sources(fetch_diretorio(), (fetch_ibge or _fetch_ibge)())
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as fh:
+        for entry in subclasses:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return len(subclasses)
+
+
+def load_subclasses(path: str | Path = DEFAULT_SOURCE_PATH) -> list[dict[str, Any]]:
+    with Path(path).open(encoding="utf-8") as fh:
+        return [json.loads(line) for line in fh if line.strip()]
+
+
+# ---------------------------------------------------------------------------
+# Índice multi-vetor
+# ---------------------------------------------------------------------------
+
+
+def _batches(texts: list[str]) -> list[list[str]]:
+    batches: list[list[str]] = []
+    current: list[str] = []
+    chars = 0
+    for text in texts:
+        if current and (
+            len(current) >= EMBED_BATCH_SIZE
+            or chars + len(text) > EMBED_BATCH_MAX_CHARS
+        ):
+            batches.append(current)
+            current, chars = [], 0
+        current.append(text)
+        chars += len(text)
+    if current:
+        batches.append(current)
+    return batches
+
+
+def build_index(
+    source_path: str | Path = DEFAULT_SOURCE_PATH,
+    output_path: str | Path = DEFAULT_INDEX_PATH,
+    *,
+    embedder: Embedder | None = None,
+    model: str | None = None,
+) -> int:
+    """Embeda descrição + atividades de cada subclasse; devolve nº de vetores."""
+    import numpy as np
+
+    subclasses = load_subclasses(source_path)
+    texts: list[str] = []
+    owner: list[int] = []
+    for i, entry in enumerate(subclasses):
+        for text in [entry["descricao"], *entry["atividades"]]:
+            texts.append(text)
+            owner.append(i)
+
+    embedder = embedder or vertex_embedder(model)
+    vectors: list[list[float]] = []
+    for batch in _batches(texts):
+        vectors.extend(embedder.embed(batch))
+
+    matrix = np.asarray(vectors, dtype=np.float32)
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    matrix = np.divide(matrix, norms, out=np.zeros_like(matrix), where=norms > 0)
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        out,
+        vectors=matrix.astype(np.float16),
+        owner=np.asarray(owner, dtype=np.int32),
+        codes=np.asarray([e["codigo"] for e in subclasses]),
+        descriptions=np.asarray([e["descricao"] for e in subclasses]),
+        model=np.asarray(model or os.environ.get("EMBED_MODEL", DEFAULT_EMBED_MODEL)),
+    )
+    return len(texts)
+
+
+@dataclass(frozen=True)
+class CnaeIndex:
+    vectors: Any  # np.ndarray float32 [n_vetores, dim], linhas normalizadas
+    owner: Any  # np.ndarray int32 [n_vetores] -> posição em codes
+    codes: list[str]
+    descriptions: list[str]
+    model: str
+
+
+@lru_cache(maxsize=4)
+def _load_cached(path: str, mtime: float) -> CnaeIndex:
+    import numpy as np
+
+    with np.load(path) as data:
+        return CnaeIndex(
+            vectors=data["vectors"].astype(np.float32),
+            owner=data["owner"],
+            codes=[str(c) for c in data["codes"]],
+            descriptions=[str(d) for d in data["descriptions"]],
+            model=str(data["model"]),
+        )
+
+
+def load_index(index_path: str | Path = DEFAULT_INDEX_PATH) -> CnaeIndex:
+    path = Path(index_path)
+    if not path.exists():
         raise FileNotFoundError(
-            f"Índice de CNAEs não encontrado em {index_path}. "
-            "Construa o índice com: python -m quimera.cnae build "
-            "--fonte <pares.jsonl> --saida <indice.jsonl> "
+            f"Índice de CNAEs não encontrado em {path}. "
+            "Construa com: python -m quimera.cnae build "
             "(requer credenciais GCP para gerar os embeddings)."
         )
-    entries = []
-    with index_path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                entries.append(json.loads(line))
-    return entries
+    return _load_cached(str(path), path.stat().st_mtime)
 
 
 def search(
@@ -85,82 +281,134 @@ def search(
     index_path: str | Path | None = None,
     embedder: Embedder | None = None,
 ) -> list[tuple[str, str, float]]:
-    """Devolve os k CNAEs mais próximos: lista de (codigo, descricao, similaridade)."""
-    path = Path(index_path) if index_path else DEFAULT_INDEX_PATH
-    entries = load_index(path)
-    embedder = embedder or vertex_embedder()
+    """Os k CNAEs mais próximos: lista de (codigo, descricao, similaridade).
+
+    Similaridade de uma subclasse = máximo do cosseno entre a consulta e os
+    vetores dela (descrição e cada atividade).
+    """
+    import numpy as np
+
+    index = load_index(index_path or DEFAULT_INDEX_PATH)
+    embedder = embedder or vertex_embedder(index.model)
     (query_vec,) = embedder.embed([query])
-    scored = [
-        (entry["codigo"], entry["descricao"], cosine_similarity(query_vec, entry["embedding"]))
-        for entry in entries
+    q = np.asarray(query_vec, dtype=np.float32)
+    norm = float(np.linalg.norm(q))
+    if norm == 0.0:
+        return []
+    sims = index.vectors @ (q / norm)
+    best = np.full(len(index.codes), -np.inf, dtype=np.float32)
+    np.maximum.at(best, index.owner, sims)
+    top = np.argsort(-best)[:k]
+    return [
+        (index.codes[i], index.descriptions[i], float(best[i]))
+        for i in top
+        if np.isfinite(best[i])
     ]
-    scored.sort(key=lambda item: item[2], reverse=True)
-    return scored[:k]
 
 
-def _read_pairs(source_path: Path) -> list[tuple[str, str]]:
-    """Lê pares (codigo, descricao) de JSONL ou CSV."""
-    pairs: list[tuple[str, str]] = []
-    if source_path.suffix == ".csv":
-        with source_path.open(encoding="utf-8", newline="") as fh:
-            for row in csv.reader(fh):
-                if row and row[0].strip().lower() != "codigo":
-                    pairs.append((row[0].strip(), row[1].strip()))
-    else:
-        with source_path.open(encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    entry = json.loads(line)
-                    pairs.append((entry["codigo"], entry["descricao"]))
-    return pairs
+# ---------------------------------------------------------------------------
+# Seleção final: quais candidatos viram filtro
+# ---------------------------------------------------------------------------
+
+# Candidatos que a busca entrega à seleção (recall@15 cobre os casos do golden).
+SELECT_CANDIDATES = 15
+# Atividades de exemplo por candidato no prompt (contexto sem inflar tokens).
+SELECT_EXAMPLES = 6
+
+SELECT_PROMPT = """Você escolhe códigos CNAE para filtrar empresas num pedido de prospecção.
+Atividade pedida pelo usuário: "{activity}"
+
+Candidatos (código — descrição — exemplos de atividades da subclasse):
+{candidates}
+
+Devolva os códigos cujas empresas o usuário quer encontrar: a atividade pedida,
+incluindo variações da mesma atividade (ex.: com e sem produção própria).
+Não inclua fornecedores, fabricantes de insumos, atacadistas, construção ou
+manutenção relacionados à atividade, a menos que o pedido peça isso.
+Se nenhum candidato servir, devolva lista vazia."""
 
 
-def build_index(
-    source_path: str | Path,
-    output_path: str | Path,
+@lru_cache(maxsize=1)
+def _activities_by_code() -> dict[str, list[str]]:
+    return {s["codigo"]: s["atividades"] for s in load_subclasses()}
+
+
+def build_select_prompt(activity: str, candidates: list[tuple[str, str, float]]) -> str:
+    examples = _activities_by_code()
+    lines = [
+        f"- {code} — {descricao} — "
+        + "; ".join(examples.get(code, [])[:SELECT_EXAMPLES])
+        for code, descricao, _ in candidates
+    ]
+    return SELECT_PROMPT.format(activity=activity, candidates="\n".join(lines))
+
+
+def select_codes(
+    activity: str,
+    candidates: list[tuple[str, str, float]],
     *,
-    embedder: Embedder | None = None,
-    batch_size: int = 100,
-) -> int:
-    """Gera o índice de embeddings a partir da fonte de pares (codigo, descricao)."""
-    pairs = _read_pairs(Path(source_path))
-    embedder = embedder or vertex_embedder()
-    out = Path(output_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    count = 0
-    with out.open("w", encoding="utf-8") as fh:
-        for start in range(0, len(pairs), batch_size):
-            batch = pairs[start : start + batch_size]
-            vectors = embedder.embed([descricao for _, descricao in batch])
-            for (codigo, descricao), vector in zip(batch, vectors):
-                fh.write(
-                    json.dumps(
-                        {"codigo": codigo, "descricao": descricao, "embedding": vector},
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
-                count += 1
-    return count
+    client: Any | None = None,
+    model: str | None = None,
+) -> list[tuple[str, str, float]]:
+    """Filtra os candidatos da busca com o Gemini; mantém a ordem da busca.
+
+    O LLM só escolhe entre os códigos recebidos (enum no schema de saída) —
+    nunca inventa código. A busca sozinha põe no filtro vizinhos semânticos
+    errados ("padarias" trazia atacado de pães e chaveiros).
+    """
+    if not candidates:
+        return []
+    from .extract import DEFAULT_MODEL, _default_client
+
+    client = client or _default_client()
+    codes = [code for code, _, _ in candidates]
+    response = client.models.generate_content(
+        model=model or os.environ.get("EXTRACT_MODEL", DEFAULT_MODEL),
+        contents=build_select_prompt(activity, candidates),
+        config={
+            "temperature": 0,
+            # Sem raciocínio: p50 4,9 s -> 0,87 s com a mesma qualidade (medido).
+            "thinking_config": {"thinking_budget": 0},
+            "response_mime_type": "application/json",
+            "response_schema": {
+                "type": "OBJECT",
+                "properties": {
+                    "codigos": {
+                        "type": "ARRAY",
+                        "items": {"type": "STRING", "enum": codes},
+                    }
+                },
+                "required": ["codigos"],
+            },
+        },
+    )
+    chosen = set(json.loads(response.text).get("codigos") or [])
+    return [c for c in candidates if c[0] in chosen]
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m quimera.cnae",
-        description="Constrói o índice de embeddings de descrições CNAE.",
+        description="Fonte e índice de embeddings das subclasses CNAE 2.3.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    build = sub.add_parser("build", help="Gera o índice a partir de pares codigo/descricao.")
-    build.add_argument("--fonte", required=True, help="JSONL ou CSV com codigo/descricao.")
-    build.add_argument("--saida", default=str(DEFAULT_INDEX_PATH), help="Caminho do índice JSONL.")
+    fonte = sub.add_parser(
+        "fonte", help="baixa CNAE 2.3 (diretório) + atividades do IBGE"
+    )
+    fonte.add_argument("--saida", default=str(DEFAULT_SOURCE_PATH))
+    build = sub.add_parser("build", help="gera o índice multi-vetor a partir da fonte")
+    build.add_argument("--fonte", default=str(DEFAULT_SOURCE_PATH))
+    build.add_argument("--saida", default=str(DEFAULT_INDEX_PATH))
+    build.add_argument("--modelo", default=None, help="modelo de embedding")
     args = parser.parse_args(argv)
 
-    if args.command == "build":
-        count = build_index(args.fonte, args.saida)
-        print(f"Índice construído com {count} CNAEs em {args.saida}.")
+    if args.command == "fonte":
+        count = build_source(args.saida)
+        print(f"Fonte com {count} subclasses CNAE 2.3 em {args.saida}.")
         return 0
-    return 1
+    count = build_index(args.fonte, args.saida, model=args.modelo)
+    print(f"Índice construído com {count} vetores em {args.saida}.")
+    return 0
 
 
 if __name__ == "__main__":

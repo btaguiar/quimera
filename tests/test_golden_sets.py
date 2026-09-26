@@ -93,6 +93,20 @@ class TestGoldenCnae:
             for code in case["acceptable"]:
                 assert CNAE_CODE_PATTERN.match(code), (case["id"], code)
 
+    def test_every_acceptable_code_exists_in_cnae_2_3(self, cnae_cases):
+        # O golden já apontou para códigos inexistentes (5510-8/00, 4771-7/00)
+        # e obsoletos (4721-1/01, 0 empresas ativas) — medido em 2026-09-26.
+        from quimera.cnae import load_subclasses
+
+        valid = {s["codigo"] for s in load_subclasses()}
+        invalid = [
+            (c["id"], code)
+            for c in cnae_cases
+            for code in c["acceptable"]
+            if code not in valid
+        ]
+        assert invalid == []
+
     def test_no_pending_review_flags(self, cnae_cases):
         """Os 23 rótulos draft foram revisados contra a CNAE 2.3 em 2026-09-26
         (fonte: diretório br_bd_diretorios_brasil.cnae_2). Novos casos draft

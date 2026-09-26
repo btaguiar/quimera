@@ -14,7 +14,7 @@ pedido (pt-BR)
   └─► [extract] Gemini (saída estruturada) → ExtractionResult
         ├─ refused=true → recusa com motivo
         └─ filters
-             └─► [cnae] cnae_query → top-k CNAEs (embeddings)
+             └─► [cnae] cnae_query → 15 candidatos (embeddings) → Gemini escolhe
                   └─► [policy] apply_policy — limites do deploy
                        └─► [query] SQL parametrizado (tabela própria) → estimativa → teto de bytes
                             └─► [score] 0-100 + motivos legíveis
@@ -49,7 +49,8 @@ pip install -e ".[gcp]"        # dependências GCP (import lazy nos módulos)
 
 python -m quimera "clínicas odontológicas em Santo André abertas há mais de 2 anos" --mode public
 python -m quimera "pedido..." --json          # saída estruturada
-python -m quimera.cnae build --fonte pares.jsonl   # índice de embeddings CNAE
+python -m quimera.cnae fonte    # CNAE 2.3 + atividades do IBGE -> data/cnae_subclasses.jsonl
+python -m quimera.cnae build    # índice multi-vetor -> data/cnae_index.npz (~7 min)
 
 python -m quimera.dados build             # tabela própria (1×/mês, ~US$ 0,10)
 python -m quimera.dados build --contatos  # + tabela de contatos (só ambiente privado)
@@ -96,11 +97,12 @@ python -m eval.report                                 # relatório Markdown em e
 - `eval/golden_extraction.jsonl` — 55 casos (45 públicos, 10 privados), incluindo
   recusas de dado pessoal, pedidos mistos, sinônimos, typos e ambiguidade.
   Rótulos `flag: review` revisados e validados (2026-09-26).
-- `eval/golden_cnae.jsonl` — 66 casos linguagem natural → CNAE, com os 23
-  rótulos `flag: review` **revisados contra a CNAE 2.3 em 2026-09-26** (fonte:
-  diretório `br_bd_diretorios_brasil.cnae_2`).
+- `eval/golden_cnae.jsonl` — 66 casos linguagem natural → CNAE, **corrigidos
+  contra as atividades oficiais do IBGE em 2026-09-26** (fonte:
+  `src/quimera/data/cnae_subclasses.jsonl`; um teste garante que todo código
+  aceitável existe na CNAE 2.3).
 - `eval/thresholds.json` — limiares do CI (recusa correta = 100%, extração ≥ 85%;
-  recall@5 ≥ 0,74 = baseline medido em 2026-09-26).
+  recall@5 ≥ 0,90; medido 0,955 em 2026-09-26).
 
 ## Resultados medidos (2026-09-26, `eval/results/`)
 
@@ -117,16 +119,25 @@ após ajuste no prompt de extração para eliminar recusas indevidas):
 | recusa indevida | 0,0% (era 5,7%) | — |
 | latência p50 / p95 | 4,6 s / 7,4 s | — |
 
-**Mapeamento CNAE** — 66 casos, comparação de modelos de embedding:
+**Mapeamento CNAE** — 66 casos, golden **corrigido contra a lista oficial de
+atividades do IBGE** em 2026-09-26 (17 rótulos estavam errados: códigos
+inexistentes, obsoletos ou trocados, ex.: "dentistas" → 8630-5/01 em vez de
+8630-5/04):
 
-| modelo | recall@1 | recall@5 | MRR | p50 (ms) |
-|---|---|---|---|---|
-| text-embedding-005 | 0,485 | 0,742 | 0,570 | 731 |
-| text-embedding-004 | 0,424 | 0,697 | 0,518 | 769 |
+| índice (text-embedding-005) | recall@1 | recall@5 | MRR |
+|---|---|---|---|
+| antigo: 1356 descrições, com 24 códigos fora da CNAE 2.3 | 0,576 | 0,803 | 0,669 |
+| **multi-vetor: 1332 subclasses 2.3 + 17 mil atividades IBGE** | **0,758** | **0,955** | **0,831** |
 
-`text-embedding-005` venceu as três métricas e é o modelo padrão do índice
-(`src/quimera/data/cnae_index.jsonl`, 1356 subclasses da CNAE 2.3 geradas a
-partir do diretório `br_bd_diretorios_brasil.cnae_2`).
+Seleção final (quais candidatos viram filtro da consulta):
+
+| estratégia | acerto | precisão | cobertura | códigos | p50 |
+|---|---|---|---|---|---|
+| top-5 fixo (antes) | 0,955 | 0,227 | 0,864 | 5,0 | — |
+| **Gemini escolhe entre 15 candidatos** | **0,985** | **0,645** | **0,930** | 2,95 | 0,87 s |
+
+Precisão = fração dos códigos escolhidos que estão no golden (o golden lista
+o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 
 ## Roadmap
 
@@ -145,4 +156,9 @@ partir do diretório `br_bd_diretorios_brasil.cnae_2`).
         com modo cache, timeout; `src/quimera/api/`)
   - [ ] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
   - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
+- [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
+      estabelecimento por empresa
+- [x] Índice CNAE multi-vetor com atividades do IBGE + seleção pelo Gemini
+- [ ] Latência do pipeline (~30 s por pedido; não investigada)
+- [ ] "empresas de TI": pedido genérico ainda falha na busca (único erro no top-15)
 - [ ] Fase 5 — uso privado (repositório da Turno 24)

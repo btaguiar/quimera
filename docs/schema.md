@@ -246,3 +246,32 @@ Idade: `DATE_DIFF(CURRENT_DATE(), inicio, YEAR)` conta viradas de ano
 (31/12/2024 → 26/09/2026 = "2 anos"). O filtro agora compara com
 `DATE_SUB(CURRENT_DATE(), INTERVAL n YEAR)` (anos completos), e o score usa a
 mesma regra. Validado no real: "≥ 2 anos" devolveu idade mínima de 2,06 anos.
+
+## CNAE: versão, fonte e golden (medido 2026-09-26)
+
+- **A base da Receita usa a CNAE 2.3**: 99,96% dos estabelecimentos ativos
+  têm código 2.3; o resto é o placeholder `8888888` (10 mil) e 7 códigos
+  obsoletos com 147 empresas no total.
+- **O índice antigo misturava versões**: 1356 entradas do diretório
+  `br_bd_diretorios_brasil.cnae_2` sem filtrar `indicador_cnae_2_3` — 24
+  códigos fora da 2.3, quase todos com 0 empresas ativas. Ex.: "padarias"
+  apontava para 4721-1/01 (0 ativas); as padarias estão em 1091-1/02
+  (192 mil) e 4721-1/02 (91 mil). "Clínicas de estética" em 9609-2/01 (0),
+  e não 9602-5/02 (376 mil).
+- **O `indicador_cnae_2_3` do diretório também erra**: marca 9900-8/00
+  (organismos internacionais, 2.070 ativas) como fora da 2.3. A autoridade
+  sobre os códigos passou a ser a API do IBGE/CONCLA (1332 subclasses); o
+  diretório só dá a grafia das descrições.
+- **O IBGE lista as atividades de cada subclasse** (17.180 no total; mediana
+  7 por subclasse): "atividades de dentistas", "consultório dentário"… O
+  índice tem um vetor por descrição e por atividade (18.498 vetores); a
+  similaridade da subclasse é a maior entre os seus vetores.
+- **Golden corrigido**: 17 dos 66 casos apontavam para código inexistente
+  (5510-8/00, 4771-7/00), obsoleto (4721-1/01) ou errado (dentistas →
+  8630-5/01 "procedimentos cirúrgicos"; lanchonetes → ambulantes; academias
+  → gestão de estádios; pousadas → pensões, quando o IBGE lista pousada em
+  5510-8/01 Hotéis).
+- **Seleção pelo Gemini**: a busca devolve 15 candidatos e o Gemini escolhe
+  (enum restrito aos candidatos, sem raciocínio: p50 0,87 s; com raciocínio
+  4,9 s e mesma qualidade). O top-5 fixo punha 77% de códigos errados no
+  filtro.

@@ -246,6 +246,48 @@ class TestOptionalSteps:
         assert "AS telefone" in sql
 
 
+class TestCnaeStep:
+    def test_no_matching_cnae_does_not_query(self):
+        # Sem CNAE, a consulta traria empresas de qualquer atividade.
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="naves espaciais", ufs=["SP"])
+        )
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = run(
+            "fábricas de naves espaciais em SP",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_cnae_search_recorder([]),
+            bq_client=bq,
+        )
+        assert result.rows == []
+        assert bq.executed == []
+        assert any("naves espaciais" in w for w in result.warnings)
+
+    def test_default_search_selects_among_candidates(self, monkeypatch):
+        from quimera import cnae, pipeline
+
+        candidates = [("a", "A", 0.9), ("b", "B", 0.8), ("c", "C", 0.7)]
+        calls = {}
+
+        def fake_search(query, k):
+            calls["search"] = (query, k)
+            return candidates
+
+        def fake_select(query, cands):
+            calls["select"] = (query, cands)
+            return [cands[0], cands[2]]
+
+        monkeypatch.setattr(cnae, "search", fake_search)
+        monkeypatch.setattr(cnae, "select_codes", fake_select)
+        assert pipeline.default_cnae_search("padarias", 5) == [
+            ("a", "A", 0.9),
+            ("c", "C", 0.7),
+        ]
+        assert calls["search"] == ("padarias", cnae.SELECT_CANDIDATES)
+        assert calls["select"] == ("padarias", candidates)
+
+
 class TestCostGuard:
     def test_bytes_budget_exceeded_propagates(self):
         extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
