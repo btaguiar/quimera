@@ -54,6 +54,26 @@ class TestBuildPrompt:
             assert "Não recuse pedidos vagos" in prompt
             assert "Recusa é exclusivamente para dado pessoal" in prompt
 
+    def test_prompt_explains_new_signals(self):
+        prompt = build_prompt("x", PUBLIC)
+        for field in (
+            "min_estabelecimentos",
+            "regimes",
+            "bairros",
+            "cep_centro",
+            "raio_km",
+            "com_dominio_proprio",
+        ):
+            assert field in prompt
+
+    def test_public_prompt_never_offers_mei_regime(self):
+        assert (
+            "'mei'" not in build_prompt("x", PUBLIC).split("regimes:")[1].split("\n")[0]
+        )
+
+    def test_prompt_radius_only_with_explicit_cep(self):
+        assert "só se o pedido trouxer um CEP" in build_prompt("x", PUBLIC)
+
 
 class TestParseExtractionResponse:
     def test_accepts_dict(self):

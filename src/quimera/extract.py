@@ -27,6 +27,12 @@ class ExtractionError(RuntimeError):
 
 def build_prompt(request: str, policy: Policy) -> str:
     """Prompt em pt-BR, com regra de recusa diferente por policy."""
+    regimes_rule = (
+        "- regimes: 'simples' ou 'fora_simples' "
+        "('lucro presumido', 'lucro real' = fora_simples)."
+    )
+    if policy.allow_mei:
+        regimes_rule += "\n  (privado: também 'mei')"
     lines = [
         "Você extrai filtros estruturados de um pedido de prospecção de empresas brasileiras.",
         "Responda APENAS com o JSON do schema ExtractionResult. Nunca escreva SQL.",
@@ -40,6 +46,15 @@ def build_prompt(request: str, policy: Policy) -> str:
         "- min_age_years/max_age_years: idade da empresa em anos, se mencionada.",
         "- min_capital: capital social mínimo em reais, se mencionado.",
         "- portes: um ou mais de 'micro', 'pequena', 'media', 'grande'.",
+        "- min_estabelecimentos: nº mínimo de unidades da empresa "
+        "('rede', 'com filiais' sem número = 2).",
+        regimes_rule,
+        "- bairros: nomes de bairros como escritos; use junto com municipio_names.",
+        "- cep_centro e raio_km: só se o pedido trouxer um CEP; 'perto de', "
+        "'na região de' sem CEP não viram raio.",
+        "- com_dominio_proprio: true para 'com site próprio', 'domínio próprio', "
+        "'e-mail corporativo' usados como FILTRO. Pedir o e-mail em si "
+        "continua sendo pedido de contato.",
         "- limit: quantidade de resultados pedida (padrão 50).",
         "- Não recuse pedidos vagos, subjetivos ou incompletos: extraia apenas "
         "os filtros mapeáveis e ignore qualificadores sem filtro correspondente "
