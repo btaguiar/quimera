@@ -1,0 +1,9 @@
+#!include:.dockerignore
+.kilo/
+.worktrees/
+.impeccable/
+.pytest_cache/
+.ruff_cache/
+probe_*.py
+tmp_*.py
+*.egg-info/
