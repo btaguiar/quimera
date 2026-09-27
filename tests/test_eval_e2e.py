@@ -29,6 +29,11 @@ def _row(**overrides):
         "porte": "micro",
         "natureza_juridica": "2062",
         "score": 70.0,
+        # Sinais do próprio cadastro (Onda 1): sempre no SELECT da query.
+        "n_estabelecimentos": 1,
+        "regime_tributario": "simples",
+        "bairro": "Centro",
+        "dominio_proprio": False,
     }
     row.update(overrides)
     return row
@@ -69,11 +74,34 @@ class TestRowChecks:
             ("capital_social", None, {"min_capital": 1}),
             ("porte", "demais", {"portes": ["micro"]}),
             ("data_inicio_atividade", None, {"max_age_years": 3}),
+            ("n_estabelecimentos", 2, {"min_estabelecimentos": 5}),
+            ("regime_tributario", "mei", {"regimes": ["simples"]}),
+            ("bairro", "Jardim América", {"bairros": ["Pinheiros"]}),
+            ("dominio_proprio", False, {"com_dominio_proprio": True}),
         ],
     )
     def test_each_criterion_fails(self, field, value, expect):
         checks = e2e_row_checks(_row(**{field: value}), expect, TODAY)
         assert list(checks.values()) == [False]
+
+    def test_onda1_criteria_pass(self):
+        expect = {
+            "min_estabelecimentos": 1,
+            "regimes": ["simples"],
+            "bairros": ["centro"],  # sem acento/caixa, como municipio
+            "com_dominio_proprio": True,
+        }
+        checks = e2e_row_checks(_row(dominio_proprio=True), expect, TODAY)
+        assert checks == {k: True for k in expect}
+
+    def test_raio_km_checked_only_with_distancia(self):
+        near = e2e_row_checks(_row(distancia_km=2.9), {"raio_km": 3}, TODAY)
+        assert near == {"raio_km": True}
+        far = e2e_row_checks(_row(distancia_km=3.1), {"raio_km": 3}, TODAY)
+        assert far == {"raio_km": False}
+        # Sem distancia_km o raio não foi aplicado: a checagem de linha
+        # não opina (a falha do caso é detectada em e2e_case_outcome).
+        assert e2e_row_checks(_row(), {"raio_km": 3}, TODAY) == {}
 
 
 class TestInvariants:
@@ -96,6 +124,23 @@ class TestInvariants:
     def test_contact_in_public(self):
         result = _result([_row(telefone="1199999999")])
         assert any("contato" in v for v in e2e_invariant_violations(result))
+
+    @pytest.mark.parametrize("campo", ["latitude", "longitude", "cep", "dominio"])
+    def test_public_forbids_geo_cep_and_dominio(self, campo):
+        result = _result([_row(**{campo: "qualquer"})])
+        assert any(campo in v for v in e2e_invariant_violations(result))
+
+    def test_dominio_proprio_flag_is_allowed(self):
+        # O booleano dominio_proprio é um sinal do cadastro, não o domínio em si.
+        assert e2e_invariant_violations(_result([_row(dominio_proprio=True)])) == []
+
+    def test_public_forbids_mei(self):
+        result = _result([_row(regime_tributario="mei")])
+        assert any("mei" in v for v in e2e_invariant_violations(result))
+
+    def test_private_allows_mei(self):
+        result = _result([_row(regime_tributario="mei")], policy="private")
+        assert e2e_invariant_violations(result) == []
 
     def test_score_out_of_order(self):
         rows = [_row(score=50.0), _row(cnpj_basico="2", score=90.0)]
@@ -124,6 +169,13 @@ class TestCaseOutcome:
     def test_unexpected_empty(self):
         case = {"id": "x", "expect": {"uf": ["SP"]}}
         assert "veio vazio" in e2e_case_outcome(case, _result([]), TODAY)["problems"]
+
+    def test_raio_expected_but_not_applied(self):
+        # expect raio_km com linhas sem distancia_km = raio ignorado na query;
+        # sem isto o caso passaria como se a proximidade tivesse sido aplicada.
+        case = {"id": "x", "expect": {"raio_km": 3}}
+        outcome = e2e_case_outcome(case, _result([_row()]), TODAY)
+        assert any("raio" in p for p in outcome["problems"])
 
     def test_failing_rows_are_counted(self):
         case = {"id": "x", "expect": {"uf": ["SP"]}}

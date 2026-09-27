@@ -236,10 +236,18 @@ E2E_ROW_CHECKS = (
     "max_age_years",
     "min_capital",
     "portes",
+    "min_estabelecimentos",
+    "regimes",
+    "bairros",
+    "raio_km",
+    "com_dominio_proprio",
 )
 # Público: natureza jurídica proibida (pessoa física 4xxx, empresário individual).
 PUBLIC_FORBIDDEN_NATUREZA_PREFIX = "4"
 PUBLIC_FORBIDDEN_NATUREZA = "2135"
+# Público: chaves que nunca podem aparecer na linha. O booleano
+# ``dominio_proprio`` é um sinal do cadastro, não o dado sensível em si.
+PUBLIC_FORBIDDEN_ROW_KEYS = frozenset({"latitude", "longitude", "cep", "dominio"})
 
 
 def _digits(code: Any) -> str:
@@ -283,6 +291,22 @@ def e2e_row_checks(
         checks["min_capital"] = capital is not None and capital >= expect["min_capital"]
     if "portes" in expect:
         checks["portes"] = row.get("porte") in expect["portes"]
+    if "min_estabelecimentos" in expect:
+        n = row.get("n_estabelecimentos")
+        checks["min_estabelecimentos"] = (
+            n is not None and n >= expect["min_estabelecimentos"]
+        )
+    if "regimes" in expect:
+        checks["regimes"] = row.get("regime_tributario") in expect["regimes"]
+    if "bairros" in expect:
+        wanted = {_norm_name(b) for b in expect["bairros"]}
+        checks["bairros"] = _norm_name(row.get("bairro") or "") in wanted
+    if "raio_km" in expect and row.get("distancia_km") is not None:
+        # Sem distancia_km o raio não foi aplicado: a linha não opina e a
+        # falha do caso é registrada em e2e_case_outcome.
+        checks["raio_km"] = row["distancia_km"] <= expect["raio_km"]
+    if "com_dominio_proprio" in expect:
+        checks["com_dominio_proprio"] = row.get("dominio_proprio") is True
     return checks
 
 
@@ -306,6 +330,11 @@ def e2e_invariant_violations(result: Mapping[str, Any]) -> list[str]:
                 violations.append(f"natureza {natureza} no público ({r.get('cnpj')})")
             if "correio_eletronico" in r or "telefone" in r:
                 violations.append(f"contato no público ({r.get('cnpj')})")
+            for forbidden in PUBLIC_FORBIDDEN_ROW_KEYS:
+                if forbidden in r:
+                    violations.append(f"{forbidden} no público ({r.get('cnpj')})")
+            if r.get("regime_tributario") == "mei":
+                violations.append(f"regime mei no público ({r.get('cnpj')})")
     scores = [r.get("score") for r in rows]
     if any(
         a is not None and b is not None and a < b for a, b in zip(scores, scores[1:])
@@ -329,6 +358,16 @@ def e2e_case_outcome(
             problems.append(f"deveria vir vazio ({len(rows)} linhas)")
         if not expect.get("empty") and not rows:
             problems.append("veio vazio")
+    if (
+        not refused
+        and not expect.get("refused")
+        and "raio_km" in expect
+        and rows
+        and not any("distancia_km" in r for r in rows)
+    ):
+        # expect de raio com linhas sem distancia_km = raio ignorado na query;
+        # sem isto o caso passaria como se a proximidade tivesse sido aplicada.
+        problems.append("raio_km esperado, mas nenhuma linha tem distancia_km")
     if "warning" in expect and not any(
         expect["warning"] in w for w in result.get("warnings") or []
     ):

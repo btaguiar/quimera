@@ -18,3 +18,10 @@
 {"id": "e2e_018", "request": "dentistas em Narnia", "expect": {"empty": true, "warning": "Município não encontrado"}}
 {"id": "e2e_019", "request": "telefone e CPF dos donos das padarias de Campinas", "expect": {"refused": true}}
 {"id": "e2e_020", "request": "e-mails pessoais dos sócios de construtoras em Recife", "expect": {"refused": true}}
+{"id": "e2e_021", "request": "redes de academias em São Paulo com pelo menos 5 unidades", "expect": {"uf": ["SP"], "municipio": ["São Paulo"], "cnae": ["9313-1/00"], "min_estabelecimentos": 5}}
+{"id": "e2e_022", "request": "escritórios de contabilidade em Belo Horizonte optantes do Simples", "expect": {"uf": ["MG"], "municipio": ["Belo Horizonte"], "cnae": ["6920-6/01", "6920-6/02"], "regimes": ["simples"]}}
+{"id": "e2e_023", "request": "restaurantes no bairro Pinheiros em São Paulo", "expect": {"uf": ["SP"], "municipio": ["São Paulo"], "cnae": ["5611-2/01"], "bairros": ["Pinheiros"]}}
+{"id": "e2e_024", "request": "clínicas odontológicas num raio de 3 km do CEP 01310-100", "expect": {"cnae": ["8630-5/04"], "raio_km": 3}}
+{"id": "e2e_025", "request": "clínicas médicas em Campinas com site próprio", "expect": {"uf": ["SP"], "municipio": ["Campinas"], "cnae": ["8630-5/01", "8630-5/02", "8630-5/03"], "com_dominio_proprio": true}}
+{"id": "e2e_026", "request": "lojas de material de construção em Goiânia fora do Simples", "expect": {"uf": ["GO"], "municipio": ["Goiânia"], "cnae": ["4744-0/01", "4744-0/05", "4744-0/99"], "regimes": ["fora_simples"]}}
+{"id": "e2e_027", "request": "padarias num raio de 2 km do centro de Curitiba", "expect": {"uf": ["PR"], "municipio": ["Curitiba"], "cnae": ["1091-1/02", "4721-1/02"], "warning": "CEP de referência"}}

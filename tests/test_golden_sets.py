@@ -10,10 +10,40 @@ import re
 
 import pytest
 
-from eval.run_eval import GOLDEN_CNAE, GOLDEN_EXTRACTION, load_cases
-from quimera.filters import LeadFilters
+from eval.run_eval import GOLDEN_CNAE, GOLDEN_EXTRACTION, GOLDEN_E2E, load_cases
+from quimera.filters import VALID_REGIMES, VALID_UFS, LeadFilters
+from quimera.query import PORTE_CODES_TO_LABELS
 
 CNAE_CODE_PATTERN = re.compile(r"^\d{4}-\d{1}/\d{2}$")
+
+E2E_GOLDENS = [GOLDEN_E2E, GOLDEN_E2E.parent / "golden_e2e_holdout.jsonl"]
+
+# Chaves que o expect de um caso e2e aceita: critérios por linha de
+# metrics.e2e_row_checks + bandeiras do caso em metrics.e2e_case_outcome.
+E2E_EXPECT_KEYS = frozenset(
+    {
+        "uf",
+        "municipio",
+        "cnae",
+        "min_age_years",
+        "max_age_years",
+        "min_capital",
+        "portes",
+        "min_estabelecimentos",
+        "regimes",
+        "bairros",
+        "raio_km",
+        "com_dominio_proprio",
+        "refused",
+        "empty",
+        "warning",
+    }
+)
+# A suíte e2e roda só no público, onde MEI não existe: esperá-lo seria erro.
+VALID_E2E_REGIMES = VALID_REGIMES - {"mei"}
+# A linha devolvida traz o rótulo traduzido do porte: media/grande são
+# indistinguíveis no cadastro e chegam como "demais" (ver query.py).
+VALID_E2E_PORTES = frozenset(PORTE_CODES_TO_LABELS.values())
 
 
 @pytest.fixture(scope="module")
@@ -24,6 +54,11 @@ def extraction_cases():
 @pytest.fixture(scope="module")
 def cnae_cases():
     return load_cases(GOLDEN_CNAE)
+
+
+@pytest.fixture(scope="module", params=E2E_GOLDENS, ids=lambda p: p.name)
+def e2e_cases(request):
+    return load_cases(request.param)
 
 
 class TestGoldenExtraction:
@@ -113,3 +148,40 @@ class TestGoldenCnae:
         devem ser revisados antes de virar baseline."""
         flagged = [c["id"] for c in cnae_cases if c.get("flag") == "review"]
         assert flagged == []
+
+
+class TestGoldenE2e:
+    def test_unique_ids(self, e2e_cases):
+        ids = [c["id"] for c in e2e_cases]
+        assert len(ids) == len(set(ids))
+
+    def test_schema_of_every_case(self, e2e_cases):
+        from quimera.cnae import load_subclasses
+
+        valid_cnae = {s["codigo"] for s in load_subclasses()}
+        for case in e2e_cases:
+            assert isinstance(case["request"], str) and case["request"].strip()
+            expect = case["expect"]
+            unknown = set(expect) - E2E_EXPECT_KEYS
+            assert not unknown, (case["id"], unknown)
+            if not expect.get("refused") and not expect.get("empty"):
+                assert expect.get("cnae"), case["id"]
+            for code in expect.get("cnae", []):
+                assert CNAE_CODE_PATTERN.match(code), (case["id"], code)
+                assert code in valid_cnae, (case["id"], code)
+            assert all(uf in VALID_UFS for uf in expect.get("uf", [])), case["id"]
+            assert all(p in VALID_E2E_PORTES for p in expect.get("portes", [])), case[
+                "id"
+            ]
+            regimes = expect.get("regimes", [])
+            assert all(r in VALID_E2E_REGIMES for r in regimes), case["id"]
+            n = expect.get("min_estabelecimentos")
+            assert n is None or (isinstance(n, int) and n >= 1), case["id"]
+            raio = expect.get("raio_km")
+            assert raio is None or (isinstance(raio, (int, float)) and raio > 0), case[
+                "id"
+            ]
+            flag = expect.get("com_dominio_proprio")
+            assert flag is None or isinstance(flag, bool), case["id"]
+            for bairro in expect.get("bairros", []):
+                assert isinstance(bairro, str) and bairro.strip(), (case["id"], bairro)
