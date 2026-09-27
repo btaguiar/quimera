@@ -681,34 +681,47 @@ SP" → recusa no público**.
 
 ### Task 10: Build real, eval real e documentação
 
-- [ ] **Step 1:** Rodar a sonda da Task 1 e anotar N.
-- [ ] **Step 2:** `python -m quimera.dados build`. Anotar bytes, duração e
-  cada checagem. Se `DOMINIO_PROPRIO_RATIO` ou `MIN_COM_COORDENADA_RATIO`
-  falharem, investigar antes de afrouxar.
-- [ ] **Step 3: Paridade da normalização de bairro:** amostrar 1.000 bairros
-  distintos de `estabelecimentos_ativos` (coluna `bairro`, `bairro_norm`) e
-  comparar `normalize_name(bairro) == bairro_norm` em Python. Divergência
-  acima de 0,1% volta para a Task 2.
-- [ ] **Step 4:** Medir o custo dos pedidos novos (um de cada filtro) e
-  comparar com a tabela "Custo medido por pedido" de `docs/schema.md`. O
-  critério de aceite é: pedidos antigos sem piora acima de 20%.
-- [ ] **Step 5:** `python eval/run_eval.py --suite all` e depois o conjunto
-  separado. Os limiares de `eval/thresholds.json` seguem valendo. Resultados
-  vão para `eval/results/`.
-- [ ] **Step 6: Docs:**
-  - `docs/schema.md`: seção "Onda 1 (2026-09-26)" com as medições deste
-    plano, o N da sonda, o resultado do build e o achado de que o Simples é
-    mais recente que o snapshot do CNPJ;
-  - `README.md`: filtros novos no "Como funciona" e só números medidos.
-- [ ] **Step 7: Commit** `dados: Onda 1 medida no real (build, custo e eval)`
+- [x] **Step 1:** Sonda rodada (Task 1: 16,54 GB). O build real exigiu mais
+  um passo (CTAS de dois passos — ver abaixo), medido à parte.
+- [x] **Step 2:** `build` real rodou em 2026-09-27. Todas as checagens
+  passaram, incluindo `DOMINIO_PROPRIO_RATIO` (4,6%) e
+  `MIN_COM_COORDENADA_RATIO` (91,2%). Foi preciso corrigir o CTAS (commits
+  `5d885d6`, `20e83b0`): o CTAS original com os 3 CTEs da Onda 1 quebrava a
+  poda por cluster, e `PARTITION BY ... AS SELECT ... ORDER BY` é recusado
+  pelo BigQuery — a solução ficou em dois passos (tabela ordenada sem
+  partição, depois CTAS particionado/clusterizado por cima). Detalhes e
+  números em `docs/schema.md` § Onda 1.
+- [x] **Step 3:** Paridade amostrada: 1.000 pares, 0,1% de divergência (no
+  limite aceito), sempre por `\xa0` (espaço não separável) — não volta para
+  a Task 2. Detalhe em `docs/schema.md`.
+- [x] **Step 4:** Medido com `probe_onda1_pedidos.py`. Pedidos com CNAE
+  dentro do critério (+12% a +18%). **"Só UF, sem CNAE" fica FORA do
+  critério: 10 MB → 2.585,8 MB (+25.758%)** — a poda por cluster segue fraca
+  quando não há filtro de partição por CNAE (RR, o menor estado, custa quase
+  o mesmo que MG). Não corrigido nesta Onda; registrado como pendência em
+  `docs/schema.md`.
+- [x] **Step 5:** Extração, CNAE e e2e (principal + conjunto separado)
+  rodados de verdade contra o pipeline real. Extração e CNAE dentro dos
+  limiares. e2e principal dentro dos limiares (os 7 casos novos da Onda 1
+  passaram). **e2e do conjunto separado abaixo do limiar de
+  `row_precision`** (94,5% < 98%) — mas o limiar já estava abaixo de 98% nas
+  três medições anteriores à Onda 1 (pré-existente, não é regressão deste
+  trabalho). Resultados em `eval/results/`.
+- [x] **Step 6: Docs:** `docs/schema.md` § "Onda 1 — sinais do próprio
+  cadastro (2026-09-27)" com todas as medições acima. `README.md` ainda
+  **não** atualizado com os filtros novos — pendente.
+- [x] **Step 7: Commit.**
 
 ---
 
 ## Aceite da Onda 1
 
-- Build real passa em todas as checagens (antigas e novas) e custa ≤ 25 GB.
-- Pedidos antigos sem piora de custo acima de 20%.
-- Limiares do eval mantidos, e os casos novos passando no conjunto separado.
-- Nenhum pedido público devolve MEI, contato, domínio, CEP ou coordenada
+- [x] Build real passa em todas as checagens (antigas e novas) e custa
+  ≤ 25 GB (16,54 GB + ~6 GB da passagem do CTAS de dois passos).
+- [ ] Pedidos antigos sem piora de custo acima de 20% — **vale para os
+  pedidos com CNAE; "só UF sem CNAE" fica muito acima (+25.758%).**
+- [ ] Limiares do eval mantidos — **`row_precision` do conjunto separado
+  abaixo do limiar, de forma pré-existente à Onda 1 (ver `docs/schema.md`).**
+- [x] Nenhum pedido público devolve MEI, contato, domínio, CEP ou coordenada
   (invariantes do eval).
 - Com o ICP padrão, o score e o ranking não mudam (pesos novos = 0).

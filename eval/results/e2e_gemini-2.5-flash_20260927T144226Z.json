@@ -1,0 +1,166 @@
+{
+  "suite": "e2e",
+  "date": "2026-09-27T14:42:26+00:00",
+  "commit": "20e83b0",
+  "metrics": {
+    "n_cases": 1,
+    "case_pass_rate": 1.0,
+    "row_precision": 1.0,
+    "row_precision_by_check": {
+      "uf": 1.0,
+      "municipio": 1.0,
+      "cnae": 1.0,
+      "min_age_years": 1.0,
+      "max_age_years": null,
+      "min_capital": null,
+      "portes": null,
+      "min_estabelecimentos": null,
+      "regimes": null,
+      "bairros": null,
+      "raio_km": null,
+      "com_dominio_proprio": null
+    },
+    "e2e_correct_refusal_rate": null,
+    "n_rows": 50,
+    "per_case": [
+      {
+        "id": "e2e_001",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            50,
+            50
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        }
+      }
+    ],
+    "bytes_billed_p50": 82837504,
+    "bytes_billed_p95": 82837504,
+    "estimated_cost_usd_total": 0.000471
+  },
+  "latency_ms_p50": 9131.92,
+  "latency_ms_p95": 9131.92,
+  "policy": "public",
+  "model": "gemini-2.5-flash",
+  "stage_latency_ms": {
+    "cnae": {
+      "p50": 4544.3,
+      "p95": 4544.3
+    },
+    "extract": {
+      "p50": 2691.0,
+      "p95": 2691.0
+    },
+    "municipios": {
+      "p50": 1.8,
+      "p95": 1.8
+    },
+    "query": {
+      "p50": 1894.3,
+      "p95": 1894.3
+    },
+    "score": {
+      "p50": 0.3,
+      "p95": 0.3
+    },
+    "snapshot": {
+      "p50": 0.0,
+      "p95": 0.0
+    }
+  },
+  "detail": [
+    {
+      "id": "e2e_001",
+      "request": "clínicas odontológicas em Santo André, SP, abertas há mais de 2 anos",
+      "filters": {
+        "cnae_query": "clínicas odontológicas",
+        "cnae_codes": [
+          "8630-5/04"
+        ],
+        "ufs": [
+          "SP"
+        ],
+        "municipio_ids": [
+          "3547809"
+        ],
+        "municipio_names": [
+          "Santo André"
+        ],
+        "min_age_years": 2,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8630-5/04"
+      ],
+      "warnings": [],
+      "latency_ms": 9131.9,
+      "timings_ms": {
+        "extract": 2691.0,
+        "cnae": 4544.3,
+        "municipios": 1.8,
+        "snapshot": 0.0,
+        "query": 1894.3,
+        "score": 0.3
+      },
+      "bytes_billed": 82837504
+    }
+  ],
+  "golden": "golden_e2e.jsonl"
+}

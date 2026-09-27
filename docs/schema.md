@@ -275,3 +275,109 @@ mesma regra. Validado no real: "≥ 2 anos" devolveu idade mínima de 2,06 anos.
   (enum restrito aos candidatos, sem raciocínio: p50 0,87 s; com raciocínio
   4,9 s e mesma qualidade). O top-5 fixo punha 77% de códigos errados no
   filtro.
+
+## Onda 1 — sinais do próprio cadastro (2026-09-27)
+
+`estabelecimentos_ativos` ganhou seis colunas, calculadas no build sobre o
+mesmo snapshot: rede (`n_estabelecimentos`), regime tributário, bairro
+(+ `bairro_norm`), coordenada por CEP (`latitude`/`longitude`) e domínio
+próprio. Mais uma tabela auxiliar, `quimera.ceps` (coordenadas por CEP, para
+resolver o centro do raio sem ler `GEOGRAPHY` a cada pedido). Plano:
+`docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md`.
+
+### Checagens do build real (mesmo snapshot 2026-01-11)
+
+Todas passaram:
+
+| checagem | resultado |
+|---|---|
+| regime presente / coerente com `opcao_mei` | 0 divergências |
+| `n_estabelecimentos` válido | 0 inválidos |
+| coordenada presente | 25.332.194 (91,2%; mínimo aceito 85%) |
+| coordenada dentro da caixa do Brasil | 0 fora |
+| domínio próprio plausível | 1.285.768 (4,6%; faixa aceita 1–10%) |
+
+Regime tributário dos 27.784.536 ativos: **11.510.264 MEI, 9.387.165 fora do
+Simples, 6.887.107 no Simples** (não MEI).
+
+### CTAS em dois passos: BigQuery recusa `ORDER BY` em CTAS particionado
+
+O `build_leads_sql` da Fase 1 usava um único
+`CREATE TABLE ... PARTITION BY ... CLUSTER BY ... AS SELECT`. Com os 3 CTEs
+da Onda 1 (agregações + JOINs), o resultado sai em blocos que não preservam
+a ordem física das chaves do cluster, e a poda por clusterização — que só
+atua na execução, nunca na estimativa pré-execução — parou de funcionar. A
+correção óbvia, acrescentar `ORDER BY sigla_uf, id_municipio,
+cnae_fiscal_principal` ao mesmo CTAS, é recusada pelo BigQuery: *"Result of
+ORDER BY queries cannot be partitioned"*. A solução ficou em dois passos:
+`build_leads_sql` grava uma tabela **ordenada, sem partição/cluster**;
+`build_leads_staging_sql` faz um segundo CTAS particionado e clusterizado
+por cima, com `SELECT * FROM <ordenada>`.
+
+### Custo por pedido (medido 2026-09-27, `probe_onda1_pedidos.py`)
+
+| pedido | antes da Onda 1 | Onda 1 |
+|---|---|---|
+| odontologia (div. 86) + UF + município | 70 MB | 82,8 MB (+18%) |
+| varejo (div. 47) + UF | 221 MB | 247,5 MB (+12%) |
+| **só UF, sem CNAE** | **10 MB** | **2.585,8 MB (+25.758%)** |
+| rede: academias em SP capital, ≥ 5 unidades | — | 33,6 MB |
+| regime: material de construção em Goiânia, fora do Simples | — | 101,7 MB |
+| bairro: restaurantes em Pinheiros | — | 47,2 MB |
+| raio: odontologia a 3 km do CEP 01310-100 | — | 176,2 MB |
+| domínio próprio: clínicas médicas em Campinas | — | 82,8 MB |
+
+**O CTAS em dois passos não restaurou a poda por completo.** Pedidos com
+CNAE ficam dentro do critério de aceite do plano (piora ≤ 20%) porque a poda
+por partição (`cnae_divisao`) já resolve a maior parte do custo. Sem CNAE, o
+pedido depende só da poda por cluster, que segue fraca — medido à parte, na
+mesma coluna (`sigla_uf`, sem nenhum filtro de CNAE):
+
+| consulta | bytes cobrados | % do total |
+|---|---|---|
+| `sigla_uf` inteira, sem filtro | 111,15 MB | 100% |
+| `WHERE sigla_uf = 'MG'` (10,4% das linhas) | 46,14 MB | 41,5% |
+| `WHERE sigla_uf = 'RR'` (0,18% das linhas — o menor estado) | 38,80 MB | 34,9% |
+
+RR tem 58× menos linhas que MG e custa quase o mesmo — sinal de que a
+clusterização não está isolando por UF como deveria. **Pendência:**
+investigar se a ordem das chaves do cluster, o número de partições (até 99,
+por divisão CNAE, o que deixa poucos blocos por partição) ou outra causa
+explica a poda fraca.
+
+### Suíte e2e real, pós-build (2026-09-27)
+
+| suíte | resultado | limiar |
+|---|---|---|
+| extração (55 casos públicos) | acerto 94,2%, recusa correta 100% | ≥ 85% / = 100% ✅ |
+| CNAE (66 casos) | recall@5 95,5% | ≥ 90% ✅ |
+| e2e principal (27 casos) | casos ok 92,6%, precisão 99,0% | ≥ 90% / ≥ 98% ✅ |
+| e2e conjunto separado (33 casos) | casos ok 90,9%, precisão **94,5%** | ≥ 90% / ≥ 98% **❌** |
+
+Os 7 casos novos da Onda 1 no conjunto principal (`e2e_021`–`e2e_027`)
+passaram todos. No conjunto separado, 2 dos 3 casos que falharam
+(`hold_011`, `hold_019`) já falhavam **antes** da Onda 1, com a mesma causa
+(ambiguidade de seleção de CNAE) — não são regressão deste trabalho
+(reproduzido contra o resultado do commit `6ac4f68`). O terceiro, `hold_032`
+(novo, "pet shops no bairro Boa Viagem"), também falha por CNAE, não pelo
+filtro de bairro. O limiar de precisão do conjunto separado já estava abaixo
+de 98% nas três últimas medições **antes** desta Onda (94,2% / 96,0% / 96,0%
+— `eval/results/e2e_gemini-2.5-flash_20260926T19*`): o valor de
+`eval/thresholds.json` parece calibrado só contra o golden principal, não
+contra o conjunto separado.
+
+### Paridade `bairro_norm` × `normalize_name` (1.000 pares amostrados)
+
+0,1% de divergência (1 par em 1.000; limite aceito no plano), sempre por
+espaço não separável (`\xa0`): o `\s` do `REGEXP_REPLACE` do BigQuery não
+cobre esse caractere, enquanto `str.split()` do Python cobre. Efeito
+esperado só em nomes de bairro com esse artefato de codificação na fonte —
+não volta para a Task 2.
+
+### Pendências
+
+- Poda por cluster fraca em pedidos sem filtro de CNAE (acima) — investigar
+  antes de considerar a Onda 1 fechada.
+- `row_precision` do conjunto separado abaixo do limiar de
+  `eval/thresholds.json`, de forma pré-existente à Onda 1 — recalibrar o
+  limiar por suíte (principal vs. separado) é a correção mais provável.

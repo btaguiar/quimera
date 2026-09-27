@@ -1,0 +1,749 @@
+{
+  "suite": "extraction",
+  "date": "2026-09-27T12:47:33+00:00",
+  "commit": "20e83b0",
+  "metrics": {
+    "n_cases": 55,
+    "n_refusal_cases": 11,
+    "correct_refusal_rate": 1.0,
+    "false_refusal_rate": 0.0,
+    "field_accuracy": {
+      "cnae_query": {
+        "hits": 35,
+        "total": 36,
+        "rate": 0.9722222222222222
+      },
+      "ufs": {
+        "hits": 10,
+        "total": 14,
+        "rate": 0.7142857142857143
+      },
+      "municipio_names": {
+        "hits": 25,
+        "total": 26,
+        "rate": 0.9615384615384616
+      },
+      "min_age_years": {
+        "hits": 6,
+        "total": 6,
+        "rate": 1.0
+      },
+      "max_age_years": {
+        "hits": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "min_capital": {
+        "hits": 4,
+        "total": 4,
+        "rate": 1.0
+      },
+      "portes": {
+        "hits": 6,
+        "total": 6,
+        "rate": 1.0
+      },
+      "limit": {
+        "hits": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "min_estabelecimentos": {
+        "hits": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "regimes": {
+        "hits": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "bairros": {
+        "hits": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "cep_centro": {
+        "hits": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "raio_km": {
+        "hits": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "com_dominio_proprio": {
+        "hits": 1,
+        "total": 1,
+        "rate": 1.0
+      }
+    },
+    "overall_field_accuracy": 0.9423076923076923,
+    "exact_match_rate": 0.8181818181818182,
+    "per_case": [
+      {
+        "id": "ext_001",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_002",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_003",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_004",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": false
+        },
+        "extra_fields": [
+          "municipio_names"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_005",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_006",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_007",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_008",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_009",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "min_age_years": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_010",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": false,
+          "min_age_years": true
+        },
+        "extra_fields": [],
+        "exact_match": false
+      },
+      {
+        "id": "ext_011",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": true,
+          "max_age_years": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_012",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "municipio_names": true,
+          "min_age_years": true,
+          "max_age_years": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_013",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "min_age_years": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_014",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "ufs": true,
+          "min_capital": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_015",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": false,
+          "min_capital": true
+        },
+        "extra_fields": [
+          "ufs"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_016",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": true,
+          "min_capital": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_017",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "portes": true,
+          "ufs": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_018",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "portes": true,
+          "ufs": false
+        },
+        "extra_fields": [
+          "municipio_names"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_019",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "portes": true,
+          "ufs": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_020",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "min_age_years": true,
+          "portes": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_021",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "portes": true,
+          "min_capital": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_022",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "min_age_years": true
+        },
+        "extra_fields": [
+          "ufs"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_023",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "portes": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_024",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": true,
+          "limit": true
+        },
+        "extra_fields": [
+          "portes"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_025",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "limit": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_026",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_027",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_028",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_029",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_030",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_031",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [
+          "ufs"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_032",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "ufs": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_033",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_034",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_035",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_036",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_037",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_038",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_039",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_040",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_041",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_042",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_043",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_044",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_045",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_056",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_057",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": false,
+          "ufs": true,
+          "min_estabelecimentos": true
+        },
+        "extra_fields": [],
+        "exact_match": false
+      },
+      {
+        "id": "ext_058",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "ufs": false,
+          "min_estabelecimentos": true
+        },
+        "extra_fields": [
+          "municipio_names"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_059",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "regimes": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_060",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "regimes": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_061",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "bairros": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_062",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "cep_centro": true,
+          "raio_km": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_063",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true
+        },
+        "extra_fields": [
+          "bairros"
+        ],
+        "exact_match": false
+      },
+      {
+        "id": "ext_064",
+        "refusal_expected": false,
+        "refused_correctly": null,
+        "false_refusal": false,
+        "field_results": {
+          "cnae_query": true,
+          "municipio_names": true,
+          "com_dominio_proprio": true
+        },
+        "extra_fields": [],
+        "exact_match": true
+      },
+      {
+        "id": "ext_065",
+        "refusal_expected": true,
+        "refused_correctly": true,
+        "false_refusal": false,
+        "field_results": {},
+        "extra_fields": [],
+        "exact_match": true
+      }
+    ]
+  },
+  "latency_ms_p50": 902.71,
+  "latency_ms_p95": 1722.37,
+  "policy": "public",
+  "model": "gemini-2.5-flash"
+}
