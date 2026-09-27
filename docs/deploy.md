@@ -38,7 +38,7 @@ sem token validam sem GCP.
 API_TOKEN=$(openssl rand -hex 32) \
 TURNSTILE_SITE_KEY=0x... \
 TURNSTILE_SECRET_KEY=0x... \
-BUDGET_USD=20 \
+BUDGET=100 \
 bash scripts/deploy.sh
 ```
 
@@ -88,7 +88,10 @@ Depois um re-deploy para a nova versão ser montada (`:latest`).
 
 ## Alertas de orçamento
 
-`BUDGET_USD=20` cria alertas 50/80/100%. Sem permissão de billing? Console:
+`BUDGET=100` cria alertas 50/80/100% (uma vez só: re-deploy não duplica).
+A moeda é `BUDGET_CURRENCY` (padrão `BRL`) e **tem de ser a da conta de
+billing** — `20USD` numa conta em BRL volta `INVALID_ARGUMENT`. Sem permissão
+de billing? Console:
 Billing > Budgets & alerts > Create budget (projeto `quimera-leads`,
 50/80/100%, notificar o e-mail do Bruno).
 
@@ -114,11 +117,11 @@ Billing > Budgets & alerts > Create budget (projeto `quimera-leads`,
 | Avaliação e2e completa | ~US$ 0,02 e ~2 min | README |
 | Cenário de tráfego | 10 GB/dia de BigQuery on-demand ≈ US$ 6,25/TB → ~US$ 0,06/dia no teto do orçamento | estimativa |
 | Cloud Run | escala a zero; só cobra execução (~1 CPU, 1 GiB, máx. 1 instância) | config do deploy |
-| Alerta de gasto | `BUDGET_USD=20` com avisos em 50/80/100% | `deploy.sh` |
+| Alerta de gasto | `BUDGET=100` (R$) com avisos em 50/80/100% | `deploy.sh` |
 
 Escalas de segurança, da menor para a maior: teto por consulta (5 GB) →
 orçamento diário (10 GB, vira cache) → rate limit (10 req/h/IP) → alerta de
-billing (US$ 20).
+billing (R$ 100).
 
 ## Registro do trabalho (Fase 3b — 2026-09-27)
 

@@ -16,7 +16,8 @@ BQ_LOCATION="${BQ_LOCATION:-US}"
 VERTEX_LOCATION="${VERTEX_LOCATION:-us-central1}"
 DAILY_BYTES_BUDGET="${DAILY_BYTES_BUDGET:-10737418240}"
 RATE_LIMIT_MAX="${RATE_LIMIT_MAX:-10}"
-BUDGET_USD="${BUDGET_USD:-}"            # ex.: 20 -> cria alertas 50/80/100%
+BUDGET="${BUDGET:-}"                    # ex.: 100 -> cria alertas 50/80/100%
+BUDGET_CURRENCY="${BUDGET_CURRENCY:-BRL}"  # tem de ser a moeda da conta de billing
 API_TOKEN="${API_TOKEN:-}"              # valor do secret (só na 1ª criação)
 TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-}"
 TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-}"
@@ -104,15 +105,21 @@ curl -fsS "${CURL_AUTH[@]}" "$URL/metrics" -o /dev/null -w 'metrics: %{http_code
 curl -fsS "${CURL_AUTH[@]}" "$URL/" | grep -qi '<html' && echo 'front: ok'
 curl -fsS "${CURL_AUTH[@]}" "$URL/metrics.html" | grep -qi 'anexo' && echo 'anexo: ok'
 
-if [ -n "$BUDGET_USD" ]; then
+if [ -n "$BUDGET" ]; then
   log "alertas de orçamento (50/80/100%)"
   BA=$(gcloud billing projects describe "$PROJECT" --format='value(billingAccountName)' | sed 's#.*/##')
-  gcloud beta billing budgets create --billing-account="$BA" \
-    --display-name="quimera-demo" --budget-amount="${BUDGET_USD}USD" \
-    --threshold-rule=percent=0.5 --threshold-rule=percent=0.8 --threshold-rule=percent=1.0 \
-    || echo "sem permissão para criar orçamento por API: crie no console (docs/deploy.md)"
+  if [ -n "$(gcloud beta billing budgets list --billing-account="$BA" \
+      --filter='displayName=quimera-demo' --format='value(name)')" ]; then
+    echo "orçamento quimera-demo já existe: nada a criar"
+  else
+    gcloud beta billing budgets create --billing-account="$BA" \
+      --display-name="quimera-demo" --budget-amount="${BUDGET}${BUDGET_CURRENCY}" \
+      --filter-projects="projects/${PROJECT}" \
+      --threshold-rule=percent=0.5 --threshold-rule=percent=0.8 --threshold-rule=percent=1.0 \
+      || echo "orçamento não criado (moeda diferente da conta? permissão?): crie no console (docs/deploy.md)"
+  fi
 else
-  echo "BUDGET_USD vazio: alertas não criados (console: Billing > Orçamentos; 50/80/100%)"
+  echo "BUDGET vazio: alertas não criados (console: Billing > Orçamentos; 50/80/100%)"
 fi
 
 if [ "$PUBLIC_ACCESS" != "true" ]; then
