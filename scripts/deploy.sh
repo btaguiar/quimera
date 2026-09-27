@@ -31,7 +31,8 @@ log() { printf '\n==> %s\n' "$*"; }
 
 log "projeto e APIs"
 gcloud config set project "$PROJECT"
-gcloud services enable run cloudbuild artifactregistry secretmanager
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com
 
 SA_EMAIL="${SA_NAME}@${PROJECT}.iam.gserviceaccount.com"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${AR_REPO}/${SERVICE}"
