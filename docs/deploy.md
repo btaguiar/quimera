@@ -4,10 +4,19 @@ Runbook para colocar e manter a demo no ar. O script `scripts/deploy.sh`
 automatiza quase tudo; este documento explica cada peça e o que fazer quando
 algo falha.
 
+**Estado atual (2026-09-27):** no ar em modo **privado** (serviço
+`quimera-demo`, `us-central1`, projeto `quimera-leads`), com o aceite da spec
+cumprido. **Chaves de teste do Turnstile ativas** (aprovam qualquer desafio):
+aceitável só enquanto o serviço é privado; o deploy público com as chaves
+reais as substitui. Orçamento de R$ 100 com alertas 50/80/100%, restrito ao
+projeto. Detalhes em "Registro do deploy real".
+
 ## Pré-requisitos (uma vez)
 
 1. **gcloud** autenticado no WSL2 (ou git-bash):
-   `gcloud auth login && gcloud auth application-default login`
+   `gcloud auth login && gcloud auth application-default login`.
+   O script é bash: no Windows, rode no Git Bash ou no WSL, não no PowerShell
+   (ver Troubleshooting).
 2. **Projeto GCP** `quimera-leads` com billing ativo (crédito de teste).
 3. **Turnstile (Cloudflare)**: dashboard > Turnstile > Add site.
    Hostname: `*.run.app` (a URL final do Cloud Run; dá para adicionar depois
@@ -161,6 +170,70 @@ verificador.
 já existentes (~US$ 0,02 pela re-execução e2e). O deploy real (Task 13) é o
 primeiro momento com gasto de GCP — ver a tabela de custos acima.
 
+## Registro do deploy real (Task 13 — 2026-09-27)
+
+**Tempo:** ~1 h 30 min (18:22–19:50), do teste local da imagem à validação
+no navegador. Rodado pelo Git Bash no Windows, com `PUBLIC_ACCESS=false`.
+
+**Aceite da spec Fase 3, medido contra o serviço no ar:**
+
+| Verificação | Resultado |
+|---|---|
+| Sem identity token | 403 (serviço privado) |
+| `/health`, laudo em `/`, `/metrics.html` | 200 |
+| `/metrics` | 8 limiares; 7 + 6 + 11 medições (extração, CNAE, e2e) |
+| "telefone do dono de clínicas em SP" | 200, `refused: true` |
+| Pedido real (clínicas em Santo André) | 200, 50 empresas, 156 MB cobrados, ~US$ 0,0009 |
+| Mesmo pedido repetido | 200, `cached: true`, ~0,35 s |
+| 11º pedido do mesmo IP na hora | 429 |
+| Campos de contato nas respostas | nenhum |
+| Custo por pedido no Cloud Logging | registrado (bytes, custo, latência, linhas) |
+| Fluxo pelo navegador (Turnstile de teste) | laudo completo; pipeline 4,4 s, navegador 5,0 s |
+
+Não verificado neste deploy: o modo cache por orçamento esgotado (exige
+re-deploy com `DAILY_BYTES_BUDGET` baixo; coberto pelos testes unitários).
+
+**Bugs que só o deploy real revelou (todos corrigidos):**
+
+1. `gcloud services enable` não aceita o nome curto `artifactregistry` →
+   nomes completos `*.googleapis.com`.
+2. `bq add-iam-policy-binding` em dataset exige allowlist do Google →
+   `GRANT ... ON SCHEMA` via `bq query`.
+3. O Git Bash converteu `EVAL_DIR=/app/eval` em
+   `C:/Program Files/Git/app/eval`, e o `/metrics` de produção voltou vazio →
+   a variável saiu do script (o Dockerfile já a define).
+4. O `logger.info` do pipeline era descartado (ninguém configurava o logging
+   da aplicação), então o custo por pedido não chegava ao Cloud Logging →
+   `logging.basicConfig` no `__main__`.
+5. Orçamento em `USD` numa conta em `BRL` → `INVALID_ARGUMENT`. Agora
+   `BUDGET` + `BUDGET_CURRENCY`, com filtro no projeto (sem ele o orçamento
+   somava a conta de billing inteira) e checagem de existência (o `create`
+   não é idempotente).
+
+Também veio à tona um problema de produto, não de deploy: o ranking quase não
+diferencia as empresas (ver Próximos passos no README).
+
+**Como testar o serviço privado:**
+
+- Navegador: `gcloud run services proxy quimera-demo --region us-central1
+  --project quimera-leads` e abrir `http://127.0.0.1:8080` (use o IP; o proxy
+  escuta só em IPv4). O botão "Emitir laudo" precisa do Turnstile.
+- Linha de comando (PowerShell): identity token no `Authorization` e o
+  `X-Api-Token` do Secret Manager; mande o corpo em bytes UTF-8, senão os
+  acentos quebram o JSON:
+
+```powershell
+$id  = gcloud auth print-identity-token
+$tok = gcloud secrets versions access latest --secret=quimera-api-token --project quimera-leads
+$body = [Text.Encoding]::UTF8.GetBytes('{"request":"padarias artesanais em Curitiba"}')
+Invoke-RestMethod -Method Post -Uri https://quimera-demo-mcftihctrq-uc.a.run.app/leads `
+  -Headers @{ Authorization = "Bearer $id"; "X-Api-Token" = $tok } `
+  -ContentType "application/json; charset=utf-8" -Body $body
+```
+
+**Custo:** dezenas de pedidos de teste a menos de US$ 0,01 cada, mais os
+builds no Cloud Build — centavos no total.
+
 ## Decisões registradas
 
 - **`MemoryStateStore` é por instância.** Orçamento diário e rate limit
@@ -193,6 +266,14 @@ primeiro momento com gasto de GCP — ver a tabela de custos acima.
   `bq add-iam-policy-binding` em dataset (preview, só para projetos
   liberados). O script usa `GRANT ... ON SCHEMA` via `bq query`, que é o
   caminho suportado.
+- **PowerShell: `O termo 'API_TOKEN=...' não é reconhecido`**: `VAR=valor
+  comando` é sintaxe bash. No PowerShell, defina `$env:VAR="valor"` antes e
+  chame o Git Bash pelo caminho completo
+  (`& "C:\Program Files\Git\bin\bash.exe" scripts/deploy.sh`). O `bash` puro
+  do PowerShell abre o WSL, onde o `gcloud` pode não estar autenticado.
+- **PowerShell junta variáveis em `--update-env-vars A=1,B=2`**: sem aspas,
+  a vírgula vira separador de lista e tudo cai num só valor. Use aspas:
+  `--update-env-vars "A=1,B=2"`.
 - **Anexo de métricas vazio em produção (Git Bash)**: o Git Bash converte
   argumentos iniciados em `/` em caminhos do Windows (`/app/eval` virou
   `C:/Program Files/Git/app/eval`). Por isso o script não passa caminhos em

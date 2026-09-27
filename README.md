@@ -4,7 +4,9 @@
 > há mais de 2 anos em Santo André, porte médio") em uma lista ranqueada de
 > empresas (CNPJ), combinando LLM, embeddings e BigQuery.
 
-**Status: em construção (Fase 2 medida — baseline real abaixo).** Este README só
+**Status: Fase 3 no ar em modo privado (2026-09-27).** A demo roda no Cloud Run
+com o aceite da spec cumprido, mas ainda sem acesso anônimo; a abertura ao
+público depende dos itens em [Próximos passos](#próximos-passos). Este README só
 afirma métricas com resultados reproduzíveis em `eval/` (regra de ouro do projeto).
 
 ## Como funciona
@@ -93,6 +95,13 @@ custos por pedido e o registro do trabalho da Fase 3b). A página é um laudo
 técnico: pedido → achados numerados (interpretação, CNAEs, SQL, ranking,
 custos) e o anexo `/metrics.html` com as métricas medidas.
 
+Hoje o serviço está no ar **privado** (`PUBLIC_ACCESS=false`: só abre com
+login Google e permissão de invoker). Para ver no navegador:
+`gcloud run services proxy quimera-demo --region us-central1 --project
+quimera-leads` e abrir `http://127.0.0.1:8080`. O registro do deploy real,
+os bugs que ele revelou e como testar pela linha de comando estão em
+`docs/deploy.md`.
+
 Variáveis de ambiente: `GOOGLE_CLOUD_PROJECT`, `BQ_LOCATION`, `VERTEX_LOCATION`,
 `EXTRACT_MODEL`, `EMBED_MODEL`, `MAX_BYTES_BILLED`, `LEADS_DATASET` (dataset da
 tabela própria; padrão `quimera`), `DEPLOY_MODE` (vazio =
@@ -128,8 +137,10 @@ python -m eval.report                                 # relatório Markdown em e
   contra as atividades oficiais do IBGE em 2026-09-26** (fonte:
   `src/quimera/data/cnae_subclasses.jsonl`; um teste garante que todo código
   aceitável existe na CNAE 2.3).
-- `eval/thresholds.json` — limiares do CI (recusa correta = 100%, extração ≥ 85%;
-  recall@5 ≥ 0,90; medido 0,955 em 2026-09-26).
+- `eval/thresholds.json` — limiares (recusa correta = 100%, extração ≥ 85%;
+  recall@5 ≥ 0,90; medido 0,955 em 2026-09-26). Abaixo de qualquer limiar,
+  `run_eval` sai com código ≠ 0 — pronto para CI, mas **ainda não há CI
+  configurado** (ver Próximos passos).
 
 ## Resultados medidos (2026-09-26, ponta a ponta atualizado em 2026-09-27 — `eval/results/`)
 
@@ -138,7 +149,7 @@ Primeira medição real contra GCP, com os rótulos de CNAE já revisados.
 **Extração de filtros** — `gemini-2.5-flash`, 45 casos públicos (re-executada
 após ajuste no prompt de extração para eliminar recusas indevidas):
 
-| métrica | valor | limiar CI |
+| métrica | valor | limiar |
 |---|---|---|
 | recusa correta (dado pessoal) | 100% | 100% |
 | acerto por campo | 89,9% | ≥ 85% |
@@ -181,7 +192,7 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 
 Os 7 casos novos da Onda 1 passaram todos; os 2 casos que falharam já
 falhavam antes (ambiguidade de seleção de CNAE, não é regressão da Onda 1 —
-`docs/schema.md`). Limiares no CI: casos ≥ 0,90, precisão ≥ 0,98, recusa =
+`docs/schema.md`). Limiares: casos ≥ 0,90, precisão ≥ 0,98, recusa =
 1,00.
 
 **Conjunto separado** (`eval/golden_e2e_holdout.jsonl`) — 30 pedidos com
@@ -197,7 +208,7 @@ generalização:
 
 A precisão do conjunto separado nunca atingiu a mesma barra do golden
 principal (0,942 a 0,96, sempre por ambiguidade de seleção de CNAE, mesmo
-antes da Onda 1) — o CI usa um limiar próprio para este conjunto
+antes da Onda 1) — o eval usa um limiar próprio para este conjunto
 (`eval/thresholds.json`: `e2e_holdout_row_precision` 0,92), em vez do limiar
 0,98 do golden principal. Todas as falhas restantes são de CNAE (UF,
 município, idade, capital e porte: 100%).
@@ -238,13 +249,59 @@ GCP (cota/capacidade reservada), não no código.
   - [x] 3a — API + proteções (FastAPI: token, rate limit, orçamento diário
         com modo cache, timeout; `src/quimera/api/`)
   - [x] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
+  - [x] deploy real em modo privado + aceite da spec (2026-09-27;
+        registro em `docs/deploy.md`)
+  - [ ] ranking que diferencie as empresas (hoje metade empata em 100)
+  - [ ] abertura ao público (Turnstile real, `PUBLIC_ACCESS=true`, URL aqui)
   - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
 - [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
       estabelecimento por empresa
 - [x] Índice CNAE multi-vetor com atividades do IBGE + seleção pelo Gemini
 - [x] Latência: ~25 s → ~4 s por pedido (clientes reaproveitados, caches,
       sem raciocínio no Gemini, aquecimento na inicialização)
-- [x] Avaliação ponta a ponta com limiares no CI
+- [x] Avaliação ponta a ponta com limiares (`run_eval` sai ≠ 0 abaixo deles)
+- [ ] Repositório público no GitHub + CI (testes, eval com limiares, gitleaks)
 - [ ] Cota do Gemini (429) — cauda de latência
 - [ ] "empresas de TI": pedido genérico ainda falha na busca (único erro no top-15)
 - [ ] Fase 5 — uso privado (repositório da Turno 24)
+- [ ] Fase 4 (opcional, depois da 5) — modo analítico com SQL livre validado
+
+## Próximos passos
+
+Em ordem de prioridade. Os três primeiros vêm antes da abertura ao público,
+porque são o que um visitante veria ou o que derrubaria a demo.
+
+1. **Ranking que diferencie as empresas.** No pedido de clínicas em Santo
+   André, as 50 empresas devolvidas têm só duas notas: 25 com 100 e 25 com
+   76. Uma operadora de plano odontológico com R$ 207 mi de capital empata em
+   100 com uma clínica de R$ 850 mil, embora os próprios motivos digam
+   "capital acima do alvo do ICP". Em Curitiba e Belo Horizonte o top 5
+   inteiro também empatou. Investigar o cálculo em `score` (teto de 100?
+   estar acima do alvo não penaliza?) e medir com o eval antes de mudar.
+2. **Poda de cluster em pedidos sem CNAE.** Um pedido assim pode passar de
+   2 GB; com o orçamento diário de 10 GB, poucos deles põem a demo inteira em
+   modo cache. Em público isso é disponibilidade, não só custo. A causa já
+   foi isolada fora do SQL (`docs/schema.md`); falta testar a
+   reclusterização da tabela própria.
+3. **Abrir ao público.** Criar o widget no Cloudflare para `*.run.app`,
+   rodar `scripts/deploy.sh` com `PUBLIC_ACCESS=true` e as chaves reais (isso
+   também remove as chaves de teste do Turnstile que estão ativas no serviço
+   privado) e anotar a URL aqui. Fecha a Fase 3.
+4. **Repositório público e CI.** A definição de pronto da spec pede o repo
+   público no GitHub e CI verde com o eval; hoje o repositório é só local, sem
+   remoto. O CI precisa rodar `pytest`, o eval com os limiares (exige
+   credencial GCP e custa ~US$ 0,02 por execução) e `gitleaks` — antes do
+   primeiro push, para nenhum segredo entrar no histórico público.
+5. **Build mensal agendado.** Cloud Scheduler disparando um Cloud Run job com
+   `python -m quimera.dados build`; sem isso a tabela própria envelhece e a
+   demo mostra um snapshot cada vez mais velho.
+6. **Qualidade restante:** cota do Gemini (429, cauda p95 de 5–7 s; resolve
+   com cota/capacidade no GCP) e o pedido genérico "empresas de TI".
+7. **Fase 5 — uso privado** na Turno 24 (`QUIMERA_SPEC.md`), e só depois a
+   Fase 4 opcional.
+
+Decisões aceitas por simplicidade, a revisitar só se virarem problema
+(detalhes em `docs/deploy.md`): cache, orçamento diário e rate limit em
+memória (`MemoryStateStore`), que zeram a cada cold start — a spec previa
+Firestore, que entra pelo mesmo protocolo de `src/quimera/api/state.py`;
+dependências da imagem sem lock; índice CNAE duplicado na imagem (~27 MB).
