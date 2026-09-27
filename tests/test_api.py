@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import time
 
-import pytest
 from fastapi.testclient import TestClient
 
 from quimera.api import create_app
@@ -771,12 +770,21 @@ class TestFrontend:
         assert "Emitir laudo" in resp.text
         assert 'lang="pt-BR"' in resp.text
 
-    @pytest.mark.xfail(reason="metrics.html chega na Task 8", strict=False)
     def test_metrics_html_served(self):
         resp = TestClient(_app()).get("/metrics.html")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
         assert "Métricas medidas" in resp.text
+
+    def test_metrics_page_renders_from_api_json(self):
+        client = TestClient(_app())
+        html = client.get("/metrics.html").text
+        js = client.get("/metrics.js")
+        assert "Anexo A" in html
+        assert "regra de ouro" in html.lower()
+        assert js.status_code == 200
+        assert "javascript" in js.headers["content-type"]
+        assert "carregarMetricas" in js.text
 
     def test_static_assets_served(self):
         client = TestClient(_app())
