@@ -220,6 +220,25 @@ def run(
     filters = apply_policy(filters, policy)
 
     warnings: list[str] = []
+    municipio_resolution: dict[str, list[str]] = {}
+
+    def _early_stop(log_message: str) -> PipelineResult:
+        """Parada sem consulta: filtros, avisos e timings do que ficou resolvido."""
+        stopped = PipelineResult(
+            refused=False,
+            filters=filters,
+            cnae_matches=cnae_matches,
+            municipio_resolution=municipio_resolution,
+            model=resolved_model,
+            policy=policy.name,
+            request_normalized=request_normalized,
+            warnings=warnings,
+        )
+        stopped.latency_ms = (time.perf_counter() - started) * 1000
+        stopped.timings_ms = timings
+        logger.info(log_message)
+        return stopped
+
     if filters.cnae_query and not cnae_matches:
         # Sem CNAE, a consulta devolveria empresas de qualquer atividade como
         # se fossem da atividade pedida.
@@ -227,18 +246,9 @@ def run(
             f"Nenhuma atividade CNAE corresponde a '{filters.cnae_query}'; "
             "reformule a atividade do pedido."
         )
-        result = PipelineResult(
-            refused=False,
-            filters=filters,
-            model=resolved_model,
-            policy=policy.name,
-            request_normalized=request_normalized,
-            warnings=warnings,
+        return _early_stop(
+            f"nenhum CNAE para {filters.cnae_query!r}; consulta não executada"
         )
-        result.latency_ms = (time.perf_counter() - started) * 1000
-        result.timings_ms = timings
-        logger.info("nenhum CNAE para %r; consulta não executada", filters.cnae_query)
-        return result
     if PORTE_LABELS_DEMAIS.intersection(filters.portes):
         warnings.append(
             "O cadastro não distingue porte médio de grande: ambos vêm do porte "
@@ -247,7 +257,6 @@ def run(
         )
 
     # 3. Nome de município -> códigos IBGE por lookup no diretório.
-    municipio_resolution: dict[str, list[str]] = {}
     if filters.municipio_names:
         with _stage(timings, "municipios"):
             municipio_resolution = resolve_municipality_ids(
@@ -271,19 +280,7 @@ def run(
         if not municipio_resolution:
             # Sem nenhum município resolvido, rodar a query sem esse filtro
             # devolveria empresas de qualquer lugar como se fossem do local pedido.
-            result = PipelineResult(
-                refused=False,
-                filters=filters,
-                cnae_matches=cnae_matches,
-                model=resolved_model,
-                policy=policy.name,
-                request_normalized=request_normalized,
-                warnings=warnings,
-            )
-            result.latency_ms = (time.perf_counter() - started) * 1000
-            result.timings_ms = timings
-            logger.info("nenhum município resolvido; consulta não executada")
-            return result
+            return _early_stop("nenhum município resolvido; consulta não executada")
         filters = filters.model_copy(
             update={
                 "municipio_ids": list(
@@ -301,9 +298,10 @@ def run(
     tables = tables or resolve_leads_tables()
     raio_sem_cep = filters.raio_km is not None and not filters.cep_centro
     bairros_sem_municipio = bool(filters.bairros) and not filters.municipio_names
+    mei_removido = "mei" in regimes_pedidos and "mei" not in filters.regimes
     so_mei = bool(regimes_pedidos) and not filters.regimes
     centro: tuple[float, float] | None = None
-    if filters.cep_centro or raio_sem_cep or bairros_sem_municipio or so_mei:
+    if filters.cep_centro or raio_sem_cep or bairros_sem_municipio or mei_removido:
         with _stage(timings, "cep"):
             if so_mei:
                 # Sem isso, a consulta devolveria empresas de qualquer regime
@@ -313,20 +311,12 @@ def run(
                     "a consulta traria empresas de qualquer regime tributário. "
                     "Reformule o pedido."
                 )
-                result = PipelineResult(
-                    refused=False,
-                    filters=filters,
-                    cnae_matches=cnae_matches,
-                    municipio_resolution=municipio_resolution,
-                    model=resolved_model,
-                    policy=policy.name,
-                    request_normalized=request_normalized,
-                    warnings=warnings,
+                return _early_stop("pedido só MEI; consulta não executada")
+            if mei_removido:
+                warnings.append(
+                    "MEI removido dos regimes pelo modo público; a consulta "
+                    "segue com os regimes restantes."
                 )
-                result.latency_ms = (time.perf_counter() - started) * 1000
-                result.timings_ms = timings
-                logger.info("pedido só MEI; consulta não executada")
-                return result
             if raio_sem_cep:
                 warnings.append(
                     "Raio ignorado: informe um CEP de referência para buscar "
@@ -341,11 +331,7 @@ def run(
                 )
                 filters = filters.model_copy(update={"bairros": []})
             if filters.cep_centro:
-                if filters.raio_km is None:
-                    filters = filters.model_copy(update={"raio_km": RAIO_PADRAO_KM})
-                    warnings.append(
-                        f"CEP sem raio: usando o padrão de {RAIO_PADRAO_KM:g} km."
-                    )
+                usar_raio_padrao = filters.raio_km is None
                 centro = resolve_cep_center(
                     filters.cep_centro, tables=tables, client=bq_client
                 )
@@ -356,23 +342,15 @@ def run(
                         f"CEP {filters.cep_centro} não encontrado no diretório; "
                         "reformule o pedido."
                     )
-                    result = PipelineResult(
-                        refused=False,
-                        filters=filters,
-                        cnae_matches=cnae_matches,
-                        municipio_resolution=municipio_resolution,
-                        model=resolved_model,
-                        policy=policy.name,
-                        request_normalized=request_normalized,
-                        warnings=warnings,
+                    return _early_stop(
+                        f"CEP {filters.cep_centro} sem centroide; "
+                        "consulta não executada"
                     )
-                    result.latency_ms = (time.perf_counter() - started) * 1000
-                    result.timings_ms = timings
-                    logger.info(
-                        "CEP %s sem centroide; consulta não executada",
-                        filters.cep_centro,
+                if usar_raio_padrao:
+                    filters = filters.model_copy(update={"raio_km": RAIO_PADRAO_KM})
+                    warnings.append(
+                        f"CEP sem raio: usando o padrão de {RAIO_PADRAO_KM:g} km."
                     )
-                    return result
                 warnings.append(AVISO_COBERTURA_RAIO)
 
     # 5. Tabela própria (snapshot lido dos labels, sem custo) + query

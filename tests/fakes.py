@@ -69,7 +69,7 @@ class FakePipelineBQ:
     Sequência de chamadas:
     1. client.get_table              -> labels de snapshot da tabela própria;
     2. job_config ausente           -> consulta ao diretório de municípios;
-    3. SQL na tabela ``.ceps``      -> centroide do CEP (FakeJob(0, cep_rows));
+    3. SQL com parâmetro ``@cep``   -> centroide do CEP (FakeJob(0, cep_rows));
     4. job_config de execução        -> consulta de leads: recusada com
        "N or higher required" (N = ``dry_run_bytes``) se o teto for menor,
        senão registrada em ``executed``.
@@ -105,7 +105,7 @@ class FakePipelineBQ:
         if job_config is None:
             self.directory_queries.append(sql)
             return FakeJob(0, self.municipio_rows)
-        if ".ceps`" in sql:
+        if "@cep" in sql:
             self.cep_queries.append(sql)
             return FakeJob(0, self.cep_rows)
         if exceeds_cap(job_config, self.dry_run_bytes):

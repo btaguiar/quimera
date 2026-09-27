@@ -409,13 +409,13 @@ class TestTimingsAndWarmup:
         assert "aquecimento falhou em cnae_index" in caplog.text
 
 
+CEP_ROWS = [{"latitude": -23.56, "longitude": -46.65}]
+
+
 class TestSinaisOnda1:
     def test_cep_center_passed_to_query(self):
-        bq = FakePipelineBQ(
-            lead_rows=LEAD_ROWS,
-            cep_rows=[{"latitude": -23.56, "longitude": -46.65}],
-        )
-        result = _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
+        _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
         sql, _ = bq.executed[0]
         assert "ST_DWITHIN" in sql
         assert bq.cep_queries
@@ -426,18 +426,26 @@ class TestSinaisOnda1:
         assert not bq.executed
         assert any("CEP 99999999" in w for w in result.warnings)
 
+    def test_unknown_cep_without_radius_keeps_raio_unset(self):
+        # CEP ausente não aplica o padrão: raio_km fica None e não há aviso
+        # contraditório de "padrão de 5 km" para um raio que não rodou.
+        bq = FakePipelineBQ(cep_rows=[])
+        result = _run(bq, cnae_query="clínicas", cep_centro="99999999")
+        assert not bq.executed
+        assert result.filters.raio_km is None
+        assert any("CEP 99999999" in w for w in result.warnings)
+        assert not any("5 km" in w for w in result.warnings)
+
     def test_radius_without_cep_warns_and_is_ignored(self):
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
         result = _run(bq, cnae_query="clínicas", raio_km=3)
+        assert result.filters.raio_km is None
         assert bq.executed and "ST_DWITHIN" not in bq.executed[0][0]
         assert any("CEP de referência" in w for w in result.warnings)
 
     def test_cep_without_radius_uses_default(self):
         # raio padrão 5 km, com aviso
-        bq = FakePipelineBQ(
-            lead_rows=LEAD_ROWS,
-            cep_rows=[{"latitude": -23.56, "longitude": -46.65}],
-        )
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
         result = _run(bq, cnae_query="clínicas", cep_centro="01310100")
         sql, job_config = bq.executed[0]
         assert "ST_DWITHIN" in sql
@@ -447,16 +455,15 @@ class TestSinaisOnda1:
 
     def test_radius_warns_about_coverage(self):
         # aviso: "~9% dos estabelecimentos não têm coordenada e ficam de fora"
-        bq = FakePipelineBQ(
-            lead_rows=LEAD_ROWS,
-            cep_rows=[{"latitude": -23.56, "longitude": -46.65}],
-        )
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
         result = _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
+        assert "cep" in result.timings_ms
         assert any("9%" in w and "coordenada" in w for w in result.warnings)
 
     def test_bairros_without_municipio_warn_and_are_ignored(self):
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
         result = _run(bq, cnae_query="clínicas", bairros=["Centro"])
+        assert result.filters.bairros == []
         assert len(bq.executed) == 1
         assert "@bairros" not in bq.executed[0][0]
         assert any("bairros" in w.lower() for w in result.warnings)
@@ -466,4 +473,13 @@ class TestSinaisOnda1:
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
         result = _run(bq, cnae_query="clínicas", regimes=["mei"])
         assert not bq.executed
+        assert any("MEI" in w for w in result.warnings)
+
+    def test_public_partial_mei_regime_warns_and_queries(self):
+        # Remoção parcial: "simples" sobrevive à policy e a query roda, mas o
+        # MEI removido precisa estar nos avisos.
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = _run(bq, cnae_query="clínicas", regimes=["mei", "simples"])
+        assert result.filters.regimes == ["simples"]
+        assert len(bq.executed) == 1
         assert any("MEI" in w for w in result.warnings)
