@@ -11,6 +11,7 @@ const turnstileBox = document.getElementById("turnstile");
 
 let turnstileWidgetId = null;
 let turnstileToken = null;
+let antiBotIndisponivel = false;
 
 const fmtNum = new Intl.NumberFormat("pt-BR");
 const esc = (s) =>
@@ -19,19 +20,19 @@ const esc = (s) =>
   ));
 const fmtBytes = (b) => {
   const n = Number(b);
-  if (b == null || !Number.isFinite(n)) return "—";
+  if (b == null || b === "" || !Number.isFinite(n)) return "—";
   return n >= 1024 ** 3
     ? `${fmtNum.format(+(n / 1024 ** 3).toFixed(2))} GB`
     : `${fmtNum.format(+(n / 1024 ** 2).toFixed(1))} MB`;
 };
 const fmtUSD = (v) => {
   const n = Number(v);
-  if (v == null || !Number.isFinite(n)) return "—";
+  if (v == null || v === "" || !Number.isFinite(n)) return "—";
   return `US$ ${n.toFixed(6).replace(".", ",")}`;
 };
 const fmtMs = (v) => {
   const n = Number(v);
-  if (v == null || !Number.isFinite(n)) return "—";
+  if (v == null || v === "" || !Number.isFinite(n)) return "—";
   return `${fmtNum.format(Math.round(n))} ms`;
 };
 const fmtData = (yyyymmdd) =>
@@ -39,7 +40,7 @@ const fmtData = (yyyymmdd) =>
     ? `${yyyymmdd.slice(6, 8)}/${yyyymmdd.slice(4, 6)}/${yyyymmdd.slice(0, 4)}`
     : "—";
 const lista = (v) => (Array.isArray(v) && v.length ? v.map(esc).join(", ") : "—");
-const valor = (v) => (v == null ? "—" : fmtNum.format(v));
+const valor = (v) => (v == null || v === "" ? "—" : fmtNum.format(v));
 
 async function carregarConfig() {
   let cfg = null;
@@ -48,6 +49,7 @@ async function carregarConfig() {
   } catch (_) { /* sem config: ambiente local sem Turnstile */ }
   if (!cfg || !cfg.turnstile_site_key) return;
   if (typeof window.turnstile?.render !== "function") {
+    antiBotIndisponivel = true;
     statusEl.textContent = "Desafio anti-bot indisponível — recarregue a página.";
     return;
   }
@@ -63,6 +65,7 @@ async function carregarConfig() {
       language: "pt-br",
     });
   } catch (_) {
+    antiBotIndisponivel = true;
     statusEl.textContent = "Desafio anti-bot indisponível — recarregue a página.";
   }
 }
@@ -250,7 +253,7 @@ function tabelaRanking(dados) {
       <caption>${(dados.rows || []).length} empresas — ordenadas pela nota do ICP</caption>
       <thead><tr>
         <th>#</th><th>Empresa</th><th>Local</th><th>CNAE</th><th>Início</th>
-        <th>Capital (R$)</th><th>Porte</th><th>Nota</th><th></th>
+        <th>Capital (R$)</th><th>Porte</th><th>Nota</th><th><span class="vh">Motivos</span></th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>
@@ -279,7 +282,9 @@ function rodapeCustos(dados, segundos, orcamento, proximo) {
 
 function renderizarErro(status, dados) {
   const mensagens = {
-    401: "Não verificado: complete o desafio Turnstile e tente de novo.",
+    401: antiBotIndisponivel
+      ? "O desafio anti-bot não está disponível neste navegador — recarregue a página ou desbloqueie o Cloudflare."
+      : "Não verificado: complete o desafio Turnstile e tente de novo.",
     422: `Pedido inválido: ${esc(dados.reason || "escreva um pedido com até 500 caracteres")}`,
     429: "Limite de requisições por IP atingido; aguarde alguns minutos.",
     502: `A extração falhou: ${esc(dados.reason || "tente reformular o pedido")}`,

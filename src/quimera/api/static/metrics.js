@@ -6,8 +6,8 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
-const fmtPct = (v) => (v == null ? "—" : `${fmtNum.format(+(v * 100).toFixed(1))}%`);
-const fmtNum2 = (v) => (v == null ? "—" : fmtNum.format(v));
+const fmtPct = (v) => (v == null || v === "" ? "—" : `${fmtNum.format(+(v * 100).toFixed(1))}%`);
+const fmtNum2 = (v) => (v == null || v === "" ? "—" : fmtNum.format(v));
 const ultima = (lista) => (lista && lista.length ? lista[lista.length - 1] : null);
 const selectE2e = (lista) => {
   if (!lista || !lista.length) return null;
@@ -50,7 +50,7 @@ function tabela(num, titulo, caption, corpo) {
     <div class="tabela-wrap">
       <table>
         <caption>${esc(caption)}</caption>
-        <thead><tr><th>Métrica</th><th>Medido</th><th>Limiar</th><th></th></tr></thead>
+        <thead><tr><th>Métrica</th><th>Medido</th><th>Limiar</th><th><span class="vh">Estado</span></th></tr></thead>
         <tbody>${corpo}</tbody>
       </table>
     </div>
