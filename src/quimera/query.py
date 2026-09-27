@@ -42,6 +42,7 @@ TABLE_EMPRESAS = f"`{DATASET}.empresas`"
 TABLE_SIMPLES = f"`{DATASET}.simples`"  # não particionada
 # Diretório de municípios (lookup nome -> código IBGE); o LLM devolve nome, nunca código.
 TABLE_DIRETORIO_MUNICIPIOS = "`basedosdados.br_bd_diretorios_brasil.municipio`"
+TABLE_DIRETORIO_CEP = "`basedosdados.br_bd_diretorios_brasil.cep`"
 
 COL_CNPJ = "cnpj"  # 14 dígitos — identifica o estabelecimento (matriz ou filial)
 COL_CNPJ_BASICO = "cnpj_basico"  # 8 dígitos — identifica a empresa
@@ -63,6 +64,10 @@ COL_CORREIO_ELETRONICO = "email"
 COL_DDD = "ddd_1"
 COL_TELEFONE = "telefone_1"  # sem DDD na base — a tabela de contatos concatena
 COL_DATA_SNAPSHOT = "data"  # coluna de partição (snapshots mensais completos)
+COL_OPCAO_SIMPLES = "opcao_simples"  # INTEGER 0/1
+COL_CEP = "cep"
+COL_BAIRRO = "bairro"
+COL_CENTROIDE = "centroide"  # GEOGRAPHY no diretório de CEP
 
 # Natureza jurídica de Empresário Individual — excluída no deploy público.
 # Confirmado no diretório br_bd_diretorios_brasil.natureza_juridica:
@@ -124,12 +129,22 @@ DEFAULT_MAX_BYTES_BILLED = 5 * 1024**3  # 5 GiB
 DEFAULT_LEADS_DATASET = "quimera"
 LEADS_TABLE_NAME = "estabelecimentos_ativos"
 CONTATOS_TABLE_NAME = "contatos_ativos"  # só no ambiente privado (--contatos)
+CEPS_TABLE_NAME = "ceps"  # coordenadas por CEP, do diretório
 # Partição da tabela própria: divisão CNAE (2 primeiros dígitos, 1..99).
 # O BigQuery aplica o maximum_bytes_billed sobre a estimativa ANTES de rodar,
 # e a estimativa só enxerga poda de PARTIÇÃO (clusterização só poda na
 # execução): sem partição, toda consulta estimava a tabela inteira (4 GB) e
 # custava ~100 MB. Medido em 2026-09-26.
 COL_CNAE_DIVISAO = "cnae_divisao"
+
+# Colunas da tabela própria (nomes finais).
+COL_REGIME = "regime_tributario"  # 'mei' | 'simples' | 'fora_simples'
+COL_N_ESTABELECIMENTOS = "n_estabelecimentos"
+COL_BAIRRO_NORM = "bairro_norm"
+COL_LATITUDE = "latitude"
+COL_LONGITUDE = "longitude"
+COL_DOMINIO_PROPRIO = "dominio_proprio"
+REGIMES = ("mei", "simples", "fora_simples")
 
 # Labels da tabela com a data do snapshot de origem — lidos sem custo.
 LABEL_SNAPSHOT = {"estabelecimentos": "snapshot_est", "empresas": "snapshot_emp"}
@@ -145,17 +160,26 @@ _TABLE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+$")
 
 @dataclass(frozen=True)
 class LeadsTables:
-    """Ids ``projeto.dataset.tabela`` da tabela de leads e da de contatos."""
+    """Ids ``projeto.dataset.tabela`` da tabela de leads e das auxiliares."""
 
     leads: str
     contatos: str
+    ceps: str = ""
 
     def __post_init__(self) -> None:
         # Ids vêm de env/config, nunca do usuário — ainda assim, só o formato
         # esperado entra no SQL (são identificadores, não parâmetros).
-        for table_id in (self.leads, self.contatos):
+        ids = [self.leads, self.contatos]
+        if self.ceps:
+            ids.append(self.ceps)
+        for table_id in ids:
             if not _TABLE_ID_RE.match(table_id):
                 raise ValueError(f"Id de tabela inválido: {table_id!r}")
+        if not self.ceps:
+            # Dataclass frozen: a derivação só é possível com
+            # object.__setattr__ (leads já validado, o split é seguro).
+            project, dataset, _ = self.leads.split(".")
+            object.__setattr__(self, "ceps", f"{project}.{dataset}.{CEPS_TABLE_NAME}")
 
 
 def resolve_leads_tables(project: str | None = None) -> LeadsTables:

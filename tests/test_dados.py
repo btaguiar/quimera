@@ -31,19 +31,28 @@ GOOD_STATS = {
     "inicio_futuro": 0,
     "mei_invalido": 0,
     "sem_porte": 0,
+    # Sinais da Onda 1 — medidos em 2026-09-26 (91,2% com coordenada de CEP;
+    # ~4% com domínio próprio).
+    "sem_regime": 0,
+    "regime_incoerente": 0,
+    "unidades_invalidas": 0,
+    "com_coordenada": 25_332_194,
+    "fora_do_brasil": 0,
+    "com_dominio_proprio": 1_111_381,
 }
 
 
 class TestBuildLeadsSql:
     def test_reads_each_table_in_its_own_snapshot(self):
-        # empresas pode atrasar em relação a estabelecimentos.
+        # empresas pode atrasar em relação a estabelecimentos; o snapshot de
+        # estabelecimentos fica no CTE ativos (sem prefixo est.).
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
-        assert "est.data = DATE '2026-01-11'" in sql
+        assert "data = DATE '2026-01-11'" in sql
         assert "emp.data = DATE '2025-12-14'" in sql
 
     def test_only_active_establishments(self):
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
-        assert "est.situacao_cadastral = '2'" in sql
+        assert "situacao_cadastral = '2'" in sql
 
     def test_partitioned_by_cnae_division_and_clustered_by_filters(self):
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
@@ -61,14 +70,86 @@ class TestBuildLeadsSql:
         assert '("snapshot_emp", "2025-12-14")' in sql
         assert '("snapshot_est", "2026-01-11")' in sql
 
-    def test_has_no_contact_columns(self):
-        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
-        for col in ("email", "telefone", "ddd_1"):
-            assert col not in sql
-
     def test_mei_flag_defaults_to_zero_without_simples_row(self):
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
         assert "COALESCE(sim.opcao_mei, 0) AS opcao_mei" in sql
+
+
+class TestBuildLeadsSqlSinais:
+    def test_counts_active_establishments_per_company(self):
+        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
+        assert "COUNT(*) AS n_estabelecimentos" in sql
+        assert "GROUP BY cnpj_basico" in sql
+
+    def test_regime_from_simples(self):
+        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
+        assert (
+            "CASE WHEN sim.opcao_mei = 1 THEN 'mei'"
+            " WHEN sim.opcao_simples = 1 THEN 'simples'"
+            " ELSE 'fora_simples' END AS regime_tributario" in sql
+        )
+
+    def test_coordinates_from_cep_directory(self):
+        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
+        assert "ST_Y(dcep.centroide) AS latitude" in sql
+        assert "ST_X(dcep.centroide) AS longitude" in sql
+        assert "LEFT JOIN `basedosdados.br_bd_diretorios_brasil.cep` AS dcep" in sql
+
+    def test_dominio_proprio_is_boolean_with_measured_cut(self):
+        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
+        assert (
+            f"COALESCE(dom.empresas <= {dados.MAX_EMPRESAS_POR_DOMINIO}, FALSE)" in sql
+        )
+        assert dados.MAX_EMPRESAS_POR_DOMINIO == 4
+
+    def test_output_has_no_contact_or_address(self):
+        # O e-mail é lido só para calcular o domínio; nada de contato,
+        # domínio, CEP ou logradouro sai na tabela de leads.
+        for col in dados.LEADS_COLUMNS:
+            assert col not in {
+                "email",
+                "correio_eletronico",
+                "telefone",
+                "ddd_1",
+                "dominio",
+                "cep",
+                "logradouro",
+                "numero",
+                "complemento",
+            }
+        final_select = dados.build_leads_sql("p.d.t", SNAPSHOTS).split("\nSELECT\n")[-1]
+        assert "email" not in final_select.split("\nFROM ")[0]
+
+    def test_active_filter_and_snapshot_live_in_the_cte(self):
+        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
+        assert "data = DATE '2026-01-11'" in sql
+        assert "situacao_cadastral = '2'" in sql
+        assert "emp.data = DATE '2025-12-14'" in sql
+
+
+class TestBuildCepsSql:
+    def test_only_ceps_with_centroid_clustered_by_cep(self):
+        sql = dados.build_ceps_sql("p.d.ceps")
+        assert "CLUSTER BY cep" in sql
+        assert "WHERE centroide IS NOT NULL" in sql
+        assert "ST_Y(centroide) AS latitude" in sql
+
+
+class TestLeadsTablesCeps:
+    def test_ceps_derived_from_leads_dataset_when_omitted(self):
+        tables = LeadsTables(
+            leads="p.quimera.estabelecimentos_ativos",
+            contatos="p.quimera.contatos_ativos",
+        )
+        assert tables.ceps == "p.quimera.ceps"
+
+    def test_explicit_ceps_is_kept(self):
+        tables = LeadsTables(
+            leads="p.quimera.estabelecimentos_ativos",
+            contatos="p.quimera.contatos_ativos",
+            ceps="p.outro.ceps",
+        )
+        assert tables.ceps == "p.outro.ceps"
 
 
 class TestBuildContatosSql:
@@ -106,6 +187,12 @@ class TestEvaluateChecks:
             ("inicio_futuro", 1, "início de atividade válido"),
             ("mei_invalido", 1, "opcao_mei 0/1"),
             ("sem_porte", 1, "porte presente"),
+            ("sem_regime", 1, "regime presente"),
+            ("regime_incoerente", 1, "regime coerente com MEI"),
+            ("unidades_invalidas", 1, "unidades válidas"),
+            ("com_coordenada", 0, "coordenada presente"),
+            ("fora_do_brasil", 1, "coordenada no Brasil"),
+            ("com_dominio_proprio", 0, "domínio próprio plausível"),
         ],
     )
     def test_each_check_fails_on_bad_data(self, field, value, check_name):
@@ -147,6 +234,9 @@ class FakeBuildClient:
             return FakeJob(0)
         if "COUNT(DISTINCT cnpj)" in sql:
             return FakeJob(0, [self.stats])
+        # Checagem de volume da tabela de ceps (905.210 medidos em 2026-09-26).
+        if sql.startswith("SELECT COUNT(*) AS linhas FROM `"):
+            return FakeJob(0, [{"linhas": 905_210}])
         raise AssertionError(f"consulta inesperada: {sql[:60]}")
 
     def create_dataset(self, ds, exists_ok=False):
@@ -214,6 +304,22 @@ class TestBuild:
             sql.startswith(f"CREATE OR REPLACE TABLE `{TABLES.contatos}`")
             for sql in client.ddl
         )
+
+    def test_build_writes_ceps_after_promoting_leads(self, snapshots):
+        client = FakeBuildClient(GOOD_STATS)
+        _, checks = dados.build(tables=TABLES, client=client)
+        assert any(
+            sql.startswith(f"CREATE OR REPLACE TABLE `{TABLES.ceps}`")
+            for sql in client.ddl
+        )
+        assert client.copies == [(TABLES.leads + "_staging", TABLES.leads)]
+        assert any(c.name == "volume de ceps" and c.ok for c in checks)
+
+    def test_failed_leads_check_does_not_write_ceps(self, snapshots):
+        client = FakeBuildClient({**GOOD_STATS, "cnpj_distintos": 1})
+        with pytest.raises(dados.QualityCheckError):
+            dados.build(tables=TABLES, client=client)
+        assert not any(TABLES.ceps in sql for sql in client.ddl)
 
     def test_layout_change_recreates_final_table(self, snapshots):
         # Cópia WRITE_TRUNCATE falha se a partição mudou (ex.: tabela antiga

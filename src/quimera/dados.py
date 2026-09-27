@@ -11,11 +11,13 @@ Fluxo do ``build``:
 2. grava ``<tabela>_staging`` com CREATE OR REPLACE ... AS SELECT;
 3. roda as checagens de qualidade na staging;
 4. só se todas passarem, copia a staging sobre a tabela final (cópia não
-   custa) e grava o snapshot nos labels — lidos sem custo a cada pedido.
+   custa) e grava o snapshot nos labels — lidos sem custo a cada pedido;
+5. grava a tabela auxiliar ``ceps`` (coordenadas por CEP) e confere o volume.
 
 A tabela de leads NÃO tem colunas de contato. Contatos (e-mail e telefone com
 DDD) vão para uma tabela separada, criada só com ``--contatos`` e só no
-ambiente privado.
+ambiente privado. O e-mail só é lido no build para derivar o domínio próprio
+— contato, domínio, CEP e endereço não saem na tabela (``LEADS_COLUMNS``).
 
 Uso:
     python -m quimera.dados build [--contatos]
@@ -31,7 +33,11 @@ from datetime import date
 from typing import Any
 
 from .query import (
+    COL_BAIRRO,
+    COL_BAIRRO_NORM,
     COL_CAPITAL_SOCIAL,
+    COL_CENTROIDE,
+    COL_CEP,
     COL_CNAE_DIVISAO,
     COL_CNAE_PRINCIPAL,
     COL_CNPJ,
@@ -40,19 +46,26 @@ from .query import (
     COL_DATA_INICIO_ATIVIDADE,
     COL_DATA_SNAPSHOT,
     COL_DDD,
+    COL_DOMINIO_PROPRIO,
     COL_ID_MUNICIPIO,
+    COL_LATITUDE,
+    COL_LONGITUDE,
     COL_MATRIZ_FILIAL,
     COL_NATUREZA_JURIDICA,
     COL_NOME_FANTASIA,
     COL_NOME_MUNICIPIO,
+    COL_N_ESTABELECIMENTOS,
     COL_OPCAO_MEI,
+    COL_OPCAO_SIMPLES,
     COL_PORTE,
     COL_RAZAO_SOCIAL,
+    COL_REGIME,
     COL_SIGLA_UF,
     COL_SITUACAO_CADASTRAL,
     COL_TELEFONE,
     LABEL_SNAPSHOT,
     SITUACAO_CADASTRAL_ATIVA,
+    TABLE_DIRETORIO_CEP,
     TABLE_DIRETORIO_MUNICIPIOS,
     TABLE_EMPRESAS,
     TABLE_ESTABELECIMENTOS,
@@ -83,6 +96,44 @@ CLUSTER_COLUMNS = (COL_SIGLA_UF, COL_ID_MUNICIPIO, COL_CNAE_PRINCIPAL)
 MIN_ROWS = 20_000_000
 MAX_SEM_MUNICIPIO_RATIO = 0.01
 
+# Domínio de e-mail usado por até 4 empresas conta como próprio. Medido em
+# 2026-09-26: gmail 12,9 M empresas, contabilizei.com.br 141.903 (e-mail da
+# contabilidade), 658.689 domínios exclusivos de 1 empresa e 177.445 de 2 a 4.
+# O corte descarta provedores, contabilidades e erros de digitação sem lista.
+MAX_EMPRESAS_POR_DOMINIO = 4
+# Colunas da tabela de leads, na ordem do SELECT final do build.
+LEADS_COLUMNS = (
+    "cnpj",
+    "cnpj_basico",
+    "matriz_filial",
+    "razao_social",
+    "nome_fantasia",
+    "sigla_uf",
+    "id_municipio",
+    "municipio",
+    "cnae_fiscal_principal",
+    "cnae_divisao",
+    "data_inicio_atividade",
+    "capital_social",
+    "porte",
+    "natureza_juridica",
+    "opcao_mei",
+    "regime_tributario",
+    "n_estabelecimentos",
+    "bairro",
+    "bairro_norm",
+    "latitude",
+    "longitude",
+    "dominio_proprio",
+)
+# Medido em 2026-09-26: 905.210 CEPs com centroide no diretório.
+MIN_CEPS = 800_000
+# Medido em 2026-09-26: 91,2% dos ativos com centroide de CEP.
+MIN_COM_COORDENADA_RATIO = 0.85
+# Estimado com as medições por domínio (~4% das empresas); o primeiro
+# build real (Task 10) fixa o valor medido aqui.
+DOMINIO_PROPRIO_RATIO = (0.01, 0.10)
+
 
 @dataclass(frozen=True)
 class Check:
@@ -105,6 +156,12 @@ def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
     Datas e nomes são nossos (resolvidos pela descoberta), não input do usuário.
     Cada tabela particionada é lida na SUA partição: empresas pode atrasar em
     relação a estabelecimentos.
+
+    Três CTEs sobre o mesmo snapshot: ``ativos`` (estabelecimentos ativos,
+    com CEP, bairro e domínio do e-mail), ``unidades`` (rede: estabelecimentos
+    ativos por cnpj_basico) e ``dominios`` (empresas por domínio, para o corte
+    do sinal de domínio próprio). O e-mail é lido SÓ para derivar o domínio —
+    contato não sai na tabela (ver ``LEADS_COLUMNS``).
     """
     return (
         f"CREATE OR REPLACE TABLE `{destination}`\n"
@@ -113,6 +170,34 @@ def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
         f"CLUSTER BY {', '.join(CLUSTER_COLUMNS)}\n"
         f"OPTIONS(labels={_labels(snapshots)})\n"
         "AS\n"
+        "WITH ativos AS (\n"
+        "  SELECT\n"
+        f"    {COL_CNPJ},\n"
+        f"    {COL_CNPJ_BASICO},\n"
+        f"    {COL_MATRIZ_FILIAL},\n"
+        f"    {COL_NOME_FANTASIA},\n"
+        f"    {COL_SIGLA_UF},\n"
+        f"    {COL_ID_MUNICIPIO},\n"
+        f"    {COL_CNAE_PRINCIPAL},\n"
+        f"    {COL_DATA_INICIO_ATIVIDADE},\n"
+        f"    {COL_CEP},\n"
+        f"    {COL_BAIRRO},\n"
+        f"    LOWER(REGEXP_EXTRACT(TRIM({COL_CORREIO_ELETRONICO}),"
+        " r'@([^@\\s]+)$')) AS dominio\n"
+        f"  FROM {TABLE_ESTABELECIMENTOS}\n"
+        "  WHERE\n"
+        f"    {COL_DATA_SNAPSHOT} = DATE"
+        f" '{snapshots['estabelecimentos'].isoformat()}'"
+        f" AND {COL_SITUACAO_CADASTRAL} = '{SITUACAO_CADASTRAL_ATIVA}'\n"
+        "),\n"
+        "unidades AS (\n"
+        f"  SELECT {COL_CNPJ_BASICO}, COUNT(*) AS {COL_N_ESTABELECIMENTOS}\n"
+        f"  FROM ativos GROUP BY {COL_CNPJ_BASICO}\n"
+        "),\n"
+        "dominios AS (\n"
+        f"  SELECT dominio, COUNT(DISTINCT {COL_CNPJ_BASICO}) AS empresas\n"
+        "  FROM ativos WHERE dominio IS NOT NULL GROUP BY dominio\n"
+        ")\n"
         "SELECT\n"
         f"  est.{COL_CNPJ},\n"
         f"  est.{COL_CNPJ_BASICO},\n"
@@ -131,16 +216,54 @@ def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
         f"  emp.{COL_PORTE},\n"
         f"  emp.{COL_NATUREZA_JURIDICA},\n"
         # simples tem 1 linha por cnpj_basico (medido) — o LEFT JOIN não duplica.
-        f"  COALESCE(sim.{COL_OPCAO_MEI}, 0) AS {COL_OPCAO_MEI}\n"
-        f"FROM {TABLE_ESTABELECIMENTOS} AS est\n"
+        f"  COALESCE(sim.{COL_OPCAO_MEI}, 0) AS {COL_OPCAO_MEI},\n"
+        f"  CASE WHEN sim.{COL_OPCAO_MEI} = 1 THEN 'mei'"
+        f" WHEN sim.{COL_OPCAO_SIMPLES} = 1 THEN 'simples'"
+        f" ELSE 'fora_simples' END AS {COL_REGIME},\n"
+        f"  uni.{COL_N_ESTABELECIMENTOS},\n"
+        f"  NULLIF(TRIM(est.{COL_BAIRRO}), '') AS {COL_BAIRRO},\n"
+        # bairro_norm espelha text.normalize_name: NORMALIZE NFD + remover
+        # marcas (= strip_accents) e colapsar espaços (= split/join). Hífens e
+        # pontuação ficam — normalize_name também não os remove.
+        f"  NULLIF(REGEXP_REPLACE(REGEXP_REPLACE("
+        f"NORMALIZE(UPPER(TRIM(est.{COL_BAIRRO})), NFD), r'\\p{{M}}', ''),"
+        f" r'\\s+', ' '), '') AS {COL_BAIRRO_NORM},\n"
+        f"  ST_Y(dcep.{COL_CENTROIDE}) AS {COL_LATITUDE},\n"
+        f"  ST_X(dcep.{COL_CENTROIDE}) AS {COL_LONGITUDE},\n"
+        f"  COALESCE(dom.empresas <= {MAX_EMPRESAS_POR_DOMINIO}, FALSE)"
+        f" AS {COL_DOMINIO_PROPRIO}\n"
+        "FROM ativos AS est\n"
         f"JOIN {TABLE_EMPRESAS} AS emp USING ({COL_CNPJ_BASICO})\n"
+        f"JOIN unidades AS uni USING ({COL_CNPJ_BASICO})\n"
         f"LEFT JOIN {TABLE_SIMPLES} AS sim USING ({COL_CNPJ_BASICO})\n"
         f"LEFT JOIN {TABLE_DIRETORIO_MUNICIPIOS} AS mun"
         f" ON mun.{COL_ID_MUNICIPIO} = est.{COL_ID_MUNICIPIO}\n"
+        "LEFT JOIN dominios AS dom ON dom.dominio = est.dominio\n"
+        f"LEFT JOIN {TABLE_DIRETORIO_CEP} AS dcep ON dcep.{COL_CEP} = est.{COL_CEP}\n"
         "WHERE\n"
-        f"  est.{COL_DATA_SNAPSHOT} = DATE '{snapshots['estabelecimentos'].isoformat()}'\n"
-        f"  AND emp.{COL_DATA_SNAPSHOT} = DATE '{snapshots['empresas'].isoformat()}'\n"
-        f"  AND est.{COL_SITUACAO_CADASTRAL} = '{SITUACAO_CADASTRAL_ATIVA}'"
+        f"  emp.{COL_DATA_SNAPSHOT} = DATE '{snapshots['empresas'].isoformat()}'"
+    )
+
+
+def build_ceps_sql(destination: str) -> str:
+    """CREATE OR REPLACE da tabela auxiliar ``ceps``: coordenadas por CEP.
+
+    Materializa ``ST_Y``/``ST_X`` do centroide do diretório de CEPs uma vez
+    por build — a consulta por pedido não lida com GEOGRAPHY nem lê o
+    diretório. Só CEPs com centroide (905.210 medidos em 2026-09-26).
+    """
+    return (
+        f"CREATE OR REPLACE TABLE `{destination}`\n"
+        f"CLUSTER BY {COL_CEP}\n"
+        "AS\n"
+        "SELECT\n"
+        f"  {COL_CEP},\n"
+        f"  ST_Y({COL_CENTROIDE}) AS {COL_LATITUDE},\n"
+        f"  ST_X({COL_CENTROIDE}) AS {COL_LONGITUDE},\n"
+        f"  {COL_ID_MUNICIPIO},\n"
+        f"  {COL_SIGLA_UF}\n"
+        f"FROM {TABLE_DIRETORIO_CEP}\n"
+        f"WHERE {COL_CENTROIDE} IS NOT NULL"
     )
 
 
@@ -168,6 +291,7 @@ def build_contatos_sql(destination: str, snapshots: dict[str, date]) -> str:
 
 
 def quality_checks_sql(table: str) -> str:
+    """Estatísticas de qualidade da tabela própria, numa única leitura."""
     return (
         "SELECT\n"
         "  COUNT(*) AS linhas,\n"
@@ -180,7 +304,16 @@ def quality_checks_sql(table: str) -> str:
         f"  COUNTIF({COL_DATA_INICIO_ATIVIDADE} IS NULL) AS sem_inicio,\n"
         f"  COUNTIF({COL_DATA_INICIO_ATIVIDADE} > CURRENT_DATE()) AS inicio_futuro,\n"
         f"  COUNTIF({COL_OPCAO_MEI} NOT IN (0, 1)) AS mei_invalido,\n"
-        f"  COUNTIF({COL_PORTE} IS NULL) AS sem_porte\n"
+        f"  COUNTIF({COL_PORTE} IS NULL) AS sem_porte,\n"
+        f"  COUNTIF({COL_REGIME} IS NULL) AS sem_regime,\n"
+        f"  COUNTIF(({COL_REGIME} = 'mei') != ({COL_OPCAO_MEI} = 1))"
+        " AS regime_incoerente,\n"
+        f"  COUNTIF({COL_N_ESTABELECIMENTOS} IS NULL"
+        f" OR {COL_N_ESTABELECIMENTOS} < 1) AS unidades_invalidas,\n"
+        f"  COUNTIF({COL_LATITUDE} IS NOT NULL) AS com_coordenada,\n"
+        f"  COUNTIF({COL_LATITUDE} NOT BETWEEN -34 AND 6"
+        f" OR {COL_LONGITUDE} NOT BETWEEN -74 AND -34) AS fora_do_brasil,\n"
+        f"  COUNTIF({COL_DOMINIO_PROPRIO}) AS com_dominio_proprio\n"
         f"FROM `{table}`"
     )
 
@@ -189,6 +322,8 @@ def evaluate_checks(stats: dict[str, int]) -> list[Check]:
     """Checagens de qualidade sobre as estatísticas da tabela recém-gravada."""
     linhas = stats["linhas"]
     ratio_sem_mun = stats["sem_municipio"] / linhas if linhas else 1.0
+    ratio_coordenada = stats["com_coordenada"] / linhas if linhas else 0.0
+    ratio_dominio = stats["com_dominio_proprio"] / linhas if linhas else 0.0
     return [
         Check(
             "volume",
@@ -232,6 +367,39 @@ def evaluate_checks(stats: dict[str, int]) -> list[Check]:
             stats["sem_porte"] == 0,
             f"{stats['sem_porte']:,} sem porte",
         ),
+        Check(
+            "regime presente",
+            stats["sem_regime"] == 0,
+            f"{stats['sem_regime']:,} sem regime tributário",
+        ),
+        Check(
+            "regime coerente com MEI",
+            stats["regime_incoerente"] == 0,
+            f"{stats['regime_incoerente']:,} divergem de opcao_mei",
+        ),
+        Check(
+            "unidades válidas",
+            stats["unidades_invalidas"] == 0,
+            f"{stats['unidades_invalidas']:,} com n_estabelecimentos inválido",
+        ),
+        Check(
+            "coordenada presente",
+            ratio_coordenada >= MIN_COM_COORDENADA_RATIO,
+            f"{stats['com_coordenada']:,} com coordenada ({ratio_coordenada:.1%};"
+            f" mínimo {MIN_COM_COORDENADA_RATIO:.0%})",
+        ),
+        Check(
+            "coordenada no Brasil",
+            stats["fora_do_brasil"] == 0,
+            f"{stats['fora_do_brasil']:,} fora da caixa envolvente do Brasil",
+        ),
+        Check(
+            "domínio próprio plausível",
+            DOMINIO_PROPRIO_RATIO[0] <= ratio_dominio <= DOMINIO_PROPRIO_RATIO[1],
+            f"{stats['com_dominio_proprio']:,} com domínio próprio"
+            f" ({ratio_dominio:.1%}; faixa {DOMINIO_PROPRIO_RATIO[0]:.0%} a"
+            f" {DOMINIO_PROPRIO_RATIO[1]:.0%})",
+        ),
     ]
 
 
@@ -244,6 +412,22 @@ def run_quality_checks(table: str, *, client: Any) -> list[Check]:
     )
     stats = dict(next(iter(job.result())))
     return evaluate_checks(stats)
+
+
+def run_ceps_check(table: str, *, client: Any) -> Check:
+    """Volume da tabela de ``ceps`` recém-gravada (checagem pós-gravação)."""
+    from google.cloud import bigquery  # lazy import — extra ``gcp``
+
+    job = client.query(
+        f"SELECT COUNT(*) AS linhas FROM `{table}`",
+        job_config=bigquery.QueryJobConfig(maximum_bytes_billed=CHECK_MAX_BYTES),
+    )
+    linhas = dict(next(iter(job.result())))["linhas"]
+    return Check(
+        "volume de ceps",
+        linhas >= MIN_CEPS,
+        f"{linhas:,} CEPs com centroide (mínimo {MIN_CEPS:,})",
+    )
 
 
 class QualityCheckError(RuntimeError):
@@ -320,6 +504,11 @@ def build(
     final.labels = {LABEL_SNAPSHOT[s]: d.isoformat() for s, d in snapshots.items()}
     client.update_table(final, ["labels"])
     client.delete_table(staging, not_found_ok=True)
+
+    # ceps é auxiliar: grava só depois de promover a tabela de leads — um
+    # problema aqui não pode derrubar o produto principal.
+    _run_ddl(build_ceps_sql(tables.ceps), client=client)
+    checks.append(run_ceps_check(tables.ceps, client=client))
 
     if contatos:
         _run_ddl(build_contatos_sql(tables.contatos, snapshots), client=client)
