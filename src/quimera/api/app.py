@@ -101,14 +101,16 @@ def create_app(
 
     @asynccontextmanager
     async def _lifespan(_app: FastAPI):
-        if warmup:
-            # Em segundo plano: /health responde já; o 1º pedido deixa de pagar
-            # ~16 s de clientes, índice e diretório (pipeline.warmup).
-            from ..pipeline import warmup as _warmup
+        try:
+            if warmup:
+                # Em segundo plano: /health responde já; o 1º pedido deixa de pagar
+                # ~16 s de clientes, índice e diretório (pipeline.warmup).
+                from ..pipeline import warmup as _warmup
 
-            _executor.submit(_warmup)
-        yield
-        _executor.shutdown(wait=False, cancel_futures=True)
+                _executor.submit(_warmup)
+            yield
+        finally:
+            _executor.shutdown(wait=False, cancel_futures=True)
 
     app = FastAPI(title="Quimera", version=__version__, lifespan=_lifespan)
     app.state.config = config

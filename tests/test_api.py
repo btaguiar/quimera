@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from quimera.api import create_app
@@ -575,6 +577,18 @@ class TestLifecycle:
             resp = client.get("/health")
             assert resp.status_code == 200
         assert app.state.executor._shutdown is True
+
+    def test_exception_through_lifespan_yield_still_shuts_down_executor(self):
+        app = _app()
+        executor = app.state.executor
+
+        async def _drive():
+            async with app.router.lifespan_context(app):
+                raise RuntimeError("falha simulada após o startup")
+
+        with pytest.raises(RuntimeError):
+            asyncio.run(_drive())
+        assert executor._shutdown is True
 
 
 class TestStartupWarnings:
