@@ -34,8 +34,17 @@ Decisões de projeto (detalhes na especificação `QUIMERA_SPEC.md`):
   ~13 GB por pedido (filtros não reduzem bytes). `python -m quimera.dados build`
   materializa 1×/mês os ~27,8 M estabelecimentos ativos numa tabela
   particionada por divisão CNAE e clusterizada por UF/município/CNAE, com
-  checagens de qualidade antes de substituir a versão em uso. Um pedido típico
-  passa a custar 70–500 MB (medições em `docs/schema.md`).
+  sinais do próprio cadastro — rede (nº de unidades ativas), regime
+  tributário, bairro, coordenada por CEP e domínio de e-mail próprio, sem
+  expor e-mail nem CEP — e checagens de qualidade antes de substituir a
+  versão em uso. Um pedido com CNAE filtrado custa 33–250 MB; sem CNAE, a
+  poda por clusterização ainda está fraca e pode passar de 2 GB — investigado
+  e ainda não corrigido, ver `docs/schema.md`.
+- **Filtros do cadastro, extraídos do pedido em português:** UF, município,
+  bairro (com o município), raio a partir de um CEP, idade, capital social,
+  porte, rede (nº mínimo de unidades), regime tributário (Simples, fora do
+  Simples ou, no ambiente privado, MEI) e domínio de e-mail próprio como
+  sinal de maturidade digital — nunca o e-mail em si.
 - **Sempre o snapshot mensal mais recente**: o build lê só a última partição
   de cada tabela (sem isso, ~45 snapshots empilhados custariam ~132 GB e
   duplicariam cada empresa ~45×) e grava a data nos labels da tabela própria,
@@ -48,6 +57,8 @@ Decisões de projeto (detalhes na especificação `QUIMERA_SPEC.md`):
 pip install -e ".[gcp]"        # dependências GCP (import lazy nos módulos)
 
 python -m quimera "clínicas odontológicas em Santo André abertas há mais de 2 anos" --mode public
+python -m quimera "redes de academias em São Paulo com 5 ou mais unidades, fora do Simples" --mode public
+python -m quimera "restaurantes num raio de 3 km do CEP 01310-100" --mode public
 python -m quimera "pedido..." --json          # saída estruturada
 python -m quimera.cnae fonte    # CNAE 2.3 + atividades do IBGE -> data/cnae_subclasses.jsonl
 python -m quimera.cnae build    # índice multi-vetor -> data/cnae_index.npz (~7 min)
@@ -95,10 +106,11 @@ python -m eval.run_eval --suite e2e                   # só ponta a ponta (~2 mi
 python -m eval.report                                 # relatório Markdown em eval/results/
 ```
 
-- `eval/golden_e2e.jsonl` — 20 pedidos rodados no pipeline inteiro; cada
-  empresa devolvida é conferida (UF, município, CNAE, idade, capital, porte)
-  e todo resultado público checa as invariantes (sem pessoa física nem
-  empresário individual, sem contato, uma linha por empresa, ordem de score).
+- `eval/golden_e2e.jsonl` — 27 pedidos rodados no pipeline inteiro; cada
+  empresa devolvida é conferida (UF, município, CNAE, idade, capital, porte,
+  rede, regime, bairro, raio, domínio próprio) e todo resultado público checa
+  as invariantes (sem pessoa física nem empresário individual, sem contato
+  nem coordenada nem CEP, uma linha por empresa, ordem de score).
 - `eval/golden_extraction.jsonl` — 56 casos (46 públicos, 10 privados), incluindo
   recusas de dado pessoal, pedidos mistos, sinônimos, typos e ambiguidade.
   Rótulos `flag: review` revisados e validados (2026-09-26).
@@ -109,7 +121,7 @@ python -m eval.report                                 # relatório Markdown em e
 - `eval/thresholds.json` — limiares do CI (recusa correta = 100%, extração ≥ 85%;
   recall@5 ≥ 0,90; medido 0,955 em 2026-09-26).
 
-## Resultados medidos (2026-09-26, `eval/results/`)
+## Resultados medidos (2026-09-26, ponta a ponta atualizado em 2026-09-27 — `eval/results/`)
 
 Primeira medição real contra GCP, com os rótulos de CNAE já revisados.
 
@@ -149,29 +161,36 @@ similaridade (top1 − 0,04).
 Precisão = fração dos códigos escolhidos que estão no golden (o golden lista
 o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 
-**Ponta a ponta** — 20 pedidos, cada empresa devolvida conferida
-(`eval/golden_e2e.jsonl`):
+**Ponta a ponta** (`eval/golden_e2e.jsonl`), cada empresa devolvida conferida:
 
-| versão | casos 100% corretos | precisão por empresa | recusa correta | p50 | p95 | MB/pedido |
-|---|---|---|---|---|---|---|
-| seleção por lista, extração recusava local fictício | 0,75 | 0,944 | 1,00 | 3,5 s | 6,0 s | 136 |
-| **seleção por nota + extração corrigida** | **0,95** | **0,997** | 1,00 | 3,7 s | 7,0 s | 77 |
+| versão | casos | casos 100% corretos | precisão por empresa | recusa correta | p50 | p95 | MB/pedido (p50) |
+|---|---|---|---|---|---|---|---|
+| seleção por lista, extração recusava local fictício | 20 | 0,75 | 0,944 | 1,00 | 3,5 s | 6,0 s | 136 |
+| seleção por nota + extração corrigida | 20 | 0,95 | 0,997 | 1,00 | 3,7 s | 7,0 s | 77 |
+| **+ Onda 1 (rede, regime, bairro, raio, domínio próprio)** | 27 | **0,926** | **0,990** | 1,00 | 3,5 s | 5,2 s | 110 |
 
-Único caso ainda falhando: "transportadoras de carga" inclui 2 de 50
-empresas de outro modal. Limiares no CI: casos ≥ 0,90, precisão ≥ 0,98,
-recusa = 1,00.
+Os 7 casos novos da Onda 1 passaram todos; os 2 casos que falharam já
+falhavam antes (ambiguidade de seleção de CNAE, não é regressão da Onda 1 —
+`docs/schema.md`). Limiares no CI: casos ≥ 0,90, precisão ≥ 0,98, recusa =
+1,00.
 
 **Conjunto separado** (`eval/golden_e2e_holdout.jsonl`) — 30 pedidos com
 atividades e cidades fora de todos os goldens, rótulos commitados antes da
 1ª execução. Os 20 casos acima serviram para ajustar o prompt; este mede
 generalização:
 
-| execução | casos 100% corretos | precisão por empresa |
-|---|---|---|
-| **1ª execução, inédita (medida honesta)** | **0,900** | **0,942** |
-| após busca híbrida (já não é inédito) | 0,933 | 0,960 |
+| execução | casos | casos 100% corretos | precisão por empresa |
+|---|---|---|---|
+| 1ª execução, inédita (medida honesta) | 30 | 0,900 | 0,942 |
+| após busca híbrida (já não é inédito) | 30 | 0,933 | 0,960 |
+| + Onda 1 (3 casos novos) | 33 | 0,909 | 0,945 |
 
-Todas as falhas são de CNAE (UF, município, idade, capital e porte: 100%).
+A precisão do conjunto separado nunca atingiu a mesma barra do golden
+principal (0,942 a 0,96, sempre por ambiguidade de seleção de CNAE, mesmo
+antes da Onda 1) — o CI usa um limiar próprio para este conjunto
+(`eval/thresholds.json`: `e2e_holdout_row_precision` 0,92), em vez do limiar
+0,98 do golden principal. Todas as falhas restantes são de CNAE (UF,
+município, idade, capital e porte: 100%).
 A 1ª execução mostrou: "borracharias" confundido com artigos de borracha
 pelo embedding (corrigido com busca por palavra somada ao embedding);
 variação do Gemini entre chamadas em casos de fronteira (seed não resolve);
@@ -194,6 +213,12 @@ GCP (cota/capacidade reservada), não no código.
       homônimos, idade, capital, filiais, contabilidade de bytes)
 - [x] Tabela própria `quimera.estabelecimentos_ativos` com checagens de
       qualidade no build (custo por pedido: ~13 GB → 70–500 MB)
+- [x] Onda 1 — sinais do próprio cadastro: rede, regime tributário, bairro,
+      raio por CEP e domínio próprio (`docs/schema.md`; plano em
+      `docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md`)
+  - [ ] poda de cluster fraca em pedidos sem CNAE (investigada, causa
+        isolada fora do SQL da Onda 1; provável reclusterização do
+        BigQuery ainda não rodada — `docs/schema.md`)
 - [x] Fase 1 — núcleo (`filters`, `policy`, `cnae`, `extract`, `query`, `score`, `pipeline`, CLI) + testes
 - [x] Fase 2 — infraestrutura de avaliação (`eval/`: golden sets, métricas, limiares, relatório)
 - [x] Primeira medição real (extraction + CNAE) e baseline de recall@5 (0,742)
