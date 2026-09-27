@@ -763,7 +763,7 @@ class TestConfigEndpoint:
 
 
 class TestFrontend:
-    def test_root_serves_laud_page(self):
+    def test_root_serves_laudo_page(self):
         resp = TestClient(_app()).get("/")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
@@ -777,3 +777,14 @@ class TestFrontend:
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
         assert "Métricas medidas" in resp.text
+
+    def test_static_assets_served(self):
+        client = TestClient(_app())
+        css = client.get("/style.css")
+        js = client.get("/app.js")
+        assert css.status_code == 200
+        assert "text/css" in css.headers["content-type"]
+        assert js.status_code == 200
+        assert "javascript" in js.headers["content-type"]
+        assert "--acento" in css.text
+        assert "renderizarLaudo" in js.text
