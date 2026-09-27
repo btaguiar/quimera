@@ -243,6 +243,7 @@ def build_query(
     *,
     tables: LeadsTables,
     icp: ICPConfig | None = None,
+    centro: tuple[float, float] | None = None,
 ) -> QuerySpec:
     """Monta SQL parametrizado a partir dos filtros (já passados por apply_policy).
 
@@ -250,6 +251,9 @@ def build_query(
     ativos do snapshot mais recente, cruzados com empresas, simples e
     município. Contatos só entram via ``tables.contatos`` e só quando a policy
     permite. A ordem segue o ``icp`` (mesma regra do score) antes do LIMIT.
+
+    ``centro`` (lat, lon) habilita o raio de busca: resolvido pelo pipeline
+    via ``resolve_cep_center`` — coordenadas nunca vêm do LLM.
     """
     select_cols = [
         # cnpj (14 dígitos) identifica o estabelecimento: com só cnpj_basico,
@@ -269,6 +273,12 @@ def build_query(
         # Dado da empresa (não pessoal); deixa auditável a exclusão de pessoa
         # física e empresário individual no público.
         f"t.{COL_NATUREZA_JURIDICA}",
+        # Sinais do próprio cadastro (Onda 1). Coordenadas NUNCA entram no
+        # SELECT: só dentro de ST_* quando o raio é aplicado.
+        f"t.{COL_N_ESTABELECIMENTOS}",
+        f"t.{COL_REGIME}",
+        f"t.{COL_BAIRRO}",
+        f"t.{COL_DOMINIO_PROPRIO}",
     ]
     if policy.allow_mei:
         select_cols.append(f"t.{COL_OPCAO_MEI}")
@@ -334,6 +344,42 @@ def build_query(
         )
         params.append(QueryParam("min_capital", "FLOAT64", filters.min_capital))
 
+    if filters.min_estabelecimentos is not None:
+        where.append(f"t.{COL_N_ESTABELECIMENTOS} >= @min_estabelecimentos")
+        params.append(
+            QueryParam("min_estabelecimentos", "INT64", filters.min_estabelecimentos)
+        )
+
+    if filters.regimes:
+        where.append(f"t.{COL_REGIME} IN UNNEST(@regimes)")
+        params.append(QueryParam("regimes", "ARRAY<STRING>", list(filters.regimes)))
+
+    if filters.bairros:
+        # A coluna bairro_norm foi gravada com a mesma regra de normalize_name
+        # no build; o parâmetro chega normalizado na fronteira.
+        where.append(f"t.{COL_BAIRRO_NORM} IN UNNEST(@bairros)")
+        params.append(
+            QueryParam(
+                "bairros", "ARRAY<STRING>", [normalize_name(b) for b in filters.bairros]
+            )
+        )
+
+    if filters.com_dominio_proprio:
+        where.append(f"t.{COL_DOMINIO_PROPRIO}")
+
+    if filters.raio_km is not None and centro is not None:
+        where.append(
+            f"ST_DWITHIN(ST_GEOGPOINT(t.{COL_LONGITUDE}, t.{COL_LATITUDE}),"
+            f" ST_GEOGPOINT(@centro_lon, @centro_lat), @raio_m)"
+        )
+        params.append(QueryParam("centro_lat", "FLOAT64", centro[0]))
+        params.append(QueryParam("centro_lon", "FLOAT64", centro[1]))
+        params.append(QueryParam("raio_m", "FLOAT64", filters.raio_km * 1000.0))
+        select_cols.append(
+            f"ROUND(ST_DISTANCE(ST_GEOGPOINT(t.{COL_LONGITUDE}, t.{COL_LATITUDE}),"
+            f" ST_GEOGPOINT(@centro_lon, @centro_lat)) / 1000, 1) AS distancia_km"
+        )
+
     if filters.portes:
         # Rótulos do usuário -> códigos do dataset. media/grande viram "Demais"
         # restrito a entidades empresariais (ver PORTE_LABELS_DEMAIS).
@@ -369,7 +415,12 @@ def build_query(
             )
         )
 
-    exclude_mei = (not policy.allow_mei) or (not filters.include_mei)
+    # MEI só fica de fora quando nem o filtro nem a policy o pedem: regimes
+    # incluem "mei" vale como pedido explícito (e a policy pública já o
+    # removeu de regimes em apply_policy).
+    exclude_mei = (not policy.allow_mei) or not (
+        filters.include_mei or "mei" in filters.regimes
+    )
     if exclude_mei:
         # Público: sem MEI e sem empresário individual (pessoa natural).
         where.append(f"t.{COL_OPCAO_MEI} != 1")
@@ -433,6 +484,8 @@ def _icp_ranking(icp: ICPConfig) -> tuple[str, list[QueryParam]]:
         " @icp_w_idade, 0)\n"
         f"    + IF({capital_informado}"
         f" AND t.{COL_CAPITAL_SOCIAL} >= @icp_capital_min, @icp_w_capital, 0)\n"
+        f"    + IF(t.{COL_N_ESTABELECIMENTOS} >= @icp_rede_min, @icp_w_rede, 0)\n"
+        f"    + IF(t.{COL_DOMINIO_PROPRIO}, @icp_w_dominio, 0)\n"
         f"  ) * IF(t.{COL_OPCAO_MEI} = 1, @icp_fator_mei, 1)"
     )
     ranking = (
@@ -453,6 +506,9 @@ def _icp_ranking(icp: ICPConfig) -> tuple[str, list[QueryParam]]:
         QueryParam("icp_w_idade", "FLOAT64", icp.w_age),
         QueryParam("icp_capital_min", "FLOAT64", icp.target_min_capital),
         QueryParam("icp_w_capital", "FLOAT64", icp.w_capital),
+        QueryParam("icp_rede_min", "INT64", icp.target_min_estabelecimentos),
+        QueryParam("icp_w_rede", "FLOAT64", icp.w_rede),
+        QueryParam("icp_w_dominio", "FLOAT64", icp.w_dominio),
         QueryParam("icp_fator_mei", "FLOAT64", icp.mei_factor),
     ]
     return ranking, params
@@ -676,6 +732,38 @@ def resolve_municipality_ids(
         for name in names
         if (key := normalize_name(name)) in lookup
     }
+
+
+CEP_LOOKUP_MAX_BYTES = 100 * 1024**2  # tabela ceps ~905 mil linhas (medido)
+
+
+def resolve_cep_center(
+    cep: str, *, tables: LeadsTables, client: Any | None = None
+) -> tuple[float, float] | None:
+    """(lat, lon) do centroide do CEP, lido da tabela própria ``ceps``.
+
+    O CEP vem de LeadFilters (só dígitos, validado); vai como parâmetro.
+    Devolve None se o CEP não existe no diretório ou não tem centroide.
+    """
+    from google.cloud import bigquery  # lazy import — extra ``gcp``
+
+    client = client or _default_client()
+    sql = (
+        f"SELECT {COL_LATITUDE}, {COL_LONGITUDE}\n"
+        f"FROM `{tables.ceps}`\n"
+        f"WHERE {COL_CEP} = @cep\n"
+        "LIMIT 1"
+    )
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("cep", "STRING", cep)],
+        maximum_bytes_billed=CEP_LOOKUP_MAX_BYTES,
+    )
+    for row in client.query(sql, job_config=job_config).result():
+        lat, lon = row[COL_LATITUDE], row[COL_LONGITUDE]
+        if lat is None or lon is None:
+            return None
+        return (float(lat), float(lon))
+    return None
 
 
 def resolve_max_bytes_billed(max_bytes_billed: int | None = None) -> int:

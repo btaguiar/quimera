@@ -36,6 +36,11 @@ class ICPConfig:
     w_age: float = 30.0
     w_capital: float = 30.0
     porte_partial_factor: float = 0.4  # porte presente mas fora do alvo
+    # Sinais do próprio cadastro (Onda 1): peso 0 por padrão não muda o score;
+    # os motivos legíveis ficam para a Task 6.
+    w_rede: float = 0.0
+    w_dominio: float = 0.0
+    target_min_estabelecimentos: int = 2
 
 
 def _normalize_porte(value: Any) -> str | None:

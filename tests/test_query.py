@@ -17,6 +17,7 @@ from quimera.query import (
     LeadsTables,
     build_query,
     read_leads_snapshot,
+    resolve_cep_center,
     resolve_latest_snapshots,
     resolve_leads_tables,
     resolve_max_bytes_billed,
@@ -202,6 +203,18 @@ class TestBuildQueryRanking:
     def test_default_icp_prefers_demais(self):
         assert _param(_build(), "icp_portes").value == ["5"]
 
+    def test_ranking_scores_rede_e_dominio(self):
+        # Espelha o score do ICP: rede e domínio próprio, antes do fator MEI.
+        from quimera.score import ICPConfig
+
+        icp = ICPConfig(w_rede=10, w_dominio=5)
+        spec = build_query(LeadFilters(), PUBLIC, tables=TABLES, icp=icp)
+        assert _param(spec, "icp_w_rede").value == 10
+        assert _param(spec, "icp_rede_min").value == 2
+        assert _param(spec, "icp_w_dominio").value == 5
+        assert "IF(t.n_estabelecimentos >= @icp_rede_min, @icp_w_rede, 0)" in spec.sql
+        assert "IF(t.dominio_proprio, @icp_w_dominio, 0)" in spec.sql
+
     def test_unknown_or_missing_capital_is_not_ranked_as_big(self):
         # Capital 0 e sentinela = não informado: não pontua nem desempata.
         sql = _build().sql
@@ -314,6 +327,68 @@ class TestBuildQueryClauses:
     def test_limit_param_capped_by_policy(self):
         spec = _build(LeadFilters(limit=10_000))
         assert _param(spec, "limit").value == 50
+
+
+class TestBuildQuerySinais:
+    """Sinais do próprio cadastro (Onda 1): rede, regime, bairro, raio, domínio."""
+
+    def test_min_estabelecimentos_param(self):
+        spec = _build(LeadFilters(min_estabelecimentos=5))
+        assert "t.n_estabelecimentos >= @min_estabelecimentos" in spec.sql
+        assert _param(spec, "min_estabelecimentos").value == 5
+
+    def test_regimes_param(self):
+        spec = _build(LeadFilters(regimes=["fora_simples"]))
+        assert "t.regime_tributario IN UNNEST(@regimes)" in spec.sql
+
+    def test_private_mei_regime_lifts_mei_exclusion(self):
+        # Pedir MEI no filtro de regime também habilita MEI no privado.
+        spec = _build(LeadFilters(regimes=["mei"]), PRIVATE)
+        assert "t.opcao_mei != 1" not in spec.sql
+
+    def test_bairros_normalized(self):
+        spec = _build(LeadFilters(bairros=["Pinheiros", "vila  madalena"]))
+        assert "t.bairro_norm IN UNNEST(@bairros)" in spec.sql
+        assert _param(spec, "bairros").value == ["PINHEIROS", "VILA MADALENA"]
+
+    def test_radius_uses_center_params_and_selects_distance(self):
+        # O centro (lat, lon) é resolvido pelo pipeline; nunca vem do LLM.
+        spec = build_query(
+            LeadFilters(raio_km=3), PUBLIC, tables=TABLES, centro=(-23.56, -46.65)
+        )
+        assert (
+            "ST_DWITHIN(ST_GEOGPOINT(t.longitude, t.latitude),"
+            " ST_GEOGPOINT(@centro_lon, @centro_lat), @raio_m)" in spec.sql
+        )
+        assert _param(spec, "raio_m").value == 3000.0
+        assert _param(spec, "centro_lat").value == -23.56
+        assert _param(spec, "centro_lon").value == -46.65
+        assert "AS distancia_km" in spec.sql
+
+    def test_radius_without_center_is_not_applied(self):
+        # Sem centro resolvido, o raio não filtra e nada de ST_* entra no SQL.
+        spec = _build(LeadFilters(raio_km=3))
+        assert "ST_DWITHIN" not in spec.sql
+        assert "distancia_km" not in spec.sql
+        assert all(
+            p.name not in {"centro_lat", "centro_lon", "raio_m"} for p in spec.params
+        )
+
+    def test_dominio_proprio_filter(self):
+        assert "t.dominio_proprio" in _build(LeadFilters(com_dominio_proprio=True)).sql
+
+    def test_new_signals_selected_but_never_coordinates(self):
+        # Coordenadas são localização precisa: só dentro de ST_* com raio.
+        sql = _build().sql
+        for col in (
+            "t.n_estabelecimentos",
+            "t.regime_tributario",
+            "t.bairro",
+            "t.dominio_proprio",
+        ):
+            assert col in sql
+        select_list = sql.split("\nFROM ")[0]
+        assert "t.latitude" not in select_list and "t.longitude" not in select_list
 
 
 class _FakeJob:
@@ -532,6 +607,45 @@ class TestResolveMunicipalityIds:
         assert "municipio" in client.queries[0]
         assert "sigla_uf" in client.queries[0]
         assert "São Paulo" not in client.queries[0]
+
+
+class FakeCepClient:
+    """Cliente falso para o lookup de CEP: registra query e job_config."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.queries = []
+
+    def query(self, sql, job_config=None):
+        self.queries.append((sql, job_config))
+        return _FakeJob(0, self.rows)
+
+
+class TestResolveCepCenter:
+    def test_found_cep_returns_center(self):
+        client = FakeCepClient([{"latitude": -23.56, "longitude": -46.65}])
+        assert resolve_cep_center("01310100", tables=TABLES, client=client) == (
+            -23.56,
+            -46.65,
+        )
+
+    def test_missing_cep_returns_none(self):
+        client = FakeCepClient([])
+        assert resolve_cep_center("99999999", tables=TABLES, client=client) is None
+
+    def test_cep_goes_as_scalar_parameter_with_bytes_cap(self):
+        from quimera.query import CEP_LOOKUP_MAX_BYTES
+
+        client = FakeCepClient([{"latitude": -23.56, "longitude": -46.65}])
+        resolve_cep_center("01310100", tables=TABLES, client=client)
+        sql, config = client.queries[0]
+        assert "FROM `projeto-teste.quimera.ceps`" in sql
+        assert "WHERE cep = @cep" in sql
+        assert "01310100" not in sql  # valor só como parâmetro, nunca no SQL
+        assert config.maximum_bytes_billed == CEP_LOOKUP_MAX_BYTES
+        (param,) = config.query_parameters
+        assert param.name == "cep"
+        assert param.value == "01310100"
 
 
 class TestResolveMaxBytesBilled:

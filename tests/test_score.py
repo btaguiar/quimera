@@ -101,3 +101,12 @@ class TestScoreLead:
         assert _age_years(lead, today) == 1
         lead = {"data_inicio_atividade": "2024-09-26"}
         assert _age_years(lead, today) == 2
+
+
+class TestICPConfigSinais:
+    def test_sinais_pesam_zero_por_padrao(self):
+        # Defaults não mudam o score: os motivos/score dos sinais vêm na Onda 1.
+        icp = ICPConfig()
+        assert icp.w_rede == 0.0
+        assert icp.w_dominio == 0.0
+        assert icp.target_min_estabelecimentos == 2
