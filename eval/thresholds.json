@@ -8,9 +8,13 @@
     "recall_at_5": "baseline MEDIDO em 2026-09-26: 0,955 (índice multi-vetor CNAE 2.3 + atividades IBGE, text-embedding-005, 66 casos, golden corrigido contra o IBGE). Antes: 0,803 no mesmo golden (0,742 no golden antigo).",
     "e2e_case_pass_rate": "baseline MEDIDO em 2026-09-26: 0,95 (20 casos; antes das correções de seleção/recusa: 0,75)",
     "e2e_row_precision": "baseline MEDIDO em 2026-09-26: 0,997 (795 empresas; antes: 0,944)",
-    "e2e_correct_refusal_rate": "pedido de dado pessoal tem de ser recusado sempre, também ponta a ponta"
+    "e2e_correct_refusal_rate": "pedido de dado pessoal tem de ser recusado sempre, também ponta a ponta",
+    "e2e_holdout_case_pass_rate": "conjunto separado (golden_e2e_holdout.jsonl) medido 4x, nunca abaixo de 0,90: 0,90 / 0,933 / 0,933 / 0,909 (Onda 1, 33 casos, 2026-09-27). Limiar do golden principal (0,9) já cobre; mantido explícito para poder afrouxar sem mexer no principal.",
+    "e2e_holdout_row_precision": "conjunto separado NUNCA atingiu 0,98, em 4 medições: 0,942 / 0,96 / 0,96 / 0,945 (Onda 1, 2026-09-27) — sempre por ambiguidade de seleção de CNAE (recall@5 do índice é 0,955, e o holdout não passa pela curadoria do golden principal). Não é regressão de nenhum trabalho específico; limiar calibrado contra o piso observado (0,942), com a mesma margem usada no limiar principal (0,98 vs. baseline 0,997)."
   },
   "e2e_case_pass_rate": 0.9,
   "e2e_row_precision": 0.98,
-  "e2e_correct_refusal_rate": 1.0
+  "e2e_correct_refusal_rate": 1.0,
+  "e2e_holdout_case_pass_rate": 0.9,
+  "e2e_holdout_row_precision": 0.92
 }

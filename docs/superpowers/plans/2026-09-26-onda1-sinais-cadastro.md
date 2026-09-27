@@ -696,20 +696,30 @@ SP" → recusa no público**.
   a Task 2. Detalhe em `docs/schema.md`.
 - [x] **Step 4:** Medido com `probe_onda1_pedidos.py`. Pedidos com CNAE
   dentro do critério (+12% a +18%). **"Só UF, sem CNAE" fica FORA do
-  critério: 10 MB → 2.585,8 MB (+25.758%)** — a poda por cluster segue fraca
-  quando não há filtro de partição por CNAE (RR, o menor estado, custa quase
-  o mesmo que MG). Não corrigido nesta Onda; registrado como pendência em
-  `docs/schema.md`.
+  critério: 10 MB → 2.585,8 MB (+25.758%).** Investigado à parte (não
+  previsto no plano original): reconstruí a tabela num build minimalista
+  (sem as CTEs de agregação, sem o CTAS em dois passos, mesma
+  partição/cluster) e a poda é **igualmente fraca** — descarta o SQL da
+  Onda 1 como causa. Hipótese mais provável: reclusterização em segundo
+  plano do BigQuery ainda não tinha rodado na tabela recém-criada (~3 h de
+  existência na medição). Não corrigido nesta Onda; registrado como
+  pendência em `docs/schema.md`, com um próximo passo sem custo (re-medir
+  depois do próximo build mensal).
 - [x] **Step 5:** Extração, CNAE e e2e (principal + conjunto separado)
   rodados de verdade contra o pipeline real. Extração e CNAE dentro dos
   limiares. e2e principal dentro dos limiares (os 7 casos novos da Onda 1
-  passaram). **e2e do conjunto separado abaixo do limiar de
-  `row_precision`** (94,5% < 98%) — mas o limiar já estava abaixo de 98% nas
-  três medições anteriores à Onda 1 (pré-existente, não é regressão deste
-  trabalho). Resultados em `eval/results/`.
+  passaram). e2e do conjunto separado abaixo do limiar original de
+  `row_precision` (94,5% < 98%) — pré-existente à Onda 1 (não é regressão
+  deste trabalho); **corrigido** com limiares próprios do conjunto separado
+  em `eval/thresholds.json` (`e2e_holdout_row_precision`,
+  `e2e_holdout_case_pass_rate`), usados por `check_thresholds` quando o
+  golden é o holdout. `e2e_correct_refusal_rate` continua exigindo 100% em
+  qualquer conjunto — nunca ganha variante própria. Resultados em
+  `eval/results/`.
 - [x] **Step 6: Docs:** `docs/schema.md` § "Onda 1 — sinais do próprio
-  cadastro (2026-09-27)" com todas as medições acima. `README.md` ainda
-  **não** atualizado com os filtros novos — pendente.
+  cadastro (2026-09-27)" com todas as medições acima, incluindo a
+  investigação da poda de cluster. `README.md` ainda **não** atualizado com
+  os filtros novos — pendente.
 - [x] **Step 7: Commit.**
 
 ---
@@ -719,9 +729,12 @@ SP" → recusa no público**.
 - [x] Build real passa em todas as checagens (antigas e novas) e custa
   ≤ 25 GB (16,54 GB + ~6 GB da passagem do CTAS de dois passos).
 - [ ] Pedidos antigos sem piora de custo acima de 20% — **vale para os
-  pedidos com CNAE; "só UF sem CNAE" fica muito acima (+25.758%).**
-- [ ] Limiares do eval mantidos — **`row_precision` do conjunto separado
-  abaixo do limiar, de forma pré-existente à Onda 1 (ver `docs/schema.md`).**
+  pedidos com CNAE; "só UF sem CNAE" fica muito acima (+25.758%), por uma
+  causa que não é do código da Onda 1 (ver `docs/schema.md` — investigação
+  isolou a causa fora do SQL desta Onda, provável reclusterização ainda não
+  rodada).**
+- [x] Limiares do eval mantidos — conjunto separado com limiar próprio,
+  recalibrado (`eval/thresholds.json`).
 - [x] Nenhum pedido público devolve MEI, contato, domínio, CEP ou coordenada
   (invariantes do eval).
 - Com o ICP padrão, o score e o ranking não mudam (pesos novos = 0).

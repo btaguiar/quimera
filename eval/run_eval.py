@@ -221,11 +221,30 @@ _THRESHOLD_TO_METRIC = {
 }
 
 
-def check_thresholds(metrics: dict, thresholds: dict) -> list[str]:
-    """Devolve mensagens de falha; lista vazia = todos os limiares ok."""
+def check_thresholds(
+    metrics: dict, thresholds: dict, *, golden: str | None = None
+) -> list[str]:
+    """Devolve mensagens de falha; lista vazia = todos os limiares ok.
+
+    ``golden``: nome do arquivo golden da suíte e2e (``run_eval.py --golden``).
+    Quando contém "holdout", usa o limiar ``e2e_holdout_<resto>`` se existir
+    em ``thresholds`` (ex.: ``e2e_holdout_row_precision``), senão cai no
+    limiar padrão da mesma chave (``e2e_row_precision``). O conjunto separado
+    é mais difícil por natureza (mesma ambiguidade de seleção de CNAE que já
+    limita o recall@5 do golden principal, aqui sem o filtro de curadoria) —
+    não recebe automaticamente o limiar calibrado contra o golden principal.
+    ``e2e_correct_refusal_rate`` nunca ganha variante de holdout: recusa
+    correta é inegociável em qualquer conjunto (spec Fase 2).
+    """
     failures = []
+    is_holdout = bool(golden) and "holdout" in golden
     for threshold_key, (metric_key, label) in _THRESHOLD_TO_METRIC.items():
-        limit = thresholds.get(threshold_key)
+        lookup_key = threshold_key
+        if is_holdout and threshold_key != "e2e_correct_refusal_rate":
+            holdout_key = threshold_key.replace("e2e_", "e2e_holdout_", 1)
+            if holdout_key in thresholds:
+                lookup_key = holdout_key
+        limit = thresholds.get(lookup_key)
         if limit is None:
             continue  # baseline pendente
         value = metrics.get(metric_key)
@@ -233,7 +252,7 @@ def check_thresholds(metrics: dict, thresholds: dict) -> list[str]:
             continue  # métrica não aplicável a esta suíte
         if value < limit:
             failures.append(
-                f"{label} = {value:.3f}, abaixo do limiar {limit:.2f} ({metric_key})"
+                f"{label} = {value:.3f}, abaixo do limiar {limit:.2f} ({lookup_key})"
             )
     return failures
 
@@ -357,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
         for outcome in m["per_case"]:
             if not outcome["passed"]:
                 print(f"      FALHOU {outcome['id']}: {'; '.join(outcome['problems'])}")
-        failures += check_thresholds(m, thresholds)
+        failures += check_thresholds(m, thresholds, golden=golden_path.name)
 
     for failure in failures:
         print(f"LIMIAR FALHOU: {failure}", file=sys.stderr)

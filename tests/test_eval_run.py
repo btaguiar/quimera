@@ -168,6 +168,50 @@ class TestCheckThresholds:
         )
         assert failures == []
 
+    def test_holdout_golden_uses_holdout_threshold_when_present(self):
+        # Conjunto separado tem limiar próprio: mais difícil por natureza
+        # (ambiguidade de CNAE mais frequente), não herda o do golden principal.
+        failures = check_thresholds(
+            {"row_precision": 0.94},
+            {"e2e_row_precision": 0.98, "e2e_holdout_row_precision": 0.9},
+            golden="golden_e2e_holdout.jsonl",
+        )
+        assert failures == []
+
+    def test_non_holdout_golden_ignores_holdout_threshold(self):
+        failures = check_thresholds(
+            {"row_precision": 0.94},
+            {"e2e_row_precision": 0.98, "e2e_holdout_row_precision": 0.9},
+            golden="golden_e2e.jsonl",
+        )
+        assert len(failures) == 1
+        assert "e2e_row_precision" in failures[0]
+
+    def test_holdout_without_specific_threshold_falls_back_to_base(self):
+        failures = check_thresholds(
+            {"row_precision": 0.94},
+            {"e2e_row_precision": 0.98},
+            golden="golden_e2e_holdout.jsonl",
+        )
+        assert len(failures) == 1
+        assert "e2e_row_precision" in failures[0]
+
+    def test_no_golden_behaves_like_before(self):
+        failures = check_thresholds(
+            self._metrics(), {"correct_refusal_rate": 1.0, "overall_field_accuracy": 0.85}
+        )
+        assert failures == []
+
+    def test_correct_refusal_stays_strict_on_holdout(self):
+        # Recusa correta é inegociável (spec Fase 2): nunca ganha limiar
+        # próprio de conjunto separado, mesmo que outras métricas ganhem.
+        failures = check_thresholds(
+            {"e2e_correct_refusal_rate": 0.9},
+            {"e2e_correct_refusal_rate": 1.0},
+            golden="golden_e2e_holdout.jsonl",
+        )
+        assert len(failures) == 1
+
 
 class TestSaveResult:
     def test_writes_json_with_suite_and_timestamp(self, tmp_path):

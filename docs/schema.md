@@ -338,12 +338,33 @@ mesma coluna (`sigla_uf`, sem nenhum filtro de CNAE):
 | `sigla_uf` inteira, sem filtro | 111,15 MB | 100% |
 | `WHERE sigla_uf = 'MG'` (10,4% das linhas) | 46,14 MB | 41,5% |
 | `WHERE sigla_uf = 'RR'` (0,18% das linhas — o menor estado) | 38,80 MB | 34,9% |
+| `WHERE sigla_uf = 'SP' AND id_municipio = <cód. SP capital>` | 381,68 MB | — (mais caro que só UF, ver abaixo) |
 
 RR tem 58× menos linhas que MG e custa quase o mesmo — sinal de que a
-clusterização não está isolando por UF como deveria. **Pendência:**
-investigar se a ordem das chaves do cluster, o número de partições (até 99,
-por divisão CNAE, o que deixa poucos blocos por partição) ou outra causa
-explica a poda fraca.
+clusterização não está isolando por UF como deveria; acrescentar município
+(2ª chave do cluster) **piora** o custo (291,50 MB → 381,68 MB para
+`sigla_uf='SP'` isolado vs. `+ id_municipio`), o que não devia acontecer com
+poda funcionando.
+
+**Causa isolada (2026-09-27, tabela descartável):** reconstruí uma versão
+mínima da tabela — um único `CREATE TABLE ... PARTITION BY ... CLUSTER BY
+... AS SELECT`, sem as CTEs de agregação da Onda 1 (`unidades`, `dominios`),
+sem o truque de dois passos, JOINs simples como no build da Fase 1 (27,5 M
+linhas, mesma partição/cluster). A poda nela é **igualmente fraca**:
+`sigla_uf='SP'` custou 306,18 MB de 440,40 MB sem filtro (69,5%, contra os
+~30% esperados pela participação de SP). **Isso descarta a complexidade do
+CTAS da Onda 1 como causa** — o mesmo problema aparece num build minimalista
+com a mesma partição (99 divisões CNAE) e clusterização. Dentro de UMA única
+partição grande (`cnae_divisao = 47`, varejo), a poda por UF funciona melhor
+(RR: 8,1% do tamanho da partição; MG: 20,3%) — o problema concentra-se em
+consultas que varrem as 99 partições sem filtro de CNAE.
+
+A hipótese mais provável, não testável nesta sessão: a reclusterização
+automática em segundo plano do BigQuery (que reorganiza os blocos de dados
+após a escrita) ainda não tinha rodado no momento da medição — a tabela
+tinha ~3 h de existência. A medição original de 10 MB (2026-09-26, mesmo
+desenho de partição/cluster) pode ter sido feita depois de mais tempo de
+maturação da tabela. **Não corrigido nesta Onda — ver Pendências.**
 
 ### Suíte e2e real, pós-build (2026-09-27)
 
@@ -376,8 +397,18 @@ não volta para a Task 2.
 
 ### Pendências
 
-- Poda por cluster fraca em pedidos sem filtro de CNAE (acima) — investigar
-  antes de considerar a Onda 1 fechada.
-- `row_precision` do conjunto separado abaixo do limiar de
-  `eval/thresholds.json`, de forma pré-existente à Onda 1 — recalibrar o
-  limiar por suíte (principal vs. separado) é a correção mais provável.
+- **Poda por cluster fraca em pedidos sem filtro de CNAE** (acima) — não é
+  causada pelo SQL da Onda 1 (reproduz num build minimalista). Próximo
+  passo, sem custo: re-medir `WHERE sigla_uf='SP'` (sem CNAE) depois do
+  próximo build mensal, quando a tabela tiver mais tempo de maturação —
+  se a poda melhorar sozinha, confirma a hipótese de reclusterização em
+  segundo plano e não exige mudança de código. Se persistir, considerar
+  abandonar a partição por `cnae_divisao` em favor de só clusterização, ou
+  exigir CNAE (ou ao menos município) em pedidos públicos sem filtro de
+  atividade.
+- ~~`row_precision` do conjunto separado abaixo do limiar~~ — **corrigido**:
+  `eval/thresholds.json` ganhou `e2e_holdout_row_precision` (0,92) e
+  `e2e_holdout_case_pass_rate` (0,90), usados por `check_thresholds` quando
+  o golden contém "holdout" (`eval/run_eval.py`). `e2e_correct_refusal_rate`
+  nunca ganha variante de holdout — continua exigindo 100% em qualquer
+  conjunto.
