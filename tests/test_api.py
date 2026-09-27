@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from quimera.api import create_app
@@ -759,3 +760,20 @@ class TestConfigEndpoint:
     def test_config_site_key_none_when_unset(self):
         resp = TestClient(_app()).get("/config")
         assert resp.json() == {"turnstile_site_key": None}
+
+
+class TestFrontend:
+    def test_root_serves_laud_page(self):
+        resp = TestClient(_app()).get("/")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/html")
+        assert "Quimera — Laudo de Prospecção" in resp.text
+        assert "Emitir laudo" in resp.text
+        assert 'lang="pt-BR"' in resp.text
+
+    @pytest.mark.xfail(reason="metrics.html chega na Task 8", strict=False)
+    def test_metrics_html_served(self):
+        resp = TestClient(_app()).get("/metrics.html")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/html")
+        assert "Métricas medidas" in resp.text

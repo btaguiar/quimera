@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, Request
@@ -326,5 +327,11 @@ def create_app(
             state.add_bytes(result.bytes_billed)
             state.cache_set(key, payload)
         return {**payload, "cached": False, "cache_mode": state.cache_mode()}
+
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.is_dir():
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     return app

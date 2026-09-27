@@ -37,6 +37,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 quimera = ["data/*.jsonl", "data/*.npz"]
+"quimera.api" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
