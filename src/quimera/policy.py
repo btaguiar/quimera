@@ -48,6 +48,8 @@ def apply_policy(filters: LeadFilters, policy: Policy) -> LeadFilters:
     updates: dict[str, object] = {"limit": min(filters.limit, policy.max_rows)}
     if not policy.allow_mei and filters.include_mei:
         updates["include_mei"] = False
+    if not policy.allow_mei:
+        updates["regimes"] = [r for r in filters.regimes if r != "mei"]
     return filters.model_copy(update=updates)
 
 

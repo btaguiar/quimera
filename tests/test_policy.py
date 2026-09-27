@@ -35,6 +35,14 @@ class TestApplyPolicy:
         filters = apply_policy(LeadFilters(include_mei=True), PRIVATE)
         assert filters.include_mei is True
 
+    def test_public_strips_mei_from_regimes(self):
+        filters = apply_policy(LeadFilters(regimes=["mei", "simples"]), PUBLIC)
+        assert filters.regimes == ["simples"]
+
+    def test_private_keeps_mei_regime(self):
+        filters = apply_policy(LeadFilters(regimes=["mei"]), PRIVATE)
+        assert filters.regimes == ["mei"]
+
     def test_limit_below_max_is_untouched(self):
         filters = apply_policy(LeadFilters(limit=10), PUBLIC)
         assert filters.limit == 10
