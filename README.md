@@ -72,9 +72,10 @@ Servidor da demo (API):
 
 ```bash
 python -m quimera.api            # uvicorn em 0.0.0.0:8000 (PORT/API_HOST)
-# POST /leads   {"request": "..."} → filtros, CNAEs, ranking, bytes, custo
-#               (header X-Api-Token quando API_TOKEN estiver definido)
+# POST /leads   {"request": "...", "turnstile": "..."} → filtros, CNAEs,
+#               ranking, SQL, bytes, custo (auth: X-Api-Token OU Turnstile)
 # GET  /health  → status, versão, orçamento restante, modo cache
+# GET  /config  → site key pública do Turnstile (para o front)
 # GET  /metrics → resultados medidos da Fase 2 (JSON)
 ```
 
@@ -84,12 +85,21 @@ cache por hash do pedido normalizado (`CACHE_TTL_S`), orçamento diário de
 bytes com modo cache (`DAILY_BYTES_BUDGET`) e timeout por request
 (`REQUEST_TIMEOUT_S`).
 
+### Demo pública (Cloud Run)
+
+Deploy: `bash scripts/deploy.sh` (runbook em `docs/deploy.md`, incluindo
+Cloudflare Turnstile, service account mínimo, alertas de orçamento, tabela de
+custos por pedido e o registro do trabalho da Fase 3b). A página é um laudo
+técnico: pedido → achados numerados (interpretação, CNAEs, SQL, ranking,
+custos) e o anexo `/metrics.html` com as métricas medidas.
+
 Variáveis de ambiente: `GOOGLE_CLOUD_PROJECT`, `BQ_LOCATION`, `VERTEX_LOCATION`,
 `EXTRACT_MODEL`, `EMBED_MODEL`, `MAX_BYTES_BILLED`, `LEADS_DATASET` (dataset da
 tabela própria; padrão `quimera`), `DEPLOY_MODE` (vazio =
 público; `private` só no ambiente da Turno 24), `API_TOKEN`, `RATE_LIMIT_MAX`,
 `RATE_LIMIT_WINDOW_S`, `CACHE_TTL_S`, `DAILY_BYTES_BUDGET`,
-`REQUEST_TIMEOUT_S`, `EVAL_DIR`.
+`REQUEST_TIMEOUT_S`, `EVAL_DIR`, `TURNSTILE_SITE_KEY` (público, no HTML),
+`TURNSTILE_SECRET_KEY` (Secret Manager; verifica o token do front).
 
 ## Desenvolvimento
 
@@ -227,7 +237,7 @@ GCP (cota/capacidade reservada), não no código.
 - [ ] Fase 3 — demo pública no Cloud Run
   - [x] 3a — API + proteções (FastAPI: token, rate limit, orçamento diário
         com modo cache, timeout; `src/quimera/api/`)
-  - [ ] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
+  - [x] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
   - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
 - [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
       estabelecimento por empresa

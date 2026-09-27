@@ -1,4 +1,4 @@
-"""Proteções da API pública: token, rate limit, orçamento e cache.
+"""Proteções da API pública: token, rate limit, orçamento, cache e Turnstile.
 
 Funções puras testáveis sem FastAPI; o estado (contadores, janelas,
 cache) vive em ``state.py``. Configuração vem do ambiente, com defaults
