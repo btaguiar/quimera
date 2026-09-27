@@ -190,6 +190,11 @@ primeiro momento com gasto de GCP — ver a tabela de custos acima.
   `bq add-iam-policy-binding` em dataset (preview, só para projetos
   liberados). O script usa `GRANT ... ON SCHEMA` via `bq query`, que é o
   caminho suportado.
+- **Anexo de métricas vazio em produção (Git Bash)**: o Git Bash converte
+  argumentos iniciados em `/` em caminhos do Windows (`/app/eval` virou
+  `C:/Program Files/Git/app/eval`). Por isso o script não passa caminhos em
+  `--set-env-vars`; `EVAL_DIR` vem do `ENV` do Dockerfile. `MSYS_NO_PATHCONV=1`
+  não serve de atalho: quebra o wrapper do próprio `gcloud`.
 - **`docker run` local não responde em 8080**: falta `-e PORT=8080` — o
   Cloud Run injeta essa variável sozinho, `docker run` direto não (default é
   8000). Ver "Testar a imagem localmente" acima.
