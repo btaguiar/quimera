@@ -241,7 +241,12 @@ def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
         "LEFT JOIN dominios AS dom ON dom.dominio = est.dominio\n"
         f"LEFT JOIN {TABLE_DIRETORIO_CEP} AS dcep ON dcep.{COL_CEP} = est.{COL_CEP}\n"
         "WHERE\n"
-        f"  emp.{COL_DATA_SNAPSHOT} = DATE '{snapshots['empresas'].isoformat()}'"
+        f"  emp.{COL_DATA_SNAPSHOT} = DATE '{snapshots['empresas'].isoformat()}'\n"
+        # Ordem física das chaves do cluster: sem isto o CTAS (3 CTEs + JOINs)
+        # grava blocos que matam a poda de cluster na execução — medido
+        # 2026-09-27: WHERE sigla_uf='MG' cobrou 47,2 MB (coluna inteira) vs
+        # 10 MB no build anterior sem CTEs; com ORDER BY a poda volta.
+        f"ORDER BY {COL_SIGLA_UF}, {COL_ID_MUNICIPIO}, {COL_CNAE_PRINCIPAL}"
     )
 
 

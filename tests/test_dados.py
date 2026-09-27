@@ -102,6 +102,12 @@ class TestBuildLeadsSqlSinais:
         )
         assert dados.MAX_EMPRESAS_POR_DOMINIO == 4
 
+    def test_ordered_by_cluster_keys_for_runtime_pruning(self):
+        # Sem ORDER BY, o CTAS da Onda 1 (3 CTEs + JOINs) grava blocos que
+        # matam a poda de cluster na execução (medido 2026-09-27).
+        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
+        assert sql.endswith("ORDER BY sigla_uf, id_municipio, cnae_fiscal_principal")
+
     def test_output_has_no_contact_or_address(self):
         # O e-mail é lido só para calcular o domínio; nada de contato,
         # domínio, CEP ou logradouro sai na tabela de leads.
