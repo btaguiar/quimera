@@ -8,7 +8,9 @@ numa tabela enxuta, clusterizada pelos filtros do pipeline.
 
 Fluxo do ``build``:
 1. descobre o snapshot mais recente (``resolve_latest_snapshots``);
-2. grava ``<tabela>_staging`` com CREATE OR REPLACE ... AS SELECT;
+2. grava ``<tabela>_ordenado`` (CTAS ordenado pelas chaves do cluster — o
+   BigQuery recusa ORDER BY em CTAS particionado) e, sobre ela,
+   ``<tabela>_staging`` com partição e clusterização;
 3. roda as checagens de qualidade na staging;
 4. só se todas passarem, copia a staging sobre a tabela final (cópia não
    custa) e grava o snapshot nos labels — lidos sem custo a cada pedido;
@@ -77,14 +79,16 @@ from .query import (
     resolve_leads_tables,
 )
 
-# Teto da materialização: o build exige 13,17 GB hoje e 16,54 GB com os sinais
-# da Onda 1 (sonda sem custo, probe_build_onda1.py, 2026-09-26); 64 GiB dá
+# Teto da materialização: o CTAS ordenado exige 13,17 GB hoje e 16,54 GB com os
+# sinais da Onda 1 (sonda sem custo, probe_build_onda1.py, 2026-09-26), mais a
+# passagem de ~6 GB da tabela ordenada para a staging (2026-09-27); 64 GiB dá
 # margem sem permitir leitura de vários snapshots (~132 GB por tabela sem
 # filtro de partição).
 BUILD_MAX_BYTES = 64 * 1024**3
 # Checagens leem poucas colunas da tabela própria (~4 GB no total).
 CHECK_MAX_BYTES = 8 * 1024**3
 STAGING_SUFFIX = "_staging"
+ORDERED_SUFFIX = "_ordenado"
 
 # Partição por divisão CNAE (entra na estimativa pré-execução — ver
 # COL_CNAE_DIVISAO em query.py) e clusterização pelos demais filtros.
@@ -151,7 +155,7 @@ def _labels(snapshots: dict[str, date]) -> str:
 
 
 def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
-    """CREATE OR REPLACE da tabela de leads a partir de um snapshot.
+    """CREATE OR REPLACE da tabela de leads ORDENADA, sem partição/cluster.
 
     Datas e nomes são nossos (resolvidos pela descoberta), não input do usuário.
     Cada tabela particionada é lida na SUA partição: empresas pode atrasar em
@@ -162,12 +166,14 @@ def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
     ativos por cnpj_basico) e ``dominios`` (empresas por domínio, para o corte
     do sinal de domínio próprio). O e-mail é lido SÓ para derivar o domínio —
     contato não sai na tabela (ver ``LEADS_COLUMNS``).
+
+    A saída é ordenada pelas chaves do cluster, mas SEM partição/cluster: o
+    BigQuery recusa ORDER BY em CTAS particionado ("Result of ORDER BY queries
+    cannot be partitioned"). A partição/cluster entram no CTAS de passagem
+    seguinte (``build_leads_staging_sql``), que lê esta tabela já ordenada.
     """
     return (
         f"CREATE OR REPLACE TABLE `{destination}`\n"
-        f"PARTITION BY RANGE_BUCKET({COL_CNAE_DIVISAO},"
-        f" GENERATE_ARRAY({CNAE_DIVISAO_RANGE[0]}, {CNAE_DIVISAO_RANGE[1]}, 1))\n"
-        f"CLUSTER BY {', '.join(CLUSTER_COLUMNS)}\n"
         f"OPTIONS(labels={_labels(snapshots)})\n"
         "AS\n"
         "WITH ativos AS (\n"
@@ -247,6 +253,24 @@ def build_leads_sql(destination: str, snapshots: dict[str, date]) -> str:
         # 2026-09-27: WHERE sigla_uf='MG' cobrou 47,2 MB (coluna inteira) vs
         # 10 MB no build anterior sem CTEs; com ORDER BY a poda volta.
         f"ORDER BY {COL_SIGLA_UF}, {COL_ID_MUNICIPIO}, {COL_CNAE_PRINCIPAL}"
+    )
+
+
+def build_leads_staging_sql(staging: str, ordered: str) -> str:
+    """CTAS particionado/clusterizado de passagem sobre a tabela ordenada.
+
+    Partição por divisão CNAE (o teto de bytes é aplicado sobre a estimativa
+    pré-execução, que só enxerga poda de partição) e clusterização pelos
+    filtros do pipeline; a ordem física vem da origem já ordenada
+    (``build_leads_sql``) — é ela que mantém a poda de cluster viva.
+    """
+    return (
+        f"CREATE OR REPLACE TABLE `{staging}`\n"
+        f"PARTITION BY RANGE_BUCKET({COL_CNAE_DIVISAO},"
+        f" GENERATE_ARRAY({CNAE_DIVISAO_RANGE[0]}, {CNAE_DIVISAO_RANGE[1]}, 1))\n"
+        f"CLUSTER BY {', '.join(CLUSTER_COLUMNS)}\n"
+        "AS\n"
+        f"SELECT * FROM `{ordered}`"
     )
 
 
@@ -510,7 +534,12 @@ def build(
     _ensure_dataset(tables.leads, client=client)
 
     staging = tables.leads + STAGING_SUFFIX
-    _run_ddl(build_leads_sql(staging, snapshots), client=client)
+    ordered = tables.leads + ORDERED_SUFFIX
+    # Dois CTAS: o primeiro materializa ordenado (sem partição — o BigQuery
+    # recusa ORDER BY particionado); o segundo aplica partição/cluster sobre
+    # a origem já ordenada, e é ele que vira a tabela final.
+    _run_ddl(build_leads_sql(ordered, snapshots), client=client)
+    _run_ddl(build_leads_staging_sql(staging, ordered), client=client)
     checks = run_quality_checks(staging, client=client)
     if not all(c.ok for c in checks):
         raise QualityCheckError(checks)
@@ -523,6 +552,7 @@ def build(
     final.labels = {LABEL_SNAPSHOT[s]: d.isoformat() for s, d in snapshots.items()}
     client.update_table(final, ["labels"])
     client.delete_table(staging, not_found_ok=True)
+    client.delete_table(ordered, not_found_ok=True)
 
     # ceps é auxiliar: grava só depois de promover a tabela de leads — um
     # problema aqui não desfaz a promoção, mas interrompe com erro (o

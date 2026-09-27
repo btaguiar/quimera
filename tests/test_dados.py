@@ -54,21 +54,20 @@ class TestBuildLeadsSql:
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
         assert "situacao_cadastral = '2'" in sql
 
-    def test_partitioned_by_cnae_division_and_clustered_by_filters(self):
-        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
-        assert (
-            "PARTITION BY RANGE_BUCKET(cnae_divisao, GENERATE_ARRAY(1, 100, 1))" in sql
-        )
-        assert "CLUSTER BY sigla_uf, id_municipio, cnae_fiscal_principal" in sql
-        assert (
-            "SAFE_CAST(SUBSTR(est.cnae_fiscal_principal, 1, 2) AS INT64)"
-            " AS cnae_divisao" in sql
-        )
-
     def test_snapshot_written_to_labels(self):
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
         assert '("snapshot_emp", "2025-12-14")' in sql
         assert '("snapshot_est", "2026-01-11")' in sql
+
+    def test_staging_partitioned_and_clustered_from_ordered(self):
+        # O BigQuery proíbe ORDER BY em CTAS particionado; a partição/cluster
+        # vêm num CTAS de passagem sobre a tabela ordenada.
+        sql = dados.build_leads_staging_sql("p.d.staging", "p.d.ordenado")
+        assert (
+            "PARTITION BY RANGE_BUCKET(cnae_divisao, GENERATE_ARRAY(1, 100, 1))" in sql
+        )
+        assert "CLUSTER BY sigla_uf, id_municipio, cnae_fiscal_principal" in sql
+        assert sql.endswith("SELECT * FROM `p.d.ordenado`")
 
     def test_mei_flag_defaults_to_zero_without_simples_row(self):
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
@@ -107,6 +106,10 @@ class TestBuildLeadsSqlSinais:
         # matam a poda de cluster na execução (medido 2026-09-27).
         sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
         assert sql.endswith("ORDER BY sigla_uf, id_municipio, cnae_fiscal_principal")
+        assert (
+            "SAFE_CAST(SUBSTR(est.cnae_fiscal_principal, 1, 2) AS INT64)"
+            " AS cnae_divisao" in sql
+        )
 
     def test_output_has_no_contact_or_address(self):
         # O e-mail é lido só para calcular o domínio; nada de contato,
@@ -280,8 +283,10 @@ class TestBuild:
         result, checks = dados.build(tables=TABLES, client=client)
         assert result == SNAPSHOTS
         assert all(c.ok for c in checks)
+        ordered = TABLES.leads + "_ordenado"
         staging = TABLES.leads + "_staging"
-        assert client.ddl[0].startswith(f"CREATE OR REPLACE TABLE `{staging}`")
+        assert client.ddl[0].startswith(f"CREATE OR REPLACE TABLE `{ordered}`")
+        assert client.ddl[1].startswith(f"CREATE OR REPLACE TABLE `{staging}`")
         assert client.copies == [(staging, TABLES.leads)]
         table, fields = client.updated[0]
         assert fields == ["labels"]
@@ -289,7 +294,7 @@ class TestBuild:
             "snapshot_est": "2026-01-11",
             "snapshot_emp": "2025-12-14",
         }
-        assert staging in client.deleted
+        assert staging in client.deleted and ordered in client.deleted
         assert client.datasets == ["quimera"]
 
     def test_failed_check_keeps_final_table_untouched(self, snapshots):

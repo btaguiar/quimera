@@ -72,6 +72,12 @@ def main(argv: list[str] | None = None) -> int:
             )
     else:
         sqls["build_leads_sql"] = dados.build_leads_sql(destino, snapshots)
+        if hasattr(dados, "build_leads_staging_sql"):  # CTAS de passagem
+            # A sonda nunca cria a origem; a tabela final atual serve de
+            # fonte (mesma forma, ~6 GB lidos).
+            sqls["build_leads_staging_sql"] = dados.build_leads_staging_sql(
+                destino + "_staging", tables.leads
+            )
         if hasattr(dados, "build_ceps_sql"):  # Task 2
             sqls["build_ceps_sql"] = dados.build_ceps_sql(destino + "_ceps")
 
