@@ -13,7 +13,7 @@ const selectE2e = (lista) => {
   if (!lista || !lista.length) return null;
   const principal = lista.filter((e) => e && e.golden === "golden_e2e.jsonl" && (e.metrics?.n_cases ?? 0) >= 20);
   if (principal.length) return principal[principal.length - 1];
-  const cheios = lista.filter((e) => (e.metrics?.n_cases ?? 0) >= 20);
+  const cheios = lista.filter((e) => e && (e.metrics?.n_cases ?? 0) >= 20);
   if (cheios.length) return cheios[cheios.length - 1];
   return ultima(lista);
 };
@@ -22,7 +22,7 @@ function linhaPct(rotulo, medido, limiar) {
   const texto = medido == null ? "—" : fmtPct(medido);
   const lim = limiar == null ? "—" : fmtPct(limiar);
   const batido = medido != null && limiar != null && medido >= limiar;
-  const status = limiar == null
+  const status = limiar == null || medido == null
     ? ""
     : batido
       ? '<span class="selo selo-limiar">≥ limiar</span>'
@@ -61,7 +61,9 @@ async function carregarMetricas() {
   const alvo = document.getElementById("metricas");
   const carimbo = document.getElementById("carimbo");
   try {
-    const dados = await (await fetch("/metrics")).json();
+    const resp = await fetch("/metrics");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const dados = await resp.json();
     const limiares = dados.thresholds || {};
     const ext = ultima(dados.extraction);
     const cnae = ultima(dados.cnae);
