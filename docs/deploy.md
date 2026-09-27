@@ -52,6 +52,22 @@ Se o Turnstile ainda não tiver a URL: rode o 1º deploy sem `TURNSTILE_*`,
 copie a URL impressa, cadastre o hostname no Cloudflare e rode de novo com
 as chaves.
 
+**Deploy privado (validar antes de abrir ao público):** `PUBLIC_ACCESS=false
+bash scripts/deploy.sh` remove `--allow-unauthenticated` — o Cloud Run passa
+a exigir IAM invoker, então só quem tiver `roles/run.invoker` (ou for owner
+do projeto) consegue chamar a URL. O smoke test do próprio script já usa
+`gcloud auth print-identity-token` nesse modo; para testar manualmente:
+
+```bash
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" "$URL/health"
+```
+
+Quando estiver pronto para abrir ao público, re-deploy com
+`PUBLIC_ACCESS=true bash scripts/deploy.sh` (é o default — não precisa
+passar a variável). Nesse modo o Turnstile deixa de fazer sentido como
+proteção: sem acesso anônimo, ninguém de fora chega no formulário para
+verificar.
+
 **Segredos no shell:** a linha de comando acima deixa `API_TOKEN` e
 `TURNSTILE_SECRET_KEY` no `~/.bash_history`. Em máquina compartilhada, prefira
 um `secrets.env` fora do git (`chmod 600`) e `source` antes do deploy, ou

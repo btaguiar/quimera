@@ -20,6 +20,12 @@ BUDGET_USD="${BUDGET_USD:-}"            # ex.: 20 -> cria alertas 50/80/100%
 API_TOKEN="${API_TOKEN:-}"              # valor do secret (só na 1ª criação)
 TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-}"
 TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-}"
+PUBLIC_ACCESS="${PUBLIC_ACCESS:-true}"  # false -> exige IAM invoker (sem acesso anonimo)
+
+ALLOW_FLAG="--allow-unauthenticated"
+if [ "$PUBLIC_ACCESS" != "true" ]; then
+  ALLOW_FLAG="--no-allow-unauthenticated"
+fi
 
 log() { printf '\n==> %s\n' "$*"; }
 
@@ -83,16 +89,21 @@ gcloud run deploy "$SERVICE" \
   --service-account="$SA_EMAIL" \
   --min-instances=0 --max-instances=1 --concurrency=4 \
   --cpu=1 --memory=1Gi --timeout=120 \
-  --allow-unauthenticated \
+  "$ALLOW_FLAG" \
   --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},BQ_LOCATION=${BQ_LOCATION},VERTEX_LOCATION=${VERTEX_LOCATION},EXTRACT_MODEL=gemini-2.5-flash,EMBED_MODEL=text-embedding-005,MAX_BYTES_BILLED=5368709120,LEADS_DATASET=${LEADS_DATASET},DAILY_BYTES_BUDGET=${DAILY_BYTES_BUDGET},RATE_LIMIT_MAX=${RATE_LIMIT_MAX},RATE_LIMIT_WINDOW_S=3600,CACHE_TTL_S=86400,REQUEST_TIMEOUT_S=60,EVAL_DIR=/app/eval,TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}" \
   --set-secrets="$SECRETS"
 
 URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')
 log "smoke test: $URL"
-curl -fsS "$URL/health"; echo
-curl -fsS "$URL/metrics" -o /dev/null -w 'metrics: %{http_code}\n'
-curl -fsS "$URL/" | grep -qi '<html' && echo 'front: ok'
-curl -fsS "$URL/metrics.html" | grep -qi 'anexo' && echo 'anexo: ok'
+CURL_AUTH=()
+if [ "$PUBLIC_ACCESS" != "true" ]; then
+  echo "acesso privado (IAM invoker): smoke test usa identity token do gcloud"
+  CURL_AUTH=(-H "Authorization: Bearer $(gcloud auth print-identity-token)")
+fi
+curl -fsS "${CURL_AUTH[@]}" "$URL/health"; echo
+curl -fsS "${CURL_AUTH[@]}" "$URL/metrics" -o /dev/null -w 'metrics: %{http_code}\n'
+curl -fsS "${CURL_AUTH[@]}" "$URL/" | grep -qi '<html' && echo 'front: ok'
+curl -fsS "${CURL_AUTH[@]}" "$URL/metrics.html" | grep -qi 'anexo' && echo 'anexo: ok'
 
 if [ -n "$BUDGET_USD" ]; then
   log "alertas de orçamento (50/80/100%)"
@@ -105,4 +116,9 @@ else
   echo "BUDGET_USD vazio: alertas não criados (console: Billing > Orçamentos; 50/80/100%)"
 fi
 
-printf '\nDEMO: %s\nANEXO: %s/metrics.html\n' "$URL" "$URL"
+if [ "$PUBLIC_ACCESS" != "true" ]; then
+  printf '\nDEMO (privada — precisa de IAM invoker): %s\n' "$URL"
+  printf 'Para abrir ao público depois: PUBLIC_ACCESS=true bash scripts/deploy.sh\n'
+else
+  printf '\nDEMO: %s\nANEXO: %s/metrics.html\n' "$URL" "$URL"
+fi
