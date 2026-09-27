@@ -17,12 +17,23 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
-const fmtBytes = (b) =>
-  b >= 1024 ** 3
-    ? `${fmtNum.format(+(b / 1024 ** 3).toFixed(2))} GB`
-    : `${fmtNum.format(+(b / 1024 ** 2).toFixed(1))} MB`;
-const fmtUSD = (v) => (v == null ? "—" : `US$ ${v.toFixed(6).replace(".", ",")}`);
-const fmtMs = (v) => (v == null ? "—" : `${fmtNum.format(Math.round(v))} ms`);
+const fmtBytes = (b) => {
+  const n = Number(b);
+  if (b == null || !Number.isFinite(n)) return "—";
+  return n >= 1024 ** 3
+    ? `${fmtNum.format(+(n / 1024 ** 3).toFixed(2))} GB`
+    : `${fmtNum.format(+(n / 1024 ** 2).toFixed(1))} MB`;
+};
+const fmtUSD = (v) => {
+  const n = Number(v);
+  if (v == null || !Number.isFinite(n)) return "—";
+  return `US$ ${n.toFixed(6).replace(".", ",")}`;
+};
+const fmtMs = (v) => {
+  const n = Number(v);
+  if (v == null || !Number.isFinite(n)) return "—";
+  return `${fmtNum.format(Math.round(n))} ms`;
+};
 const fmtData = (yyyymmdd) =>
   /^\d{8}$/.test(yyyymmdd || "")
     ? `${yyyymmdd.slice(6, 8)}/${yyyymmdd.slice(4, 6)}/${yyyymmdd.slice(0, 4)}`
@@ -31,18 +42,29 @@ const lista = (v) => (Array.isArray(v) && v.length ? v.map(esc).join(", ") : "�
 const valor = (v) => (v == null ? "—" : fmtNum.format(v));
 
 async function carregarConfig() {
+  let cfg = null;
   try {
-    const cfg = await (await fetch("/config")).json();
-    if (cfg.turnstile_site_key && window.turnstile) {
-      turnstileWidgetId = window.turnstile.render(turnstileBox, {
-        sitekey: cfg.turnstile_site_key,
-        callback: (token) => { turnstileToken = token; },
-        "expired-callback": () => { turnstileToken = null; },
-        "error-callback": () => { turnstileToken = null; },
-        language: "pt-br",
-      });
-    }
+    cfg = await (await fetch("/config")).json();
   } catch (_) { /* sem config: ambiente local sem Turnstile */ }
+  if (!cfg || !cfg.turnstile_site_key) return;
+  if (typeof window.turnstile?.render !== "function") {
+    statusEl.textContent = "Desafio anti-bot indisponível — recarregue a página.";
+    return;
+  }
+  try {
+    turnstileWidgetId = window.turnstile.render(turnstileBox, {
+      sitekey: cfg.turnstile_site_key,
+      callback: (token) => { turnstileToken = token; },
+      "expired-callback": () => { turnstileToken = null; },
+      "error-callback": () => {
+        turnstileToken = null;
+        statusEl.textContent = "Desafio anti-bot falhou — recarregue a página.";
+      },
+      language: "pt-br",
+    });
+  } catch (_) {
+    statusEl.textContent = "Desafio anti-bot indisponível — recarregue a página.";
+  }
 }
 
 async function anotarVersao() {
@@ -102,16 +124,17 @@ form.addEventListener("submit", async (evento) => {
     const dados = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       renderizarErro(resp.status, dados);
+      statusEl.textContent = "";
     } else {
       await renderizarLaudo(dados, (performance.now() - inicio) / 1000);
+      statusEl.textContent = "";
     }
   } catch (_) {
     statusEl.textContent = "Falha de rede ao contatar a API.";
   } finally {
     clearInterval(cronometro);
-    statusEl.textContent = "";
     botaoEmitir.disabled = false;
-    if (turnstileWidgetId !== null && window.turnstile) {
+    if (turnstileWidgetId !== null && typeof window.turnstile?.reset === "function") {
       turnstileToken = null;
       window.turnstile.reset(turnstileWidgetId);
     }
@@ -128,51 +151,55 @@ function achado(num, titulo, corpoHtml) {
 async function renderizarLaudo(dados, segundos) {
   const orcamento = await orcamentoRestante();
   const partes = [];
+  let numero = 0;
+  const proximo = () => ++numero;
   if (dados.cached) {
     partes.push(`<p><span class="selo selo-cache">Em cache</span></p>`);
   }
   if (dados.refused) {
-    partes.push(achado(1, "Indeferimento", `
+    partes.push(achado(proximo(), "Indeferimento", `
       <p>${esc(dados.refusal_reason || "pedido recusado")}</p>
       <p>A política pública não responde pedidos de dado pessoal — de sócios,
       contato ou qualquer pessoa física.</p>`));
   } else {
-    partes.push(...achadosDoLaudo(dados));
+    partes.push(...achadosDoLaudo(dados, proximo));
   }
+  partes.push(rodapeCustos(dados, segundos, orcamento, proximo));
   if (Array.isArray(dados.warnings) && dados.warnings.length) {
     const itens = dados.warnings.map((w) => `<li>${esc(w)}</li>`).join("");
-    partes.push(achado(dados.refused ? 2 : 6, "Ressalvas", `<ol class="ressalvas">${itens}</ol>`));
+    partes.push(achado(proximo(), "Ressalvas", `<ol class="ressalvas">${itens}</ol>`));
   }
-  partes.push(rodapeCustos(dados, segundos, orcamento));
   resultado.innerHTML = partes.join("");
   resultado.hidden = false;
   resultado.scrollIntoView({ behavior: "smooth", block: "start" });
+  resultado.focus({ preventScroll: true });
 }
 
-function achadosDoLaudo(dados) {
+function achadosDoLaudo(dados, proximo) {
   const f = dados.filters || {};
   const achados = [];
-  achados.push(achado(1, "Interpretação do pedido", `
+  const temCnae = Array.isArray(dados.cnae_matches) && dados.cnae_matches.length > 0;
+  achados.push(achado(proximo(), "Interpretação do pedido", `
     <dl class="kv">
       <div><dt>Atividade</dt><dd>${esc(f.cnae_query || "—")}</dd></div>
       <div><dt>UFs</dt><dd>${lista(f.ufs)}</dd></div>
       <div><dt>Municípios</dt><dd>${lista(f.municipio_names)}</dd></div>
-      <div><dt>Idade mínima</dt><dd>${f.min_age_years == null ? "—" : `${f.min_age_years} anos`}</dd></div>
-      <div><dt>Idade máxima</dt><dd>${f.max_age_years == null ? "—" : `${f.max_age_years} anos`}</dd></div>
+      <div><dt>Idade mínima</dt><dd>${f.min_age_years == null ? "—" : `${esc(f.min_age_years)} anos`}</dd></div>
+      <div><dt>Idade máxima</dt><dd>${f.max_age_years == null ? "—" : `${esc(f.max_age_years)} anos`}</dd></div>
       <div><dt>Capital mínimo</dt><dd>${f.min_capital == null ? "—" : valor(f.min_capital)}</dd></div>
       <div><dt>Portes</dt><dd>${lista(f.portes)}</dd></div>
-      <div><dt>Limite</dt><dd>${f.limit == null ? "—" : `${f.limit} empresas`}</dd></div>
+      <div><dt>Limite</dt><dd>${f.limit == null ? "—" : `${esc(f.limit)} empresas`}</dd></div>
     </dl>
     <p class="mono">filtro aplicado pela policy pública: sem MEI, sem contato, sem pessoa física.</p>`));
 
-  if (Array.isArray(dados.cnae_matches) && dados.cnae_matches.length) {
+  if (temCnae) {
     const linhas = dados.cnae_matches.map((m) => `
       <tr>
         <td class="mono">${esc(m[0])}</td>
         <td>${esc(m[1])}</td>
         <td class="num">${Number(m[2]).toFixed(3).replace(".", ",")}</td>
       </tr>`).join("");
-    achados.push(achado(2, "Classificação CNAE", `
+    achados.push(achado(proximo(), "Classificação CNAE", `
       <div class="tabela-wrap">
         <table>
           <caption>códigos escolhidos por similaridade de embeddings (top-k)</caption>
@@ -183,7 +210,7 @@ function achadosDoLaudo(dados) {
   }
 
   const snapshot = dados.snapshot && Object.values(dados.snapshot)[0];
-  achados.push(achado(3, "Consulta ao BigQuery", `
+  achados.push(achado(proximo(), "Consulta ao BigQuery", `
     ${dados.query_sql ? `<pre class="sql">${esc(dados.query_sql)}</pre>` : `<p>Consulta não executada (ver ressalvas).</p>`}
     <dl class="kv">
       <div><dt>Bytes processados</dt><dd>${fmtBytes(dados.bytes_processed)}</dd></div>
@@ -191,9 +218,9 @@ function achadosDoLaudo(dados) {
       <div><dt>Snapshot da base</dt><dd>${esc(snapshot || "—")}</dd></div>
     </dl>
     <p>SQL montado pelo sistema, parametrizado — o modelo não escreve SQL.
-    Valores dos parâmetros: achados 1 e 2.</p>`));
+    Valores dos parâmetros: ${temCnae ? "achados 1 e 2" : "achado 1"}.</p>`));
 
-  achados.push(achado(4, "Ranking de empresas", tabelaRanking(dados)));
+  achados.push(achado(proximo(), "Ranking de empresas", tabelaRanking(dados)));
   return achados;
 }
 
@@ -207,7 +234,7 @@ function tabelaRanking(dados) {
       <td class="mono">${fmtData(r.data_inicio_atividade)}</td>
       <td class="num">${r.capital_social == null ? "—" : valor(r.capital_social)}</td>
       <td>${esc(r.porte || "—")}</td>
-      <td class="num">${r.score == null ? "—" : r.score}</td>
+      <td class="num">${r.score == null ? "—" : esc(r.score)}</td>
       <td>
         <details class="resumo-nota">
           <summary>motivos</summary>
@@ -230,14 +257,14 @@ function tabelaRanking(dados) {
   </div>`;
 }
 
-function rodapeCustos(dados, segundos, orcamento) {
+function rodapeCustos(dados, segundos, orcamento, proximo) {
   const etapas = Object.entries(dados.timings_ms || {})
-    .map(([etapa, ms]) => `${etapa} ${fmtMs(ms)}`)
+    .map(([etapa, ms]) => `${esc(etapa)} ${fmtMs(ms)}`)
     .join(" · ");
   const modoCache = dados.cache_mode
     ? `<p><span class="selo selo-modo-cache">Modo cache — orçamento do dia esgotado</span></p>`
     : "";
-  return achado(dados.refused ? 3 : 5, "Custos e latência", `
+  return achado(proximo(), "Custos e latência", `
     ${modoCache}
     <dl class="kv">
       <div><dt>Bytes cobrados</dt><dd>${fmtBytes(dados.bytes_billed)}</dd></div>
@@ -257,7 +284,7 @@ function renderizarErro(status, dados) {
     429: "Limite de requisições por IP atingido; aguarde alguns minutos.",
     502: `A extração falhou: ${esc(dados.reason || "tente reformular o pedido")}`,
     503: esc(dados.reason || "serviço indisponível; tente mais tarde"),
-    504: "A execução passou de 60 s e foi cancelada; tente um pedido mais específico.",
+    504: esc(dados.reason || "execução excedeu o tempo limite; tente um pedido mais específico"),
   };
   const texto = mensagens[status] || esc(dados.reason || `erro ${status}`);
   resultado.innerHTML = `<section class="observacao achado">
@@ -265,6 +292,8 @@ function renderizarErro(status, dados) {
     <p>${texto}</p>
   </section>`;
   resultado.hidden = false;
+  resultado.scrollIntoView({ behavior: "smooth", block: "start" });
+  resultado.focus({ preventScroll: true });
 }
 
 carregarConfig();
