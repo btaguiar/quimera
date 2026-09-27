@@ -8,6 +8,7 @@ verificação. O cliente HTTP é injetável para testes sem rede.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -36,16 +37,20 @@ def verify(
             import httpx
 
             client = httpx.Client(timeout=TIMEOUT_S)
-        payload = client.post(SITEVERIFY_URL, data=data).json()
+        resp = client.post(SITEVERIFY_URL, data=data)
+        resp.raise_for_status()
+        payload = resp.json()
     except Exception as exc:
-        logger.warning(
+        logger.log(
+            logging.ERROR if isinstance(exc, ImportError) else logging.WARNING,
             "siteverify do Turnstile falhou (%s); recusando por fail closed",
             type(exc).__name__,
         )
         return False
     finally:
         if own_client and client is not None:
-            client.close()
+            with contextlib.suppress(Exception):
+                client.close()
     if not isinstance(payload, dict):
         return False
     return bool(payload.get("success"))
