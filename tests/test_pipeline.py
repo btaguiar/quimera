@@ -483,3 +483,30 @@ class TestSinaisOnda1:
         assert result.filters.regimes == ["simples"]
         assert len(bq.executed) == 1
         assert any("MEI" in w for w in result.warnings)
+
+
+class TestQuerySql:
+    def test_to_dict_exposes_parameterized_sql_of_last_query(self):
+        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        bq = FakePipelineBQ()
+        result = run("empresas em SP", PUBLIC, extract_client=extract, bq_client=bq)
+        assert bq.executed, "a query deveria ter rodado"
+        assert result.query_sql == bq.executed[0][0]
+        assert "@ufs" in result.query_sql
+        assert result.to_dict()["query_sql"] == result.query_sql
+
+    def test_refused_result_has_empty_query_sql(self):
+        extract = FakeGenaiClient(
+            json.dumps(
+                {"refused": True, "refusal_reason": "pedido de dado pessoal"},
+                ensure_ascii=False,
+            )
+        )
+        result = run(
+            "telefone do dono",
+            PUBLIC,
+            extract_client=extract,
+            bq_client=FakePipelineBQ(),
+        )
+        assert result.query_sql == ""
+        assert result.to_dict()["query_sql"] == ""

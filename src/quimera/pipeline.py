@@ -85,6 +85,8 @@ class PipelineResult:
     request_normalized: str = ""
     # Limitações dos dados que afetaram ESTE resultado, em pt-BR.
     warnings: list[str] = field(default_factory=list)
+    # SQL parametrizado executado (vazio quando a consulta não roda).
+    query_sql: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -104,6 +106,7 @@ class PipelineResult:
             "policy": self.policy,
             "request_normalized": self.request_normalized,
             "warnings": self.warnings,
+            "query_sql": self.query_sql,
         }
 
     def log_record(self) -> dict:
@@ -389,6 +392,7 @@ def run(
         policy=policy.name,
         request_normalized=request_normalized,
         warnings=warnings,
+        query_sql=spec.sql,
     )
     result.latency_ms = (time.perf_counter() - started) * 1000
     result.timings_ms = timings
