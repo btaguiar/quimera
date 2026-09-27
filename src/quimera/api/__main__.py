@@ -6,6 +6,7 @@ Usa uvicorn; host/port vêm de ``API_HOST``/``PORT`` (o Cloud Run injeta
 
 from __future__ import annotations
 
+import logging
 import os
 
 
@@ -13,6 +14,9 @@ def main() -> int:
     import uvicorn
 
     from . import create_app
+
+    # Sem isso o INFO de quimera.* (custo e bytes por pedido) não chega ao log.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s %(message)s")
 
     uvicorn.run(
         create_app(warmup=True),
