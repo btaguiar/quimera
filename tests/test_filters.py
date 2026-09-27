@@ -85,15 +85,27 @@ class TestSinaisOnda1:
     def test_cep_keeps_only_digits(self):
         assert LeadFilters(cep_centro="01310-100").cep_centro == "01310100"
 
+    def test_cep_fullwidth_digits_rejected(self):
+        # Dígitos Unicode fullwidth não são ASCII: não podem virar CEP armazenado.
+        with pytest.raises(ValidationError, match="CEP inválido"):
+            LeadFilters(cep_centro="０１３１０１００")
+
     def test_invalid_cep_rejected(self):
-        with pytest.raises(ValidationError, match="CEP"):
+        with pytest.raises(ValidationError, match="CEP inválido"):
             LeadFilters(cep_centro="1234")
 
     def test_raio_bounds(self):
-        with pytest.raises(ValidationError, match="raio"):
+        with pytest.raises(ValidationError, match="fora dos limites"):
             LeadFilters(raio_km=0)
-        with pytest.raises(ValidationError, match="raio"):
+        with pytest.raises(ValidationError, match="fora dos limites"):
             LeadFilters(raio_km=500)
+
+    def test_raio_boundaries_accepted(self):
+        assert LeadFilters(raio_km=0.1).raio_km == 0.1
+        assert LeadFilters(raio_km=100.0).raio_km == 100.0
+
+    def test_raio_happy_path(self):
+        assert LeadFilters(raio_km=3).raio_km == 3
 
     def test_min_estabelecimentos_positive(self):
         with pytest.raises(ValidationError):

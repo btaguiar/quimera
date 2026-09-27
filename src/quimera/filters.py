@@ -139,7 +139,8 @@ class LeadFilters(BaseModel):
     def _normalize_cep(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        digits = "".join(ch for ch in value if ch.isdigit())
+        # Só dígitos ASCII: str.isdigit() aceita fullwidth e outros Unicode.
+        digits = "".join(ch for ch in value if ch in "0123456789")
         if len(digits) != 8:
             raise ValueError(
                 f"CEP inválido: {value!r}. Use 8 dígitos (ex.: 01310-100)."
@@ -149,13 +150,14 @@ class LeadFilters(BaseModel):
     @field_validator("raio_km")
     @classmethod
     def _validate_raio_km(cls, value: float | None) -> float | None:
-        # Limites no validador (e não em Field): o schema do Vertex não
-        # aceita exclusiveMinimum/exclusiveMaximum — mesma razão do limit.
+        # Limites no validador (e não em Field): assim a mensagem sai em
+        # pt-BR com os limites visíveis; constraints de Field gerariam
+        # erro padrão em inglês.
         if value is None:
             return None
         if not RAIO_KM_MIN <= value <= RAIO_KM_MAX:
             raise ValueError(
-                f"raio_km fora dos limites: use entre {RAIO_KM_MIN} e {RAIO_KM_MAX} km."
+                f"Raio fora dos limites: use entre {RAIO_KM_MIN:g} e {RAIO_KM_MAX:g} km."
             )
         return value
 
