@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -81,8 +82,6 @@ def create_app(
 ) -> FastAPI:
     config = config or ApiConfig.from_env()
     if config.api_token is None and config.turnstile_secret_key is None:
-        logger.warning("API_TOKEN não definido; checagem de token desabilitada")
-    if config.api_token is None and config.turnstile_secret_key is None:
         logger.warning(
             "nem API_TOKEN nem TURNSTILE_SECRET_KEY definidos; "
             "checagem de autenticação desabilitada"
@@ -98,10 +97,24 @@ def create_app(
     state = state or MemoryStateStore(config)
     policy = policy or resolve_policy()
 
-    app = FastAPI(title="Quimera", version=__version__)
+    _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="quimera-api")
+
+    @asynccontextmanager
+    async def _lifespan(_app: FastAPI):
+        if warmup:
+            # Em segundo plano: /health responde já; o 1º pedido deixa de pagar
+            # ~16 s de clientes, índice e diretório (pipeline.warmup).
+            from ..pipeline import warmup as _warmup
+
+            _executor.submit(_warmup)
+        yield
+        _executor.shutdown(wait=False, cancel_futures=True)
+
+    app = FastAPI(title="Quimera", version=__version__, lifespan=_lifespan)
     app.state.config = config
     app.state.store = state
     app.state.policy = policy
+    app.state.executor = _executor
     app.state.pipeline_deps = {
         "extract_client": extract_client,
         "cnae_search": cnae_search,
@@ -217,20 +230,6 @@ def create_app(
                 f"{config.rate_limit_window_s}s por IP",
                 headers={"Retry-After": str(state.retry_after(ip))},
             )
-
-    _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="quimera-api")
-    app.state.executor = _executor
-
-    app.add_event_handler(
-        "shutdown",
-        lambda: _executor.shutdown(wait=False, cancel_futures=True),
-    )
-    if warmup:
-        # Em segundo plano: /health responde já; o 1º pedido deixa de pagar
-        # ~16 s de clientes, índice e diretório (pipeline.warmup).
-        from ..pipeline import warmup as _warmup
-
-        app.add_event_handler("startup", lambda: _executor.submit(_warmup))
 
     @app.get("/health")
     def health():
