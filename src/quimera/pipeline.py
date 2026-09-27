@@ -1,4 +1,4 @@
-"""Orquestração do fluxo: extract → cnae → policy → municípios → query → score.
+"""Orquestração do fluxo: extract → cnae → policy → municípios → cep → query → score.
 
 O pipeline nunca decide permissões: ``apply_policy`` é o único ponto que
 diferencia público de privado, e roda sempre DEPOIS do LLM e ANTES da query.
@@ -23,6 +23,7 @@ from .query import (
     QueryResult,
     build_query,
     read_leads_snapshot,
+    resolve_cep_center,
     resolve_leads_tables,
     resolve_municipality_ids,
     run_query,
@@ -33,6 +34,13 @@ logger = logging.getLogger("quimera.pipeline")
 
 # Preço on-demand do BigQuery (USD por TiB) — apenas estimativa exibida ao usuário.
 BQ_USD_PER_TIB = 6.25
+
+RAIO_PADRAO_KM = 5.0
+# Medido em 2026-09-26: 91,2% dos ativos têm centroide de CEP.
+AVISO_COBERTURA_RAIO = (
+    "Busca por raio usa o centro do CEP de cada empresa; cerca de 9% dos "
+    "estabelecimentos não têm coordenada e ficam de fora."
+)
 
 # Busca CNAE injetável: (query, k) -> [(codigo, descricao, similaridade)]
 CnaeSearchFn = Callable[[str, int], list[tuple[str, str, float]]]
@@ -70,7 +78,7 @@ class PipelineResult:
     bytes_billed: int = 0
     estimated_cost_usd: float = 0.0
     latency_ms: float = 0.0
-    # Tempo por etapa (extract, cnae, municipios, snapshot, query, score).
+    # Tempo por etapa (extract, cnae, municipios, cep, snapshot, query, score).
     timings_ms: dict[str, float] = field(default_factory=dict)
     model: str = ""
     policy: str = ""
@@ -206,6 +214,9 @@ def run(
         )
 
     # 2. Limites da policy aplicados DEPOIS do LLM e ANTES da query.
+    # Regimes pedidos ANTES da policy: no público o pedido "só MEI" fica vazio
+    # e a query ignoraria o regime — a etapa cep detecta e avisa.
+    regimes_pedidos = list(filters.regimes)
     filters = apply_policy(filters, policy)
 
     warnings: list[str] = []
@@ -283,20 +294,100 @@ def run(
             }
         )
 
-    # 4. Tabela própria (snapshot lido dos labels, sem custo) + query
-    #    parametrizada com teto de bytes.
+    # 4. Sinais do próprio cadastro (Onda 1): centro do raio por CEP, bairros
+    #    e regimes. Roda DEPOIS dos municípios (bairros dependem de
+    #    municipio_names) e da policy (regimes removidos no público), mas
+    #    ANTES da consulta.
     tables = tables or resolve_leads_tables()
+    raio_sem_cep = filters.raio_km is not None and not filters.cep_centro
+    bairros_sem_municipio = bool(filters.bairros) and not filters.municipio_names
+    so_mei = bool(regimes_pedidos) and not filters.regimes
+    centro: tuple[float, float] | None = None
+    if filters.cep_centro or raio_sem_cep or bairros_sem_municipio or so_mei:
+        with _stage(timings, "cep"):
+            if so_mei:
+                # Sem isso, a consulta devolveria empresas de qualquer regime
+                # como se fossem MEI.
+                warnings.append(
+                    "O pedido pede apenas MEI, que este ambiente não inclui; "
+                    "a consulta traria empresas de qualquer regime tributário. "
+                    "Reformule o pedido."
+                )
+                result = PipelineResult(
+                    refused=False,
+                    filters=filters,
+                    cnae_matches=cnae_matches,
+                    municipio_resolution=municipio_resolution,
+                    model=resolved_model,
+                    policy=policy.name,
+                    request_normalized=request_normalized,
+                    warnings=warnings,
+                )
+                result.latency_ms = (time.perf_counter() - started) * 1000
+                result.timings_ms = timings
+                logger.info("pedido só MEI; consulta não executada")
+                return result
+            if raio_sem_cep:
+                warnings.append(
+                    "Raio ignorado: informe um CEP de referência para buscar "
+                    "por proximidade."
+                )
+                filters = filters.model_copy(update={"raio_km": None})
+            if bairros_sem_municipio:
+                # Bairros se repetem entre cidades: sem município, o filtro
+                # casaria nomes em todo o país.
+                warnings.append(
+                    "Filtro de bairros ignorado: informe também o município."
+                )
+                filters = filters.model_copy(update={"bairros": []})
+            if filters.cep_centro:
+                if filters.raio_km is None:
+                    filters = filters.model_copy(update={"raio_km": RAIO_PADRAO_KM})
+                    warnings.append(
+                        f"CEP sem raio: usando o padrão de {RAIO_PADRAO_KM:g} km."
+                    )
+                centro = resolve_cep_center(
+                    filters.cep_centro, tables=tables, client=bq_client
+                )
+                if centro is None:
+                    # Rodar sem o raio devolveria empresas de qualquer
+                    # distância como se estivessem perto.
+                    warnings.append(
+                        f"CEP {filters.cep_centro} não encontrado no diretório; "
+                        "reformule o pedido."
+                    )
+                    result = PipelineResult(
+                        refused=False,
+                        filters=filters,
+                        cnae_matches=cnae_matches,
+                        municipio_resolution=municipio_resolution,
+                        model=resolved_model,
+                        policy=policy.name,
+                        request_normalized=request_normalized,
+                        warnings=warnings,
+                    )
+                    result.latency_ms = (time.perf_counter() - started) * 1000
+                    result.timings_ms = timings
+                    logger.info(
+                        "CEP %s sem centroide; consulta não executada",
+                        filters.cep_centro,
+                    )
+                    return result
+                warnings.append(AVISO_COBERTURA_RAIO)
+
+    # 5. Tabela própria (snapshot lido dos labels, sem custo) + query
+    #    parametrizada com teto de bytes.
     with _stage(timings, "snapshot"):
         snapshots = read_leads_snapshot(
             tables, client=bq_client, require_contatos=bool(policy.contact_fields)
         )
-    spec = build_query(filters, policy, tables=tables, icp=icp)
+    spec = build_query(filters, policy, tables=tables, icp=icp, centro=centro)
     with _stage(timings, "query"):
         query_result: QueryResult = run_query(
             spec, client=bq_client, max_bytes_billed=max_bytes_billed
         )
 
-    # 5. Score explicável e ranking.
+    # 6. Score explicável e ranking.
     rows: list[dict] = []
     with _stage(timings, "score"):
         for row in query_result.rows:

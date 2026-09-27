@@ -1,4 +1,4 @@
-"""Testes do pipeline: extract → cnae → policy → municípios → query → score."""
+"""Testes do pipeline: extract → cnae → policy → municípios → cep → query → score."""
 
 from __future__ import annotations
 
@@ -26,6 +26,17 @@ def _cnae_search_recorder(results):
 
     search.calls = calls
     return search
+
+
+def _run(bq, policy=PUBLIC, **filters):
+    """Executa o pipeline com extração fixa nos ``filters`` e CNAE resolvido."""
+    extract = FakeGenaiClient(_extraction_payload(**filters))
+    cnae_search = _cnae_search_recorder(
+        [("8630-5/01", "Atividade médica ambulatorial", 0.92)]
+    )
+    return run(
+        "pedido", policy, extract_client=extract, cnae_search=cnae_search, bq_client=bq
+    )
 
 
 LEAD_ROWS = [
@@ -396,3 +407,63 @@ class TestTimingsAndWarmup:
             "snapshot",
         }
         assert "aquecimento falhou em cnae_index" in caplog.text
+
+
+class TestSinaisOnda1:
+    def test_cep_center_passed_to_query(self):
+        bq = FakePipelineBQ(
+            lead_rows=LEAD_ROWS,
+            cep_rows=[{"latitude": -23.56, "longitude": -46.65}],
+        )
+        result = _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
+        sql, _ = bq.executed[0]
+        assert "ST_DWITHIN" in sql
+        assert bq.cep_queries
+
+    def test_unknown_cep_warns_and_skips_query(self):
+        bq = FakePipelineBQ(cep_rows=[])
+        result = _run(bq, cnae_query="clínicas", cep_centro="99999999", raio_km=3)
+        assert not bq.executed
+        assert any("CEP 99999999" in w for w in result.warnings)
+
+    def test_radius_without_cep_warns_and_is_ignored(self):
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = _run(bq, cnae_query="clínicas", raio_km=3)
+        assert bq.executed and "ST_DWITHIN" not in bq.executed[0][0]
+        assert any("CEP de referência" in w for w in result.warnings)
+
+    def test_cep_without_radius_uses_default(self):
+        # raio padrão 5 km, com aviso
+        bq = FakePipelineBQ(
+            lead_rows=LEAD_ROWS,
+            cep_rows=[{"latitude": -23.56, "longitude": -46.65}],
+        )
+        result = _run(bq, cnae_query="clínicas", cep_centro="01310100")
+        sql, job_config = bq.executed[0]
+        assert "ST_DWITHIN" in sql
+        raio_m = next(p for p in job_config.query_parameters if p.name == "raio_m")
+        assert raio_m.value == 5000.0
+        assert any("5 km" in w for w in result.warnings)
+
+    def test_radius_warns_about_coverage(self):
+        # aviso: "~9% dos estabelecimentos não têm coordenada e ficam de fora"
+        bq = FakePipelineBQ(
+            lead_rows=LEAD_ROWS,
+            cep_rows=[{"latitude": -23.56, "longitude": -46.65}],
+        )
+        result = _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
+        assert any("9%" in w and "coordenada" in w for w in result.warnings)
+
+    def test_bairros_without_municipio_warn_and_are_ignored(self):
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = _run(bq, cnae_query="clínicas", bairros=["Centro"])
+        assert len(bq.executed) == 1
+        assert "@bairros" not in bq.executed[0][0]
+        assert any("bairros" in w.lower() for w in result.warnings)
+
+    def test_public_mei_only_regime_warns_without_query(self):
+        # Task 4, Step 3: regimes pedidos, todos removidos pela policy pública.
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = _run(bq, cnae_query="clínicas", regimes=["mei"])
+        assert not bq.executed
+        assert any("MEI" in w for w in result.warnings)

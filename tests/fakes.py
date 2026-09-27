@@ -69,7 +69,8 @@ class FakePipelineBQ:
     Sequência de chamadas:
     1. client.get_table              -> labels de snapshot da tabela própria;
     2. job_config ausente           -> consulta ao diretório de municípios;
-    3. job_config de execução        -> consulta de leads: recusada com
+    3. SQL na tabela ``.ceps``      -> centroide do CEP (FakeJob(0, cep_rows));
+    4. job_config de execução        -> consulta de leads: recusada com
        "N or higher required" (N = ``dry_run_bytes``) se o teto for menor,
        senão registrada em ``executed``.
     """
@@ -78,11 +79,13 @@ class FakePipelineBQ:
         self,
         municipio_rows=None,
         lead_rows=None,
+        cep_rows=None,
         dry_run_bytes=1000,
         table_labels=None,
     ):
         self.municipio_rows = municipio_rows or []
         self.lead_rows = lead_rows or []
+        self.cep_rows = cep_rows
         self.dry_run_bytes = dry_run_bytes
         self.table_labels = (
             table_labels
@@ -91,6 +94,7 @@ class FakePipelineBQ:
         )
         self.executed: list[tuple[str, object]] = []
         self.directory_queries: list[str] = []
+        self.cep_queries: list[str] = []
         self.table_lookups: list[str] = []
 
     def get_table(self, table_id):
@@ -101,6 +105,9 @@ class FakePipelineBQ:
         if job_config is None:
             self.directory_queries.append(sql)
             return FakeJob(0, self.municipio_rows)
+        if ".ceps`" in sql:
+            self.cep_queries.append(sql)
+            return FakeJob(0, self.cep_rows)
         if exceeds_cap(job_config, self.dry_run_bytes):
             return FakeRejectedJob(job_config.maximum_bytes_billed, self.dry_run_bytes)
         self.executed.append((sql, job_config))
