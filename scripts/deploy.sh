@@ -64,10 +64,8 @@ gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA_EMAIL}" --role=roles/bigquery.jobUser --condition=None >/dev/null
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA_EMAIL}" --role=roles/aiplatform.user --condition=None >/dev/null
-bq add-iam-policy-binding \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role=roles/bigquery.dataViewer \
-  "${PROJECT}:${LEADS_DATASET}" >/dev/null
+bq query --project_id="$PROJECT" --location="$BQ_LOCATION" --nouse_legacy_sql \
+  "GRANT \`roles/bigquery.dataViewer\` ON SCHEMA \`${PROJECT}.${LEADS_DATASET}\` TO \"serviceAccount:${SA_EMAIL}\""
 gcloud secrets add-iam-policy-binding quimera-api-token \
   --member="serviceAccount:${SA_EMAIL}" --role=roles/secretmanager.secretAccessor >/dev/null
 if gcloud secrets describe quimera-turnstile-secret >/dev/null 2>&1; then

@@ -186,6 +186,10 @@ primeiro momento com gasto de GCP — ver a tabela de custos acima.
 
 ## Troubleshooting
 
+- **`This feature requires allowlisting` no IAM do dataset**: é o
+  `bq add-iam-policy-binding` em dataset (preview, só para projetos
+  liberados). O script usa `GRANT ... ON SCHEMA` via `bq query`, que é o
+  caminho suportado.
 - **`docker run` local não responde em 8080**: falta `-e PORT=8080` — o
   Cloud Run injeta essa variável sozinho, `docker run` direto não (default é
   8000). Ver "Testar a imagem localmente" acima.
