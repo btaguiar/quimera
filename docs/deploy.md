@@ -16,6 +16,22 @@ algo falha.
 4. Componentes do SDK: `gcloud`, `bq`, `curl`. O caminho de orçamento usa
    `gcloud beta billing budgets` (componente `beta`).
 
+## Testar a imagem localmente (opcional, antes do 1º deploy)
+
+```bash
+docker build -t quimera-demo:local .
+docker run --rm -p 8080:8080 -e API_TOKEN=x -e PORT=8080 quimera-demo:local
+curl -s http://localhost:8080/health
+```
+
+**`-e PORT=8080` é obrigatório aqui.** Em produção o Cloud Run injeta `PORT`
+sozinho; local não — sem a variável, `python -m quimera.api` sobe em 8000 por
+padrão e o `docker run -p 8080:8080` não alcança nada (`curl` cai em "Empty
+reply from server"). `POST /leads` retorna 500 nesse teste local sem
+`gcloud auth application-default login` (o cliente Gemini não acha
+credencial) — esperado; só `/health`, `/config`, `/`, `/metrics*` e o 401
+sem token validam sem GCP.
+
 ## Primeiro deploy
 
 ```bash
@@ -154,6 +170,9 @@ primeiro momento com gasto de GCP — ver a tabela de custos acima.
 
 ## Troubleshooting
 
+- **`docker run` local não responde em 8080**: falta `-e PORT=8080` — o
+  Cloud Run injeta essa variável sozinho, `docker run` direto não (default é
+  8000). Ver "Testar a imagem localmente" acima.
 - **Cold start lento no 1º pedido**: warmup roda em background; `/health`
   responde imediatamente, o 1º pedido pode levar +2–3 s.
 - **429 do Gemini (cauda de latência)**: cota em `us-central1`; ver README.
