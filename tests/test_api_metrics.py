@@ -64,7 +64,22 @@ class TestLoadMetrics:
 
     def test_missing_dir_returns_empty_structure(self, tmp_path):
         metrics = load_metrics(eval_dir=tmp_path / "inexistente")
-        assert metrics == {"thresholds": {}, "extraction": [], "cnae": []}
+        assert metrics == {"thresholds": {}, "extraction": [], "cnae": [], "e2e": []}
+
+    def test_reads_e2e_suite(self, tmp_path):
+        results = tmp_path / "results"
+        results.mkdir()
+        _write(
+            results / "e2e_flash_20260926.json",
+            {
+                "suite": "e2e",
+                "date": "2026-09-26T19:17:57+00:00",
+                "commit": "6ac4f68",
+                "metrics": {"case_pass_rate": 0.95, "row_precision": 0.997},
+            },
+        )
+        metrics = load_metrics(eval_dir=tmp_path)
+        assert metrics["e2e"][0]["metrics"]["case_pass_rate"] == 0.95
 
     def test_env_eval_dir_is_used(self, tmp_path, monkeypatch):
         (tmp_path / "results").mkdir()

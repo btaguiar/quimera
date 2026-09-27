@@ -26,10 +26,10 @@ def _strip_per_case(payload: dict) -> dict:
 def load_metrics(
     *, results_dir: str | Path | None = None, eval_dir: str | Path | None = None
 ) -> dict:
-    """Devolve ``{"thresholds": {...}, "extraction": [...], "cnae": [...]}``."""
+    """Devolve ``{"thresholds": {...}, "extraction": [...], "cnae": [...], "e2e": [...]}``."""
     base = Path(eval_dir or os.environ.get("EVAL_DIR", DEFAULT_EVAL_DIR))
     results = Path(results_dir) if results_dir else base / "results"
-    suites: dict[str, list[dict]] = {"extraction": [], "cnae": []}
+    suites: dict[str, list[dict]] = {"extraction": [], "cnae": [], "e2e": []}
     if results.exists():
         for path in sorted(results.glob("*.json")):
             try:
