@@ -44,6 +44,12 @@ VALID_UFS = frozenset(
 
 VALID_PORTES = frozenset({"micro", "pequena", "media", "grande"})
 
+VALID_REGIMES = frozenset({"mei", "simples", "fora_simples"})
+
+# Limites do raio de busca por CEP (em km).
+RAIO_KM_MIN = 0.1
+RAIO_KM_MAX = 100.0
+
 
 class LeadFilters(BaseModel):
     """Filtros estruturados que o LLM preenche (saída estruturada do Gemini).
@@ -65,6 +71,14 @@ class LeadFilters(BaseModel):
     min_capital: float | None = Field(default=None, ge=0)
     portes: list[str] = Field(default_factory=list)
     include_mei: bool = False
+    # Rede: nº de estabelecimentos ATIVOS da empresa no país (matriz + filiais).
+    min_estabelecimentos: int | None = Field(default=None, ge=1)
+    regimes: list[str] = Field(default_factory=list)
+    # Nomes como escritos; a normalização para bairro_norm acontece na query.
+    bairros: list[str] = Field(default_factory=list)
+    cep_centro: str | None = None
+    raio_km: float | None = None
+    com_dominio_proprio: bool = False
     # ge=1 (e não gt=0): o schema do Vertex não aceita exclusiveMinimum.
     limit: int = Field(default=50, ge=1)
 
@@ -100,6 +114,48 @@ class LeadFilters(BaseModel):
         if invalid:
             raise ValueError(
                 f"Porte inválido: {invalid}. Valores permitidos: {sorted(VALID_PORTES)}."
+            )
+        return value
+
+    @field_validator("regimes", mode="before")
+    @classmethod
+    def _normalize_regimes(cls, value: object) -> object:
+        if isinstance(value, (list, tuple)):
+            return [strip_accents(str(r).strip().lower()) for r in value]
+        return value
+
+    @field_validator("regimes")
+    @classmethod
+    def _validate_regimes(cls, value: list[str]) -> list[str]:
+        invalid = [r for r in value if r not in VALID_REGIMES]
+        if invalid:
+            raise ValueError(
+                f"Regime inválido: {invalid}. Valores permitidos: {sorted(VALID_REGIMES)}."
+            )
+        return value
+
+    @field_validator("cep_centro")
+    @classmethod
+    def _normalize_cep(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if len(digits) != 8:
+            raise ValueError(
+                f"CEP inválido: {value!r}. Use 8 dígitos (ex.: 01310-100)."
+            )
+        return digits
+
+    @field_validator("raio_km")
+    @classmethod
+    def _validate_raio_km(cls, value: float | None) -> float | None:
+        # Limites no validador (e não em Field): o schema do Vertex não
+        # aceita exclusiveMinimum/exclusiveMaximum — mesma razão do limit.
+        if value is None:
+            return None
+        if not RAIO_KM_MIN <= value <= RAIO_KM_MAX:
+            raise ValueError(
+                f"raio_km fora dos limites: use entre {RAIO_KM_MIN} e {RAIO_KM_MAX} km."
             )
         return value
 

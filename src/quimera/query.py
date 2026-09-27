@@ -28,7 +28,7 @@ from functools import lru_cache
 from datetime import date
 from typing import Any
 
-from .filters import LeadFilters
+from .filters import VALID_REGIMES, LeadFilters
 from .policy import Policy
 from .score import ICPConfig
 from .text import normalize_name
@@ -144,7 +144,7 @@ COL_BAIRRO_NORM = "bairro_norm"
 COL_LATITUDE = "latitude"
 COL_LONGITUDE = "longitude"
 COL_DOMINIO_PROPRIO = "dominio_proprio"
-REGIMES = ("mei", "simples", "fora_simples")
+REGIMES = tuple(sorted(VALID_REGIMES))
 
 # Labels da tabela com a data do snapshot de origem — lidos sem custo.
 LABEL_SNAPSHOT = {"estabelecimentos": "snapshot_est", "empresas": "snapshot_emp"}

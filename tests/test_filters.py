@@ -65,6 +65,41 @@ class TestLeadFilters:
             LeadFilters(sql="SELECT 1")
 
 
+class TestSinaisOnda1:
+    def test_defaults_keep_current_behavior(self):
+        f = LeadFilters()
+        assert f.min_estabelecimentos is None
+        assert f.regimes == []
+        assert f.bairros == []
+        assert f.cep_centro is None and f.raio_km is None
+        assert f.com_dominio_proprio is False
+
+    def test_regimes_normalized_and_validated(self):
+        assert LeadFilters(regimes=["Simples", " fora_simples "]).regimes == [
+            "simples",
+            "fora_simples",
+        ]
+        with pytest.raises(ValidationError, match="Regime inválido"):
+            LeadFilters(regimes=["lucro_real"])
+
+    def test_cep_keeps_only_digits(self):
+        assert LeadFilters(cep_centro="01310-100").cep_centro == "01310100"
+
+    def test_invalid_cep_rejected(self):
+        with pytest.raises(ValidationError, match="CEP"):
+            LeadFilters(cep_centro="1234")
+
+    def test_raio_bounds(self):
+        with pytest.raises(ValidationError, match="raio"):
+            LeadFilters(raio_km=0)
+        with pytest.raises(ValidationError, match="raio"):
+            LeadFilters(raio_km=500)
+
+    def test_min_estabelecimentos_positive(self):
+        with pytest.raises(ValidationError):
+            LeadFilters(min_estabelecimentos=0)
+
+
 class TestExtractionResult:
     def test_refused_with_reason(self):
         result = ExtractionResult(refused=True, refusal_reason="pedido de dado pessoal")
