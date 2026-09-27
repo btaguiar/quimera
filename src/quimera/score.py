@@ -36,8 +36,8 @@ class ICPConfig:
     w_age: float = 30.0
     w_capital: float = 30.0
     porte_partial_factor: float = 0.4  # porte presente mas fora do alvo
-    # Sinais do próprio cadastro (Onda 1): peso 0 por padrão não muda o score;
-    # os motivos legíveis ficam para a Task 6.
+    # Sinais do próprio cadastro (Onda 1): peso 0 por padrão mantém o score e
+    # o ranking atuais; os motivos informam o dado mesmo sem peso.
     w_rede: float = 0.0
     w_dominio: float = 0.0
     target_min_estabelecimentos: int = 2
@@ -118,6 +118,28 @@ def score_lead(lead: Mapping[str, Any], icp: ICPConfig) -> tuple[float, list[str
             motivos.append(f"capital social de R$ {capital:,.0f} acima do alvo do ICP")
         else:
             motivos.append(f"capital social de R$ {capital:,.0f} abaixo do alvo do ICP")
+
+    n_estabelecimentos = lead.get("n_estabelecimentos")
+    if n_estabelecimentos is not None:
+        n_estabelecimentos = int(n_estabelecimentos)
+        # O motivo informa o fato (2+ unidades já é rede); os pontos seguem o
+        # target do ICP, como no _icp_ranking do query.py.
+        if n_estabelecimentos >= 2:
+            motivos.append(f"rede com {n_estabelecimentos} estabelecimentos ativos")
+        if n_estabelecimentos >= icp.target_min_estabelecimentos:
+            score += icp.w_rede
+
+    if lead.get("dominio_proprio"):
+        score += icp.w_dominio
+        motivos.append("e-mail em domínio próprio")
+
+    # Regime informa, não pontua (não há w_regime): "fora do Simples" não
+    # afirma faturamento — há empresas fora por escolha ou atividade vedada.
+    regime = str(lead.get("regime_tributario") or "").strip().lower()
+    if regime == "fora_simples":
+        motivos.append("fora do Simples Nacional")
+    elif regime == "simples":
+        motivos.append("optante do Simples Nacional")
 
     if _is_mei(lead):
         score *= icp.mei_factor

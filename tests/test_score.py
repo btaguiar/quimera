@@ -16,6 +16,7 @@ def _lead(**overrides):
         "porte": "demais",
         "data_inicio_atividade": (date.today() - timedelta(days=365 * 5)).isoformat(),
         "capital_social": 100_000.0,
+        "n_estabelecimentos": 1,
     }
     lead.update(overrides)
     return lead
@@ -101,6 +102,46 @@ class TestScoreLead:
         assert _age_years(lead, today) == 1
         lead = {"data_inicio_atividade": "2024-09-26"}
         assert _age_years(lead, today) == 2
+
+
+class TestScoreSinaisCadastro:
+    def test_default_icp_ignores_new_signals_in_score(self):
+        base, _ = score_lead(_lead(), _icp())
+        with_signals, motivos = score_lead(
+            _lead(n_estabelecimentos=12, dominio_proprio=True), _icp()
+        )
+        assert with_signals == base
+        assert "rede com 12 estabelecimentos ativos" in motivos
+        assert "e-mail em domínio próprio" in motivos
+
+    def test_weighted_rede_and_dominio(self):
+        icp = ICPConfig(w_porte=40, w_age=20, w_capital=20, w_rede=10, w_dominio=10)
+        score, _ = score_lead(_lead(n_estabelecimentos=3, dominio_proprio=True), icp)
+        assert score == 100.0
+
+    def test_single_establishment_has_no_rede_reason(self):
+        _, motivos = score_lead(_lead(n_estabelecimentos=1), _icp())
+        assert not any("rede" in m for m in motivos)
+
+    def test_regime_reason(self):
+        _, motivos = score_lead(_lead(regime_tributario="fora_simples"), _icp())
+        assert "fora do Simples Nacional" in motivos
+
+    def test_regime_simples_reason(self):
+        _, motivos = score_lead(_lead(regime_tributario="simples"), _icp())
+        assert "optante do Simples Nacional" in motivos
+
+    def test_rede_below_target_scores_no_points_but_informs(self):
+        icp = ICPConfig(
+            w_porte=40,
+            w_age=20,
+            w_capital=20,
+            w_rede=10,
+            target_min_estabelecimentos=5,
+        )
+        score, motivos = score_lead(_lead(n_estabelecimentos=3), icp)
+        assert score == 80.0
+        assert "rede com 3 estabelecimentos ativos" in motivos
 
 
 class TestICPConfigSinais:
