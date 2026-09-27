@@ -693,6 +693,61 @@ class TestTurnstileAuth:
         assert any("TURNSTILE" in msg or "API_TOKEN" in msg for msg in caplog.messages)
 
 
+class TestSingleUseTokenInvariant:
+    def test_schema_invalid_body_verifies_token_exactly_once(self):
+        calls = []
+
+        def verifier(token, secret, ip=None):
+            calls.append(token)
+            return True
+
+        client = TestClient(_ts_app(verifier))
+        resp = client.post("/leads", json={"request": "", "turnstile": "tok"})
+        assert resp.status_code == 422
+        assert calls == ["tok"]
+
+    def test_missing_token_never_calls_verifier(self):
+        calls = []
+
+        def verifier(token, secret, ip=None):
+            calls.append(token)
+            return True
+
+        client = TestClient(_ts_app(verifier))
+        resp = client.post("/leads", json={"request": "clínicas em SP"})
+        assert resp.status_code == 401
+        assert calls == []
+
+    def test_malformed_json_with_api_token_only_checks_auth_first(self):
+        client = TestClient(_app(api_token="segredo"))
+        resp = client.post(
+            "/leads",
+            content=b"{nao e json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 401
+        resp = client.post(
+            "/leads",
+            content=b"{nao e json",
+            headers={"Content-Type": "application/json", "X-Api-Token": "segredo"},
+        )
+        assert resp.status_code == 422
+
+    def test_oversized_token_never_reaches_verifier(self):
+        calls = []
+
+        def verifier(token, secret, ip=None):
+            calls.append(token)
+            return True
+
+        client = TestClient(_ts_app(verifier))
+        resp = client.post(
+            "/leads", json={"request": "clínicas em SP", "turnstile": "x" * 3000}
+        )
+        assert resp.status_code == 401
+        assert calls == []
+
+
 class TestConfigEndpoint:
     def test_config_exposes_turnstile_site_key(self):
         client = TestClient(_app(turnstile_site_key="chave-publica"))

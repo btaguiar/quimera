@@ -40,13 +40,14 @@ from .state import MemoryStateStore, StateStore
 logger = logging.getLogger("quimera.api")
 
 MAX_REQUEST_CHARS = 500
+MAX_TURNSTILE_TOKEN_CHARS = 2048
 
 
 class LeadsRequestBody(BaseModel):
     """Corpo de POST /leads: pedido em pt-BR e token opcional do Turnstile."""
 
     request: str = Field(min_length=1, max_length=MAX_REQUEST_CHARS)
-    turnstile: str | None = Field(default=None, max_length=2048)
+    turnstile: str | None = Field(default=None, max_length=MAX_TURNSTILE_TOKEN_CHARS)
 
 
 class ApiError(Exception):
@@ -78,7 +79,7 @@ def create_app(
     warmup: bool = False,
 ) -> FastAPI:
     config = config or ApiConfig.from_env()
-    if config.api_token is None:
+    if config.api_token is None and config.turnstile_secret_key is None:
         logger.warning("API_TOKEN não definido; checagem de token desabilitada")
     if config.api_token is None and config.turnstile_secret_key is None:
         logger.warning(
@@ -161,7 +162,11 @@ def create_app(
             return None
         if isinstance(body, dict):
             token = body.get("turnstile")
-            if isinstance(token, str) and token:
+            if (
+                isinstance(token, str)
+                and token
+                and len(token) <= MAX_TURNSTILE_TOKEN_CHARS
+            ):
                 return token
         return None
 
