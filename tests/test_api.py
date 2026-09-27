@@ -94,6 +94,17 @@ def _app(**overrides):
     )
 
 
+def _ts_app(verifier, **overrides):
+    extract, search, bq = _happy_clients()
+    return create_app(
+        config=_config(turnstile_secret_key="ts-secret", **overrides),
+        extract_client=extract,
+        cnae_search=search,
+        bq_client=bq,
+        turnstile_verify=verifier,
+    )
+
+
 class TestHealth:
     def test_health_reports_version_and_budget(self):
         client = TestClient(_app())
@@ -612,3 +623,84 @@ class TestWarmup:
         with TestClient(_app()) as client:
             client.get("/health")
         assert calls == []
+
+
+class TestTurnstileAuth:
+    def test_valid_turnstile_token_passes_without_api_token(self):
+        client = TestClient(_ts_app(lambda token, secret, ip=None: True))
+        resp = client.post(
+            "/leads", json={"request": "clínicas em SP", "turnstile": "tok"}
+        )
+        assert resp.status_code == 200
+        assert resp.json()["cached"] is False
+
+    def test_invalid_turnstile_returns_401(self):
+        client = TestClient(_ts_app(lambda token, secret, ip=None: False))
+        resp = client.post(
+            "/leads", json={"request": "clínicas em SP", "turnstile": "tok"}
+        )
+        assert resp.status_code == 401
+        assert resp.json()["error"] == "unauthorized"
+        assert "Turnstile" in resp.json()["reason"]
+
+    def test_missing_turnstile_returns_401_when_configured(self):
+        client = TestClient(_ts_app(lambda token, secret, ip=None: True))
+        resp = client.post("/leads", json={"request": "clínicas em SP"})
+        assert resp.status_code == 401
+
+    def test_api_token_still_passes_when_turnstile_is_configured(self):
+        client = TestClient(
+            _ts_app(lambda token, secret, ip=None: False, api_token="segredo")
+        )
+        resp = client.post(
+            "/leads",
+            json={"request": "clínicas em SP"},
+            headers={"X-Api-Token": "segredo"},
+        )
+        assert resp.status_code == 200
+
+    def test_verifier_receives_token_secret_and_client_ip(self):
+        chamadas = []
+
+        def verifier(token, secret, ip=None):
+            chamadas.append((token, secret, ip))
+            return True
+
+        client = TestClient(_ts_app(verifier))
+        client.post(
+            "/leads",
+            json={"request": "clínicas em SP", "turnstile": "tok-1"},
+            headers={"X-Forwarded-For": "1.2.3.4, 5.6.7.8"},
+        )
+        assert chamadas == [("tok-1", "ts-secret", "5.6.7.8")]
+
+    def test_malformed_body_json_with_turnstile_returns_401_not_500(self):
+        client = TestClient(_ts_app(lambda token, secret, ip=None: True))
+        resp = client.post(
+            "/leads",
+            content=b"{nao e json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 401
+
+    def test_no_auth_configured_still_open_with_warning(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="quimera.api"):
+            client = TestClient(_app(api_token=None))
+        resp = client.post("/leads", json={"request": "clínicas em SP"})
+        assert resp.status_code == 200
+        assert any("TURNSTILE" in msg or "API_TOKEN" in msg for msg in caplog.messages)
+
+
+class TestConfigEndpoint:
+    def test_config_exposes_turnstile_site_key(self):
+        client = TestClient(_app(turnstile_site_key="chave-publica"))
+        resp = client.get("/config")
+        assert resp.status_code == 200
+        assert resp.json() == {"turnstile_site_key": "chave-publica"}
+        assert resp.headers["cache-control"] == "no-store"
+
+    def test_config_site_key_none_when_unset(self):
+        resp = TestClient(_app()).get("/config")
+        assert resp.json() == {"turnstile_site_key": None}

@@ -1,4 +1,4 @@
-"""App FastAPI da demo pública: POST /leads, GET /health, GET /metrics.
+"""App FastAPI da demo pública: POST /leads, GET /health, GET /metrics, GET /config.
 
 A app é uma casca fina sobre ``quimera.pipeline.run`` com as proteções
 da spec da Fase 3: token, rate limit por IP, orçamento diário de bytes
@@ -23,6 +23,7 @@ from fastapi import Depends, FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from .. import __version__
 from ..extract import ExtractionError
@@ -42,7 +43,10 @@ MAX_REQUEST_CHARS = 500
 
 
 class LeadsRequestBody(BaseModel):
+    """Corpo de POST /leads: pedido em pt-BR e token opcional do Turnstile."""
+
     request: str = Field(min_length=1, max_length=MAX_REQUEST_CHARS)
+    turnstile: str | None = Field(default=None, max_length=2048)
 
 
 class ApiError(Exception):
@@ -70,11 +74,25 @@ def create_app(
     extract_client: Any | None = None,
     cnae_search: Any | None = None,
     bq_client: Any | None = None,
+    turnstile_verify: Any | None = None,
     warmup: bool = False,
 ) -> FastAPI:
     config = config or ApiConfig.from_env()
     if config.api_token is None:
         logger.warning("API_TOKEN não definido; checagem de token desabilitada")
+    if config.api_token is None and config.turnstile_secret_key is None:
+        logger.warning(
+            "nem API_TOKEN nem TURNSTILE_SECRET_KEY definidos; "
+            "checagem de autenticação desabilitada"
+        )
+
+    def _turnstile_verifier():
+        if turnstile_verify is not None:
+            return turnstile_verify
+        from .turnstile import verify as _verify
+
+        return _verify
+
     state = state or MemoryStateStore(config)
     policy = policy or resolve_policy()
 
@@ -90,6 +108,21 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(request: Request, exc: RequestValidationError):
+        # O decode do JSON do body ocorre antes das dependências (fastapi.routing);
+        # json_invalid é o único caso em que a auth ainda não rodou e precisa
+        # vencer o 422. Erros de schema chegam aqui só com auth já aprovada,
+        # então revalidar evitaria consumo duplo do token single-use.
+        if any(err.get("type") == "json_invalid" for err in exc.errors()):
+            try:
+                await _authenticate(
+                    request, x_api_token=request.headers.get("x-api-token")
+                )
+            except ApiError as auth_error:
+                return JSONResponse(
+                    status_code=auth_error.status_code,
+                    content={"error": auth_error.error, "reason": auth_error.reason},
+                    headers=auth_error.headers,
+                )
         return JSONResponse(
             status_code=422,
             content={
@@ -120,11 +153,42 @@ def create_app(
             },
         )
 
-    async def _require_token(x_api_token: str | None = Header(default=None)):
-        if not token_ok(x_api_token, config.api_token):
+    async def _body_turnstile_token(request: Request) -> str | None:
+        """Token do Turnstile do body, lido sem validar o body (auth antes)."""
+        try:
+            body = await request.json()
+        except Exception:
+            return None
+        if isinstance(body, dict):
+            token = body.get("turnstile")
+            if isinstance(token, str) and token:
+                return token
+        return None
+
+    async def _authenticate(
+        request: Request, x_api_token: str | None = Header(default=None)
+    ):
+        """X-Api-Token válido OU Turnstile válido; nada configurado libera (dev)."""
+        if config.api_token and token_ok(x_api_token, config.api_token):
+            return
+        if config.turnstile_secret_key:
+            token = await _body_turnstile_token(request)
+            if token:
+                ip = _client_ip(request)
+                ok = await run_in_threadpool(
+                    _turnstile_verifier(), token, config.turnstile_secret_key, ip
+                )
+                if ok:
+                    return
             raise ApiError(
-                401, "unauthorized", "token ausente ou inválido (X-Api-Token)"
+                401,
+                "unauthorized",
+                "verificação Turnstile falhou ou está ausente; "
+                "complete o desafio e tente de novo",
             )
+        if config.api_token is None:
+            return
+        raise ApiError(401, "unauthorized", "token ausente ou inválido (X-Api-Token)")
 
     def _client_ip(request: Request) -> str:
         """IP do cliente: último hop do X-Forwarded-For (o Cloud Run anexa o
@@ -175,6 +239,14 @@ def create_app(
     def metrics():
         return load_metrics()
 
+    @app.get("/config")
+    def front_config():
+        """Site key público do Turnstile para o front (não é segredo)."""
+        return JSONResponse(
+            {"turnstile_site_key": config.turnstile_site_key},
+            headers={"Cache-Control": "no-store"},
+        )
+
     def _run_pipeline(text: str, max_bytes_billed: int):
         from ..pipeline import run as run_pipeline
 
@@ -189,7 +261,7 @@ def create_app(
 
     @app.post(
         "/leads",
-        dependencies=[Depends(_require_token), Depends(_enforce_rate_limit)],
+        dependencies=[Depends(_authenticate), Depends(_enforce_rate_limit)],
     )
     def leads(body: LeadsRequestBody, request: Request):
         key = request_hash(normalize_request(body.request))
