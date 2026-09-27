@@ -312,7 +312,9 @@ def quality_checks_sql(table: str) -> str:
         f" OR {COL_N_ESTABELECIMENTOS} < 1) AS unidades_invalidas,\n"
         f"  COUNTIF({COL_LATITUDE} IS NOT NULL) AS com_coordenada,\n"
         f"  COUNTIF({COL_LATITUDE} NOT BETWEEN -34 AND 6"
-        f" OR {COL_LONGITUDE} NOT BETWEEN -74 AND -34) AS fora_do_brasil,\n"
+        # Limite leste -28 (não -34): inclui as ilhas atlânticas — Noronha
+        # ~-32,4, Trindade ~-29,3 — sem abrir mão da detecção de outliers.
+        f" OR {COL_LONGITUDE} NOT BETWEEN -74 AND -28) AS fora_do_brasil,\n"
         f"  COUNTIF({COL_DOMINIO_PROPRIO}) AS com_dominio_proprio\n"
         f"FROM `{table}`"
     )
@@ -439,6 +441,18 @@ class QualityCheckError(RuntimeError):
         super().__init__(f"Checagens de qualidade falharam: {failed}")
 
 
+class PostPromotionCheckError(RuntimeError):
+    """Checagem pós-promoção falhou — a tabela de leads JÁ FOI promovida."""
+
+    def __init__(self, checks: list[Check]):
+        self.checks = checks
+        failed = ", ".join(c.name for c in checks if not c.ok)
+        super().__init__(
+            f"Checagem pós-promoção falhou: {failed}. A tabela de leads já "
+            "foi promovida e permanece com este snapshot."
+        )
+
+
 def _run_ddl(sql: str, *, client: Any) -> None:
     from google.cloud import bigquery  # lazy import — extra ``gcp``
 
@@ -506,9 +520,12 @@ def build(
     client.delete_table(staging, not_found_ok=True)
 
     # ceps é auxiliar: grava só depois de promover a tabela de leads — um
-    # problema aqui não pode derrubar o produto principal.
+    # problema aqui não desfaz a promoção, mas interrompe com erro (o
+    # retorno 0 exige as duas tabelas boas).
     _run_ddl(build_ceps_sql(tables.ceps), client=client)
     checks.append(run_ceps_check(tables.ceps, client=client))
+    if not all(c.ok for c in checks):
+        raise PostPromotionCheckError(checks)
 
     if contatos:
         _run_ddl(build_contatos_sql(tables.contatos, snapshots), client=client)
@@ -556,6 +573,10 @@ def main(argv: list[str] | None = None) -> int:
             snapshots, checks = build(contatos=args.contatos)
         except QualityCheckError as exc:
             print(f"Build abortado: {exc}. A tabela final não foi alterada.")
+            _print_checks(exc.checks)
+            return 1
+        except PostPromotionCheckError as exc:
+            print(f"Build falhou após promover a tabela de leads: {exc}")
             _print_checks(exc.checks)
             return 1
         print(

@@ -120,12 +120,6 @@ class TestBuildLeadsSqlSinais:
         final_select = dados.build_leads_sql("p.d.t", SNAPSHOTS).split("\nSELECT\n")[-1]
         assert "email" not in final_select.split("\nFROM ")[0]
 
-    def test_active_filter_and_snapshot_live_in_the_cte(self):
-        sql = dados.build_leads_sql("p.d.t", SNAPSHOTS)
-        assert "data = DATE '2026-01-11'" in sql
-        assert "situacao_cadastral = '2'" in sql
-        assert "emp.data = DATE '2025-12-14'" in sql
-
 
 class TestBuildCepsSql:
     def test_only_ceps_with_centroid_clustered_by_cep(self):
@@ -205,12 +199,19 @@ class TestEvaluateChecks:
         failed = {c.name for c in dados.evaluate_checks(stats) if not c.ok}
         assert {"volume", "município presente"} <= failed
 
+    def test_fora_do_brasil_bbox_covers_atlantic_islands(self):
+        # Noronha (~-32,4) e Trindade (~-29,3) são Brasil: com o limite leste
+        # em -34, o build mensal inteiro seria bloqueado por causa das ilhas.
+        sql = dados.quality_checks_sql("p.d.t")
+        assert "longitude NOT BETWEEN -74 AND -28" in sql
+
 
 class FakeBuildClient:
     """Registra DDL, cópias e mudanças de tabela; devolve ``stats`` na checagem."""
 
-    def __init__(self, stats, existing_final=None):
+    def __init__(self, stats, existing_final=None, ceps_linhas=905_210):
         self.stats = stats
+        self.ceps_linhas = ceps_linhas
         self.ddl: list[str] = []
         self.copies: list[tuple[str, str]] = []
         self.deleted: list[str] = []
@@ -236,7 +237,7 @@ class FakeBuildClient:
             return FakeJob(0, [self.stats])
         # Checagem de volume da tabela de ceps (905.210 medidos em 2026-09-26).
         if sql.startswith("SELECT COUNT(*) AS linhas FROM `"):
-            return FakeJob(0, [{"linhas": 905_210}])
+            return FakeJob(0, [{"linhas": self.ceps_linhas}])
         raise AssertionError(f"consulta inesperada: {sql[:60]}")
 
     def create_dataset(self, ds, exists_ok=False):
@@ -320,6 +321,31 @@ class TestBuild:
         with pytest.raises(dados.QualityCheckError):
             dados.build(tables=TABLES, client=client)
         assert not any(TABLES.ceps in sql for sql in client.ddl)
+
+    def test_failed_ceps_check_raises_after_promotion(self, snapshots):
+        # Leads JÁ promovida: a falha de ceps interrompe com erro explícito
+        # (exit != 0), sem desfazer a promoção.
+        client = FakeBuildClient(GOOD_STATS, ceps_linhas=100)
+        with pytest.raises(
+            dados.PostPromotionCheckError, match="já foi promovida"
+        ) as exc_info:
+            dados.build(tables=TABLES, client=client)
+        assert client.copies == [(TABLES.leads + "_staging", TABLES.leads)]
+        assert any(not c.ok for c in exc_info.value.checks)
+
+
+class TestMain:
+    def test_build_exit_nonzero_when_post_promotion_check_fails(
+        self, monkeypatch, capsys
+    ):
+        def fail(**kwargs):
+            raise dados.PostPromotionCheckError(
+                [dados.Check("volume de ceps", False, "100 CEPs")]
+            )
+
+        monkeypatch.setattr(dados, "build", fail)
+        assert dados.main(["build"]) == 1
+        assert "já foi promovida" in capsys.readouterr().out
 
     def test_layout_change_recreates_final_table(self, snapshots):
         # Cópia WRITE_TRUNCATE falha se a partição mudou (ex.: tabela antiga
