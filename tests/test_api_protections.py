@@ -16,6 +16,8 @@ ENV_VARS = (
     "CACHE_TTL_S",
     "DAILY_BYTES_BUDGET",
     "REQUEST_TIMEOUT_S",
+    "TURNSTILE_SECRET_KEY",
+    "TURNSTILE_SITE_KEY",
 )
 
 
@@ -70,6 +72,27 @@ class TestApiConfigFromEnv:
     def test_empty_api_token_means_disabled(self, monkeypatch):
         monkeypatch.setenv("API_TOKEN", "")
         assert ApiConfig.from_env().api_token is None
+
+    def test_turnstile_defaults_to_disabled(self, monkeypatch):
+        for var in ENV_VARS:
+            monkeypatch.delenv(var, raising=False)
+        config = ApiConfig.from_env()
+        assert config.turnstile_secret_key is None
+        assert config.turnstile_site_key is None
+
+    def test_reads_turnstile_environment(self, monkeypatch):
+        monkeypatch.setenv("TURNSTILE_SECRET_KEY", "chave-secreta")
+        monkeypatch.setenv("TURNSTILE_SITE_KEY", "chave-publica")
+        config = ApiConfig.from_env()
+        assert config.turnstile_secret_key == "chave-secreta"
+        assert config.turnstile_site_key == "chave-publica"
+
+    def test_empty_turnstile_env_means_disabled(self, monkeypatch):
+        monkeypatch.setenv("TURNSTILE_SECRET_KEY", "")
+        monkeypatch.setenv("TURNSTILE_SITE_KEY", "")
+        config = ApiConfig.from_env()
+        assert config.turnstile_secret_key is None
+        assert config.turnstile_site_key is None
 
 
 class TestNormalizationMatchesPipeline:

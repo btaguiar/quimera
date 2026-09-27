@@ -48,6 +48,8 @@ class ApiConfig:
     cache_ttl_s: int
     daily_bytes_budget: int
     request_timeout_s: float
+    turnstile_secret_key: str | None = None
+    turnstile_site_key: str | None = None
 
     @classmethod
     def from_env(cls) -> "ApiConfig":
@@ -58,4 +60,6 @@ class ApiConfig:
             cache_ttl_s=int(os.environ.get("CACHE_TTL_S", "86400")),
             daily_bytes_budget=int(os.environ.get("DAILY_BYTES_BUDGET", str(10 * GIB))),
             request_timeout_s=float(os.environ.get("REQUEST_TIMEOUT_S", "60")),
+            turnstile_secret_key=os.environ.get("TURNSTILE_SECRET_KEY") or None,
+            turnstile_site_key=os.environ.get("TURNSTILE_SITE_KEY") or None,
         )
