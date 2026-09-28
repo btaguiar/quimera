@@ -200,6 +200,34 @@ class TestBuildQueryRanking:
         assert _param(spec, "icp_capital_min").value == 1e6
         assert _param(spec, "icp_fator_mei").value == 0.2
 
+    def test_band_params_follow_config(self):
+        import math
+
+        from quimera.score import ICPConfig
+
+        icp = ICPConfig(
+            target_min_age_years=3,
+            target_full_age_years=8,
+            target_min_capital=100_000.0,
+            target_max_capital=1_000_000.0,
+            capital_decay_decades=1.5,
+        )
+        spec = build_query(LeadFilters(), PUBLIC, tables=TABLES, icp=icp)
+        assert _param(spec, "icp_idade_faixa").value == 5
+        assert _param(spec, "icp_capital_max").value == 1_000_000.0
+        assert _param(spec, "icp_capital_faixa_log").value == math.log10(10)
+        assert _param(spec, "icp_capital_decaimento").value == 1.5
+
+    def test_ranking_uses_band_not_steps(self):
+        # Mesma conta de score.age_fraction/capital_fraction, em SQL.
+        sql = _build().sql
+        assert "FORMAT_DATE('%m%d', CURRENT_DATE())" in sql
+        assert (
+            "LOG10(t.capital_social / @icp_capital_min) / @icp_capital_faixa_log" in sql
+        )
+        assert "GREATEST(0, 1 - LOG10(t.capital_social / @icp_capital_max)" in sql
+        assert "@icp_w_idade * COALESCE(" in sql
+
     def test_default_icp_prefers_demais(self):
         assert _param(_build(), "icp_portes").value == ["5"]
 
@@ -285,7 +313,12 @@ class TestBuildQueryClauses:
             "t.data_inicio_atividade"
             " > DATE_SUB(CURRENT_DATE(), INTERVAL @max_age_years + 1 YEAR)"
         ) in spec.sql
-        assert "DATE_DIFF" not in spec.sql
+        # O ranking usa DATE_DIFF, mas sempre com a correção do aniversário.
+        correcao = (
+            "- IF(FORMAT_DATE('%m%d', CURRENT_DATE())"
+            " < FORMAT_DATE('%m%d', t.data_inicio_atividade), 1, 0)"
+        )
+        assert spec.sql.count("DATE_DIFF") == spec.sql.count(correcao) > 0
 
     def test_portes_translated_to_dataset_codes(self):
         spec = _build(LeadFilters(portes=["pequena", "micro"]))

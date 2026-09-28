@@ -473,17 +473,38 @@ def _icp_ranking(icp: ICPConfig) -> tuple[str, list[QueryParam]]:
     capital_informado = (
         f"t.{COL_CAPITAL_SOCIAL} > 0 AND t.{COL_CAPITAL_SOCIAL} < @capital_sentinela"
     )
+    inicio = f"t.{COL_DATA_INICIO_ATIVIDADE}"
+    # Anos completos, como score._age_years: só conta no aniversário.
+    idade = (
+        f"(DATE_DIFF(CURRENT_DATE(), {inicio}, YEAR)"
+        f" - IF(FORMAT_DATE('%m%d', CURRENT_DATE()) < FORMAT_DATE('%m%d', {inicio}),"
+        " 1, 0))"
+    )
+    fracao_idade = (
+        f"IF({idade} >= @icp_idade_min,"
+        " IF(@icp_idade_faixa > 0,"
+        f" 0.5 + 0.5 * LEAST(1, ({idade} - @icp_idade_min) / @icp_idade_faixa), 1),"
+        " 0)"
+    )
+    capital = f"t.{COL_CAPITAL_SOCIAL}"
+    fracao_capital = (
+        f"IF({capital_informado} AND {capital} >= @icp_capital_min,"
+        f" IF({capital} <= @icp_capital_max,"
+        " IF(@icp_capital_faixa_log > 0,"
+        f" 0.5 + 0.5 * LOG10({capital} / @icp_capital_min) / @icp_capital_faixa_log,"
+        " 1),"
+        f" GREATEST(0, 1 - LOG10({capital} / @icp_capital_max)"
+        " / @icp_capital_decaimento)),"
+        " 0)"
+    )
     score = (
         "(\n"
         f"    CASE WHEN t.{COL_PORTE} IN UNNEST(@icp_portes) THEN @icp_w_porte\n"
         f"      WHEN t.{COL_PORTE} IN UNNEST(@icp_portes_conhecidos)"
         " THEN @icp_w_porte * @icp_porte_parcial\n"
         "      ELSE 0 END\n"
-        f"    + IF(t.{COL_DATA_INICIO_ATIVIDADE}"
-        " <= DATE_SUB(CURRENT_DATE(), INTERVAL @icp_idade_min YEAR),"
-        " @icp_w_idade, 0)\n"
-        f"    + IF({capital_informado}"
-        f" AND t.{COL_CAPITAL_SOCIAL} >= @icp_capital_min, @icp_w_capital, 0)\n"
+        f"    + @icp_w_idade * COALESCE({fracao_idade}, 0)\n"
+        f"    + @icp_w_capital * {fracao_capital}\n"
         f"    + IF(t.{COL_N_ESTABELECIMENTOS} >= @icp_rede_min, @icp_w_rede, 0)\n"
         f"    + IF(t.{COL_DOMINIO_PROPRIO}, @icp_w_dominio, 0)\n"
         f"  ) * IF(t.{COL_OPCAO_MEI} = 1, @icp_fator_mei, 1)"
@@ -503,8 +524,12 @@ def _icp_ranking(icp: ICPConfig) -> tuple[str, list[QueryParam]]:
         QueryParam("icp_w_porte", "FLOAT64", icp.w_porte),
         QueryParam("icp_porte_parcial", "FLOAT64", icp.porte_partial_factor),
         QueryParam("icp_idade_min", "INT64", icp.target_min_age_years),
+        QueryParam("icp_idade_faixa", "INT64", icp.age_span),
         QueryParam("icp_w_idade", "FLOAT64", icp.w_age),
         QueryParam("icp_capital_min", "FLOAT64", icp.target_min_capital),
+        QueryParam("icp_capital_max", "FLOAT64", icp.target_max_capital),
+        QueryParam("icp_capital_faixa_log", "FLOAT64", icp.capital_log_span),
+        QueryParam("icp_capital_decaimento", "FLOAT64", icp.capital_decay_decades),
         QueryParam("icp_w_capital", "FLOAT64", icp.w_capital),
         QueryParam("icp_rede_min", "INT64", icp.target_min_estabelecimentos),
         QueryParam("icp_w_rede", "FLOAT64", icp.w_rede),

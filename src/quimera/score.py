@@ -1,11 +1,15 @@
 """Score transparente de leads contra um ICP configurável.
 
 Regras simples e explicáveis: cada ponto vem com um motivo legível em pt-BR.
-MEI tem peso reduzido (fator multiplicativo configurável).
+Idade e capital pontuam em faixa: sobem do mínimo até o pleno (idade) ou o
+teto (capital), e o capital volta a cair acima do teto — empresa grande demais
+não é o cliente ideal. MEI tem peso reduzido (fator multiplicativo).
+``query._icp_ranking`` repete a mesma conta em SQL para a ordem bater.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date
 from typing import Mapping, Any
@@ -30,7 +34,10 @@ class ICPConfig:
 
     preferred_portes: tuple[str, ...] = ("demais",)
     target_min_age_years: int = 2
+    target_full_age_years: int = 10  # idade com nota plena
     target_min_capital: float = 50_000.0
+    target_max_capital: float = 10_000_000.0  # acima disso a nota cai
+    capital_decay_decades: float = 2.0  # zera em 100x o teto
     mei_factor: float = 0.5  # peso reduzido para MEI
     w_porte: float = 40.0
     w_age: float = 30.0
@@ -41,6 +48,51 @@ class ICPConfig:
     w_rede: float = 0.0
     w_dominio: float = 0.0
     target_min_estabelecimentos: int = 2
+
+    def __post_init__(self) -> None:
+        if self.capital_decay_decades <= 0:
+            raise ValueError("capital_decay_decades precisa ser > 0")
+        if self.target_min_capital <= 0:
+            raise ValueError("target_min_capital precisa ser > 0")
+
+    @property
+    def age_span(self) -> int:
+        """Anos entre a idade mínima e a plena (0 = nota plena já no mínimo)."""
+        return max(self.target_full_age_years - self.target_min_age_years, 0)
+
+    @property
+    def capital_log_span(self) -> float:
+        """Décadas entre o capital mínimo e o teto (0 = nota plena já no mínimo)."""
+        if self.target_max_capital <= self.target_min_capital:
+            return 0.0
+        return math.log10(self.target_max_capital / self.target_min_capital)
+
+
+def _reais(valor: float) -> str:
+    return "R$ " + f"{valor:,.0f}".replace(",", ".")
+
+
+def age_fraction(idade: int | None, icp: ICPConfig) -> float:
+    """0 abaixo do mínimo; de 0,5 no mínimo a 1 na idade plena."""
+    if idade is None or idade < icp.target_min_age_years:
+        return 0.0
+    if icp.age_span == 0:
+        return 1.0
+    return 0.5 + 0.5 * min(1.0, (idade - icp.target_min_age_years) / icp.age_span)
+
+
+def capital_fraction(capital: float, icp: ICPConfig) -> float:
+    """0 abaixo do mínimo; de 0,5 no mínimo a 1 no teto (escala log); cai a 0
+    em ``capital_decay_decades`` décadas acima do teto. Capital já informado."""
+    if capital < icp.target_min_capital:
+        return 0.0
+    if capital <= icp.target_max_capital:
+        if icp.capital_log_span == 0:
+            return 1.0
+        subida = math.log10(capital / icp.target_min_capital) / icp.capital_log_span
+        return 0.5 + 0.5 * subida
+    excesso = math.log10(capital / icp.target_max_capital) / icp.capital_decay_decades
+    return max(0.0, 1.0 - excesso)
 
 
 def _normalize_porte(value: Any) -> str | None:
@@ -102,22 +154,43 @@ def score_lead(lead: Mapping[str, Any], icp: ICPConfig) -> tuple[float, list[str
         motivos.append(f"porte {porte} fora do alvo do ICP (pontuação parcial)")
 
     idade = _age_years(lead)
-    if idade is not None and idade >= icp.target_min_age_years:
-        score += icp.w_age
-        motivos.append(f"ativa há {idade} anos, dentro da faixa alvo do ICP")
-    elif idade is not None:
-        motivos.append(f"ativa há {idade} anos, abaixo da faixa alvo do ICP")
+    if idade is not None:
+        score += icp.w_age * age_fraction(idade, icp)
+        if idade < icp.target_min_age_years:
+            motivos.append(
+                f"ativa há {idade} anos, abaixo do mínimo do ICP "
+                f"({icp.target_min_age_years} anos)"
+            )
+        elif idade >= icp.target_full_age_years:
+            motivos.append(f"ativa há {idade} anos, maturidade plena para o ICP")
+        else:
+            motivos.append(
+                f"ativa há {idade} anos, na faixa do ICP "
+                f"(nota plena a partir de {icp.target_full_age_years})"
+            )
 
     capital = lead.get("capital_social")
     if capital is not None:
         capital = float(capital)
         if capital <= 0 or capital >= CAPITAL_SENTINELA:
             motivos.append("capital social não informado no cadastro")
-        elif capital >= icp.target_min_capital:
-            score += icp.w_capital
-            motivos.append(f"capital social de R$ {capital:,.0f} acima do alvo do ICP")
         else:
-            motivos.append(f"capital social de R$ {capital:,.0f} abaixo do alvo do ICP")
+            score += icp.w_capital * capital_fraction(capital, icp)
+            if capital < icp.target_min_capital:
+                motivos.append(
+                    f"capital social de {_reais(capital)} abaixo do mínimo do ICP "
+                    f"({_reais(icp.target_min_capital)})"
+                )
+            elif capital <= icp.target_max_capital:
+                motivos.append(
+                    f"capital social de {_reais(capital)} na faixa do ICP "
+                    f"({_reais(icp.target_min_capital)} a {_reais(icp.target_max_capital)})"
+                )
+            else:
+                motivos.append(
+                    f"capital social de {_reais(capital)} acima do teto do ICP "
+                    f"({_reais(icp.target_max_capital)}): grande demais, nota reduzida"
+                )
 
     n_estabelecimentos = lead.get("n_estabelecimentos")
     if n_estabelecimentos is not None:
