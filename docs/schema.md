@@ -314,7 +314,7 @@ ORDER BY queries cannot be partitioned"*. A solução ficou em dois passos:
 `build_leads_staging_sql` faz um segundo CTAS particionado e clusterizado
 por cima, com `SELECT * FROM <ordenada>`.
 
-### Custo por pedido (medido 2026-09-27, `probe_onda1_pedidos.py`)
+### Custo por pedido (medido 2026-09-27, `scripts/diagnostico/probe_onda1_pedidos.py`)
 
 | pedido | antes da Onda 1 | Onda 1 |
 |---|---|---|

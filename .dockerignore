@@ -9,9 +9,6 @@ __pycache__/
 tests/
 docs/
 scripts/
-smoke_real.py
-probe_*.py
-debug_snapshot.py
 eval/*.py
 eval/golden_*.jsonl
 eval/results/report.md

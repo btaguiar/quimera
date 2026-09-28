@@ -80,7 +80,7 @@ from .query import (
 )
 
 # Teto da materialização: o CTAS ordenado exige 13,17 GB hoje e 16,54 GB com os
-# sinais da Onda 1 (sonda sem custo, probe_build_onda1.py, 2026-09-26), mais a
+# sinais da Onda 1 (sonda sem custo, scripts/diagnostico/probe_build_onda1.py, 2026-09-26), mais a
 # passagem de ~6 GB da tabela ordenada para a staging (2026-09-27); 64 GiB dá
 # margem sem permitir leitura de vários snapshots (~132 GB por tabela sem
 # filtro de partição).

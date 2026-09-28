@@ -26,5 +26,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Worktrees
+# Worktrees e rascunhos locais
 .worktrees/
+.scratch/

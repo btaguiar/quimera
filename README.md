@@ -22,7 +22,7 @@ pedido (pt-BR)
                             └─► [score] 0-100 + motivos legíveis
 ```
 
-Decisões de projeto (detalhes na especificação `QUIMERA_SPEC.md`):
+Decisões de projeto (detalhes na especificação `docs/QUIMERA_SPEC.md`):
 
 - **O LLM nunca escreve SQL.** Ele só preenche o schema `LeadFilters`; a query é
   nossa, parametrizada.
@@ -123,6 +123,10 @@ público; `private` só no ambiente da Turno 24), `API_TOKEN`, `RATE_LIMIT_MAX`,
 pip install -e ".[dev,gcp]"
 python -m pytest              # testes unitários, sem chamar GCP
 ```
+
+`scripts/deploy.sh` faz o deploy (runbook em `docs/deploy.md`).
+`scripts/diagnostico/` guarda as sondas usadas nas medições de
+`docs/schema.md` (rodam contra o BigQuery real e têm custo).
 
 ## Avaliação
 
@@ -317,7 +321,7 @@ ponta a ponta depois das duas mudanças: casos 0,926 (igual), precisão 0,985
    demo mostra um snapshot cada vez mais velho.
 6. **Qualidade restante:** cota do Gemini (429, cauda p95 de 5–7 s; resolve
    com cota/capacidade no GCP) e o pedido genérico "empresas de TI".
-7. **Fase 5 — uso privado** na Turno 24 (`QUIMERA_SPEC.md`), e só depois a
+7. **Fase 5 — uso privado** na Turno 24 (`docs/QUIMERA_SPEC.md`), e só depois a
    Fase 4 opcional.
 
 Decisões aceitas por simplicidade, a revisitar só se virarem problema

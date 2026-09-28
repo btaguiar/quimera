@@ -4,6 +4,5 @@
 .impeccable/
 .pytest_cache/
 .ruff_cache/
-probe_*.py
-tmp_*.py
+.scratch/
 *.egg-info/
