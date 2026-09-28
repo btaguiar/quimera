@@ -273,7 +273,8 @@ GCP (cota/capacidade reservada), não no código.
         registro em `docs/deploy.md`)
   - [x] nota em faixa alvo: idade e capital graduais, capital acima de
         R$ 10 mi perde nota (2026-09-28; antes metade empatava em 100)
-  - [ ] re-deploy com a nota nova e a exigência de atividade
+  - [x] re-deploy com a nota nova e a exigência de atividade (2026-09-28,
+        revisão `quimera-demo-00007`)
   - [ ] abertura ao público (Turnstile real, `PUBLIC_ACCESS=true`, URL aqui)
   - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
 - [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
@@ -290,8 +291,8 @@ GCP (cota/capacidade reservada), não no código.
 
 ## Próximos passos
 
-Em ordem de prioridade. Os dois primeiros vêm antes da abertura ao público
-(item 3), porque são o que um visitante veria.
+Em ordem de prioridade. O primeiro vem antes da abertura ao público
+(item 2), porque é o que um visitante veria.
 
 Feitos em 2026-09-28: a nota em faixa alvo (antes metade das empresas
 empatava em 100 e uma operadora de R$ 207 mi aparecia em 1º num pedido de
@@ -300,28 +301,31 @@ de atividade no público (pedidos sem CNAE custavam 1,6–2,5 GB). Eval
 ponta a ponta depois das duas mudanças: casos 0,926 (igual), precisão 0,985
 (limiar 0,98).
 
-1. **Re-deploy** com essas duas mudanças: o serviço privado ainda roda a
-   imagem anterior.
-2. **O LLM inventa CEP.** No pedido "padarias num raio de 2 km do centro de
+Validado no serviço no ar (revisão `quimera-demo-00007`, 2026-09-28): no
+pedido de clínicas em Santo André, 17 notas distintas entre 50 empresas
+(antes 2) e a operadora de R$ 207 mi fora do top 50; "empresas em Santo
+André" volta o aviso sem consultar (0 bytes).
+
+1. **O LLM inventa CEP.** No pedido "padarias num raio de 2 km do centro de
    Curitiba", o Gemini devolveu o CEP 80000000 em 2 de 5 execuções; o
    pipeline não o encontra e o pedido volta vazio. O caso e2e_027 passava por
    sorte. Correção determinística: só aceitar CEP cujos dígitos estejam no
    próprio pedido, como já se faz com o CNAE (o LLM nunca inventa código).
-3. **Abrir ao público.** Criar o widget no Cloudflare para `*.run.app`,
+2. **Abrir ao público.** Criar o widget no Cloudflare para `*.run.app`,
    rodar `scripts/deploy.sh` com `PUBLIC_ACCESS=true` e as chaves reais (isso
    também remove as chaves de teste do Turnstile que estão ativas no serviço
    privado) e anotar a URL aqui. Fecha a Fase 3.
-4. **Repositório público e CI.** A definição de pronto da spec pede o repo
+3. **Repositório público e CI.** A definição de pronto da spec pede o repo
    público no GitHub e CI verde com o eval; hoje o repositório é só local, sem
    remoto. O CI precisa rodar `pytest`, o eval com os limiares (exige
    credencial GCP e custa ~US$ 0,02 por execução) e `gitleaks` — antes do
    primeiro push, para nenhum segredo entrar no histórico público.
-5. **Build mensal agendado.** Cloud Scheduler disparando um Cloud Run job com
+4. **Build mensal agendado.** Cloud Scheduler disparando um Cloud Run job com
    `python -m quimera.dados build`; sem isso a tabela própria envelhece e a
    demo mostra um snapshot cada vez mais velho.
-6. **Qualidade restante:** cota do Gemini (429, cauda p95 de 5–7 s; resolve
+5. **Qualidade restante:** cota do Gemini (429, cauda p95 de 5–7 s; resolve
    com cota/capacidade no GCP) e o pedido genérico "empresas de TI".
-7. **Fase 5 — uso privado** na Turno 24 (`docs/QUIMERA_SPEC.md`), e só depois a
+6. **Fase 5 — uso privado** na Turno 24 (`docs/QUIMERA_SPEC.md`), e só depois a
    Fase 4 opcional.
 
 Decisões aceitas por simplicidade, a revisitar só se virarem problema
