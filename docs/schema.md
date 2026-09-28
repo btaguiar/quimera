@@ -395,16 +395,41 @@ cobre esse caractere, enquanto `str.split()` do Python cobre. Efeito
 esperado só em nomes de bairro com esse artefato de codificação na fonte —
 não volta para a Task 2.
 
+### Pedidos sem CNAE: causa e decisão (2026-09-28)
+
+**A hipótese da reclusterização caiu.** Re-medido ~31 h depois do último
+build, nada mudou: "só UF SP" custou 2.466 MB (antes 2.585,8) e as consultas
+mínimas por `sigla_uf` ficaram em 106 / 44 / 37 MB (sem filtro / MG / RR;
+antes 111 / 46 / 39).
+
+**O desenho da tabela também não é o culpado.** A tabela tem 5,7 GB em 87
+partições (mediana 17,9 MB; 72 abaixo de 100 MB), o que sugeria trocar a
+partição por só clusterização. Testado em cópias descartáveis, com os 8
+pedidos da sonda da Onda 1 (mesmas linhas devolvidas nas três tabelas):
+
+| desenho | total dos 8 pedidos | só UF SP | varejo + UF | raio 3 km |
+|---|---|---|---|---|
+| **atual: partição `cnae_divisao` + cluster uf, mun, cnae** | **3.202 MB** | 2.466 | 236 | 168 |
+| só cluster uf, mun, cnae | 8.605 MB | 1.509 | 1.237 | 4.752 |
+| só cluster div, uf, mun, cnae | 4.289 MB | 3.031 | 316 | 221 |
+
+O desenho atual ganha em todos os pedidos com CNAE, que são a maioria. E o
+cluster por UF mostra a causa real: com UF na 1ª chave, "só UF SP" cai para
+~1,5 GB, a fatia de SP na tabela — a poda funciona, mas o pedido é caro por
+natureza. Sem atividade, o ranking do ICP precisa ler todas as empresas da
+região para escolher as 50 melhores. Na tabela atual, pedidos sem CNAE custam
+1,6–2,5 GB em qualquer escala (RR 1.639 MB, MG 1.936 MB, município de Santo
+André 2.259 MB, SP 2.466 MB), contra 30–250 MB com CNAE.
+
+**Decisão:** a policy pública exige atividade (`Policy.require_activity`).
+Pedido sem CNAE volta 200 sem consultar, com um aviso pedindo a atividade. O
+modo privado continua aceitando. Custo desses pedidos no público: zero.
+
 ### Pendências
 
-- **Poda por cluster fraca em pedidos sem filtro de CNAE** (acima) — não é
-  causada pelo SQL da Onda 1 (reproduz num build minimalista). Próximo
-  passo, sem custo: re-medir `WHERE sigla_uf='SP'` (sem CNAE) depois do
-  próximo build mensal, quando a tabela tiver mais tempo de maturação —
-  se a poda melhorar sozinha, confirma a hipótese de reclusterização em
-  segundo plano e não exige mudança de código. Se persistir, considerar
-  abandonar a partição por `cnae_divisao` em favor de só clusterização, ou
-  exigir CNAE (ou ao menos município) em pedidos públicos sem filtro de
+- ~~Poda por cluster fraca em pedidos sem filtro de CNAE~~ — **resolvido
+  pela policy** (acima): não era poda nem maturação da tabela, e sim o
+  pedido sem atividade, que varre a região inteira; o público agora exige
   atividade.
 - ~~`row_precision` do conjunto separado abaixo do limiar~~ — **corrigido**:
   `eval/thresholds.json` ganhou `e2e_holdout_row_precision` (0,92) e

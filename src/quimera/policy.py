@@ -21,16 +21,20 @@ class Policy:
     allow_pessoa_fisica: bool = False
     contact_fields: tuple[str, ...] = field(default=())
     max_rows: int = 50
+    # Sem CNAE o ranking lê todas as empresas da região: 1,6–2,5 GB por pedido
+    # em qualquer UF ou município (docs/schema.md), contra 30–250 MB com CNAE.
+    require_activity: bool = False
 
 
 # Deploy público (portfólio): sem MEI, sem pessoa física, sem qualquer campo
-# de contato/pessoa.
+# de contato/pessoa, e só pedidos com atividade.
 PUBLIC = Policy(
     name="public",
     allow_mei=False,
     allow_pessoa_fisica=False,
     contact_fields=(),
     max_rows=50,
+    require_activity=True,
 )
 
 # Deploy privado (Turno 24): MEI conforme filtros e contato do estabelecimento.

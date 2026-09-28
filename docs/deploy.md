@@ -118,7 +118,7 @@ Billing > Budgets & alerts > Create budget (projeto `quimera-leads`,
 | Item | Medida | Fonte |
 |---|---|---|
 | Pedido típico (com CNAE) | 33–250 MB lidos; p50 ~110 MB | `docs/schema.md`, `eval/results/` |
-| Pedido sem CNAE | pode passar de 2 GB (poda de cluster fraca, ainda aberta) | `docs/schema.md` |
+| Pedido sem atividade (sem CNAE) | 1,6–2,5 GB se executado; no público não executa (`require_activity`) — custo 0 | `docs/schema.md` |
 | Latência por pedido | p50 ~3,7 s; p95 ~5–7 s (cauda = cota Gemini 429) | README, `eval/results/` |
 | Teto por consulta | `MAX_BYTES_BILLED=5368709120` (5 GB) — acima disso, recusa | `deploy.sh` |
 | Orçamento diário | `DAILY_BYTES_BUDGET=10737418240` (10 GB) — esgotado, entra em modo cache | `deploy.sh` |

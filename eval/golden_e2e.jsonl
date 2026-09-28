@@ -25,3 +25,4 @@
 {"id": "e2e_025", "request": "clínicas médicas em Campinas com site próprio", "expect": {"uf": ["SP"], "municipio": ["Campinas"], "cnae": ["8630-5/01", "8630-5/02", "8630-5/03"], "com_dominio_proprio": true}}
 {"id": "e2e_026", "request": "lojas de material de construção em Goiânia fora do Simples", "expect": {"uf": ["GO"], "municipio": ["Goiânia"], "cnae": ["4744-0/01", "4744-0/05", "4744-0/99"], "regimes": ["fora_simples"]}}
 {"id": "e2e_027", "request": "padarias num raio de 2 km do centro de Curitiba", "expect": {"uf": ["PR"], "municipio": ["Curitiba"], "cnae": ["1091-1/02", "4721-1/02"], "warning": "CEP de referência"}}
+{"id": "e2e_028", "request": "empresas em Santo André, SP", "expect": {"empty": true, "warning": "Informe a atividade"}}

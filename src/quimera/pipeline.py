@@ -252,6 +252,13 @@ def run(
         return _early_stop(
             f"nenhum CNAE para {filters.cnae_query!r}; consulta não executada"
         )
+    if policy.require_activity and not filters.cnae_codes:
+        warnings.append(
+            "Informe a atividade das empresas (ex.: 'padarias em Santo André'): "
+            "sem atividade, a consulta varreria todas as empresas da região e "
+            "não é executada nesta demo."
+        )
+        return _early_stop("pedido sem atividade na policy; consulta não executada")
     if PORTE_LABELS_DEMAIS.intersection(filters.portes):
         warnings.append(
             "O cadastro não distingue porte médio de grande: ambos vêm do porte "

@@ -19,6 +19,10 @@ class TestPolicies:
 
 
 class TestApplyPolicy:
+    def test_only_public_requires_activity(self):
+        assert PUBLIC.require_activity is True
+        assert PRIVATE.require_activity is False
+
     def test_public_cuts_limit_above_max_rows(self):
         filters = apply_policy(LeadFilters(limit=500), PUBLIC)
         assert filters.limit == 50

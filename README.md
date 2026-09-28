@@ -39,9 +39,16 @@ Decisões de projeto (detalhes na especificação `QUIMERA_SPEC.md`):
   sinais do próprio cadastro — rede (nº de unidades ativas), regime
   tributário, bairro, coordenada por CEP e domínio de e-mail próprio, sem
   expor e-mail nem CEP — e checagens de qualidade antes de substituir a
-  versão em uso. Um pedido com CNAE filtrado custa 33–250 MB; sem CNAE, a
-  poda por clusterização ainda está fraca e pode passar de 2 GB — investigado
-  e ainda não corrigido, ver `docs/schema.md`.
+  versão em uso. Um pedido com CNAE filtrado custa 33–250 MB. Sem atividade,
+  o ranking precisa ler todas as empresas da região (1,6–2,5 GB em qualquer
+  UF ou município), então a demo pública exige atividade no pedido
+  (`Policy.require_activity`; medição e alternativas testadas em
+  `docs/schema.md`).
+- **Nota em faixa, não em degraus:** idade e capital pontuam gradualmente
+  (idade de 2 a 10 anos; capital de R$ 50 mil a R$ 10 mi em escala log), e o
+  capital perde nota acima do teto — empresa grande demais não é o cliente
+  ideal. O SQL ordena pela mesma conta (`query._icp_ranking`), então a ordem
+  do laudo é a da nota.
 - **Filtros do cadastro, extraídos do pedido em português:** UF, município,
   bairro (com o município), raio a partir de um CEP, idade, capital social,
   porte, rede (nº mínimo de unidades), regime tributário (Simples, fora do
@@ -125,7 +132,16 @@ python -m eval.run_eval --suite e2e                   # só ponta a ponta (~2 mi
 python -m eval.report                                 # relatório Markdown em eval/results/
 ```
 
-- `eval/golden_e2e.jsonl` — 27 pedidos rodados no pipeline inteiro; cada
+Se o eval ou a CLI ficarem parados sem saída, confira o IPv6 da máquina: numa
+rede que resolve IPv6 mas não roteia, a chamada ao Gemini fica presa em
+`socket.create_connection` (sem timeout) tentando os endereços IPv6 do Vertex
+antes dos IPv4. Medido nesta máquina em 2026-09-28: IPv6 dá timeout, IPv4
+conecta em 0,02 s. Corrija o IPv6 (ou dê preferência a IPv4 no Windows); no
+Cloud Run não acontece.
+
+- `eval/golden_e2e.jsonl` — 28 pedidos rodados no pipeline inteiro (o 28º,
+  pedido sem atividade que a policy pública não executa, entrou em
+  2026-09-28 e passou; as tabelas abaixo medem os 27 anteriores); cada
   empresa devolvida é conferida (UF, município, CNAE, idade, capital, porte,
   rede, regime, bairro, raio, domínio próprio) e todo resultado público checa
   as invariantes (sem pessoa física nem empresário individual, sem contato
@@ -237,9 +253,9 @@ GCP (cota/capacidade reservada), não no código.
 - [x] Onda 1 — sinais do próprio cadastro: rede, regime tributário, bairro,
       raio por CEP e domínio próprio (`docs/schema.md`; plano em
       `docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md`)
-  - [ ] poda de cluster fraca em pedidos sem CNAE (investigada, causa
-        isolada fora do SQL da Onda 1; provável reclusterização do
-        BigQuery ainda não rodada — `docs/schema.md`)
+  - [x] pedidos sem CNAE caros (1,6–2,5 GB): não era poda nem maturação da
+        tabela, e sim o pedido sem atividade; o público agora exige
+        atividade (2026-09-28, `docs/schema.md`)
 - [x] Fase 1 — núcleo (`filters`, `policy`, `cnae`, `extract`, `query`, `score`, `pipeline`, CLI) + testes
 - [x] Fase 2 — infraestrutura de avaliação (`eval/`: golden sets, métricas, limiares, relatório)
 - [x] Primeira medição real (extraction + CNAE) e baseline de recall@5 (0,742)
@@ -251,7 +267,9 @@ GCP (cota/capacidade reservada), não no código.
   - [x] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
   - [x] deploy real em modo privado + aceite da spec (2026-09-27;
         registro em `docs/deploy.md`)
-  - [ ] ranking que diferencie as empresas (hoje metade empata em 100)
+  - [x] nota em faixa alvo: idade e capital graduais, capital acima de
+        R$ 10 mi perde nota (2026-09-28; antes metade empatava em 100)
+  - [ ] re-deploy com a nota nova e a exigência de atividade
   - [ ] abertura ao público (Turnstile real, `PUBLIC_ACCESS=true`, URL aqui)
   - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
 - [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
@@ -268,21 +286,23 @@ GCP (cota/capacidade reservada), não no código.
 
 ## Próximos passos
 
-Em ordem de prioridade. Os três primeiros vêm antes da abertura ao público,
-porque são o que um visitante veria ou o que derrubaria a demo.
+Em ordem de prioridade. Os dois primeiros vêm antes da abertura ao público
+(item 3), porque são o que um visitante veria.
 
-1. **Ranking que diferencie as empresas.** No pedido de clínicas em Santo
-   André, as 50 empresas devolvidas têm só duas notas: 25 com 100 e 25 com
-   76. Uma operadora de plano odontológico com R$ 207 mi de capital empata em
-   100 com uma clínica de R$ 850 mil, embora os próprios motivos digam
-   "capital acima do alvo do ICP". Em Curitiba e Belo Horizonte o top 5
-   inteiro também empatou. Investigar o cálculo em `score` (teto de 100?
-   estar acima do alvo não penaliza?) e medir com o eval antes de mudar.
-2. **Poda de cluster em pedidos sem CNAE.** Um pedido assim pode passar de
-   2 GB; com o orçamento diário de 10 GB, poucos deles põem a demo inteira em
-   modo cache. Em público isso é disponibilidade, não só custo. A causa já
-   foi isolada fora do SQL (`docs/schema.md`); falta testar a
-   reclusterização da tabela própria.
+Feitos em 2026-09-28: a nota em faixa alvo (antes metade das empresas
+empatava em 100 e uma operadora de R$ 207 mi aparecia em 1º num pedido de
+clínicas; agora fica com 69, abaixo das clínicas estabelecidas) e a exigência
+de atividade no público (pedidos sem CNAE custavam 1,6–2,5 GB). Eval
+ponta a ponta depois das duas mudanças: casos 0,926 (igual), precisão 0,985
+(limiar 0,98).
+
+1. **Re-deploy** com essas duas mudanças: o serviço privado ainda roda a
+   imagem anterior.
+2. **O LLM inventa CEP.** No pedido "padarias num raio de 2 km do centro de
+   Curitiba", o Gemini devolveu o CEP 80000000 em 2 de 5 execuções; o
+   pipeline não o encontra e o pedido volta vazio. O caso e2e_027 passava por
+   sorte. Correção determinística: só aceitar CEP cujos dígitos estejam no
+   próprio pedido, como já se faz com o CNAE (o LLM nunca inventa código).
 3. **Abrir ao público.** Criar o widget no Cloudflare para `*.run.app`,
    rodar `scripts/deploy.sh` com `PUBLIC_ACCESS=true` e as chaves reais (isso
    também remove as chaves de teste do Turnstile que estão ativas no serviço

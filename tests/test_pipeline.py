@@ -28,6 +28,11 @@ def _cnae_search_recorder(results):
     return search
 
 
+def _uma_atividade():
+    """Busca de CNAE falsa: a policy pública só consulta com atividade."""
+    return _cnae_search_recorder([("8630-5/04", "Atividade odontológica", 0.9)])
+
+
 def _run(bq, policy=PUBLIC, **filters):
     """Executa o pipeline com extração fixa nos ``filters`` e CNAE resolvido."""
     extract = FakeGenaiClient(_extraction_payload(**filters))
@@ -196,14 +201,22 @@ class TestOptionalSteps:
     def test_unresolved_municipality_does_not_broaden_search(self):
         # Rodar sem o filtro devolveria empresas de qualquer lugar como se
         # fossem de "Narnia": sem município resolvido, nada é consultado.
-        extract = FakeGenaiClient(_extraction_payload(municipio_names=["Narnia"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", municipio_names=["Narnia"])
+        )
         bq = FakePipelineBQ(
             municipio_rows=[
                 {"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}
             ],
             lead_rows=LEAD_ROWS,
         )
-        result = run("empresas em Narnia", PUBLIC, extract_client=extract, bq_client=bq)
+        result = run(
+            "empresas em Narnia",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=bq,
+        )
         assert result.municipio_resolution == {}
         assert result.rows == []
         assert bq.executed == []
@@ -211,7 +224,9 @@ class TestOptionalSteps:
 
     def test_partially_resolved_municipalities_warn_and_query(self):
         extract = FakeGenaiClient(
-            _extraction_payload(municipio_names=["Campinas", "Narnia"])
+            _extraction_payload(
+                cnae_query="dentistas", municipio_names=["Campinas", "Narnia"]
+            )
         )
         bq = FakePipelineBQ(
             municipio_rows=[
@@ -219,13 +234,21 @@ class TestOptionalSteps:
             ],
             lead_rows=[],
         )
-        result = run("empresas", PUBLIC, extract_client=extract, bq_client=bq)
+        result = run(
+            "empresas",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=bq,
+        )
         assert result.filters.municipio_ids == ["3509502"]
         assert any("Narnia" in w for w in result.warnings)
         assert len(bq.executed) == 1
 
     def test_homonym_without_uf_includes_all_and_warns(self):
-        extract = FakeGenaiClient(_extraction_payload(municipio_names=["Santo André"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", municipio_names=["Santo André"])
+        )
         bq = FakePipelineBQ(
             municipio_rows=[
                 {"nome": "Santo André", "sigla_uf": "SP", "id_municipio": "3547807"},
@@ -233,14 +256,28 @@ class TestOptionalSteps:
             ],
             lead_rows=[],
         )
-        result = run("empresas", PUBLIC, extract_client=extract, bq_client=bq)
+        result = run(
+            "empresas",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=bq,
+        )
         assert sorted(result.filters.municipio_ids) == ["2513851", "3547807"]
         assert any("Informe a UF" in w for w in result.warnings)
 
     def test_media_or_grande_porte_warns_about_dataset_limit(self):
-        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"], portes=["media"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", ufs=["SP"], portes=["media"])
+        )
         bq = FakePipelineBQ(lead_rows=[])
-        result = run("empresas médias", PUBLIC, extract_client=extract, bq_client=bq)
+        result = run(
+            "empresas médias",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=bq,
+        )
         assert any("médio de grande" in w for w in result.warnings)
 
     def test_private_flow_keeps_contact_columns(self):
@@ -274,6 +311,24 @@ class TestCnaeStep:
         assert result.rows == []
         assert bq.executed == []
         assert any("naves espaciais" in w for w in result.warnings)
+
+    def test_public_request_without_activity_does_not_query(self):
+        # Sem CNAE o ranking lê todas as empresas da região (1,6–2,5 GB).
+        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = run("empresas em SP", PUBLIC, extract_client=extract, bq_client=bq)
+        assert result.refused is False
+        assert result.rows == []
+        assert bq.executed == []
+        assert result.query_sql == ""
+        assert any("Informe a atividade" in w for w in result.warnings)
+
+    def test_private_request_without_activity_still_queries(self):
+        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        result = run("empresas em SP", PRIVATE, extract_client=extract, bq_client=bq)
+        assert bq.executed
+        assert not any("Informe a atividade" in w for w in result.warnings)
 
     def test_default_search_selects_among_candidates(self, monkeypatch):
         from quimera import cnae, pipeline
@@ -316,13 +371,16 @@ class TestCnaeSelectionFallback:
 
 class TestCostGuard:
     def test_bytes_budget_exceeded_propagates(self):
-        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", ufs=["SP"])
+        )
         bq = FakePipelineBQ(lead_rows=[], dry_run_bytes=10 * 1024**3)
         with pytest.raises(BytesBudgetExceededError):
             run(
                 "empresas em SP",
                 PUBLIC,
                 extract_client=extract,
+                cnae_search=_uma_atividade(),
                 bq_client=bq,
                 max_bytes_billed=1024,
             )
@@ -331,13 +389,21 @@ class TestCostGuard:
 
 class TestResultSerialization:
     def test_to_dict_is_json_serializable(self):
-        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", ufs=["SP"])
+        )
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
-        result = run("empresas em SP", PUBLIC, extract_client=extract, bq_client=bq)
+        result = run(
+            "empresas em SP",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=bq,
+        )
         data = json.loads(json.dumps(result.to_dict(), ensure_ascii=False))
         assert data["refused"] is False
         assert data["filters"]["ufs"] == ["SP"]
-        assert data["cnae_matches"] == []
+        assert data["cnae_matches"] == [["8630-5/04", "Atividade odontológica", 0.9]]
         assert data["rows"][0]["score"] >= data["rows"][1]["score"]
         assert "request_normalized" in data
         assert data["snapshot"]["empresas"] == "2026-07-12"
@@ -487,9 +553,17 @@ class TestSinaisOnda1:
 
 class TestQuerySql:
     def test_to_dict_exposes_parameterized_sql_of_last_query(self):
-        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", ufs=["SP"])
+        )
         bq = FakePipelineBQ()
-        result = run("empresas em SP", PUBLIC, extract_client=extract, bq_client=bq)
+        result = run(
+            "empresas em SP",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=bq,
+        )
         assert bq.executed, "a query deveria ter rodado"
         assert result.query_sql == bq.executed[0][0]
         assert "@ufs" in result.query_sql

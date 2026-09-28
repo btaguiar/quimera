@@ -486,7 +486,9 @@ class TestTimeout:
 
 class TestPipelineErrors:
     def test_bytes_ceiling_exceeded_returns_503(self):
-        extract = FakeGenaiClient(_extraction_payload(ufs=["SP"]))
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="dentistas", ufs=["SP"])
+        )
         bq = FakePipelineBQ(lead_rows=[], dry_run_bytes=10 * 1024**3)
         app = create_app(
             config=_config(),
