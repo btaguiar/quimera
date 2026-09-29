@@ -32,6 +32,24 @@ const rows: LeadRow[] = [
 ];
 
 describe("RankingTable", () => {
+  it("capital 0 e o sentinela da Receita aparecem como não informado, não como zero", () => {
+    render(
+      <RankingTable
+        rows={[
+          { ...rows[0], razao_social: "SEM CAPITAL", capital_social: 0 },
+          { ...rows[1], razao_social: "SENTINELA", capital_social: 999_999_999_999 },
+        ]}
+      />,
+    );
+    const corpo = screen.getAllByRole("rowgroup")[1];
+    const linhas = within(corpo).getAllByRole("row");
+    for (const linha of linhas) {
+      expect(linha).toHaveTextContent(/não informado/i);
+      expect(linha).not.toHaveTextContent(/999\.999/);
+    }
+    expect(within(linhas[0]).queryByText(/^0$/)).not.toBeInTheDocument();
+  });
+
   it("ordena como chega (a ordem é a da nota) e mostra score em mono", () => {
     render(<RankingTable rows={rows} />);
     const corpo = screen.getAllByRole("rowgroup")[1];

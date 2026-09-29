@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtBytes, fmtData, fmtDataHora, fmtMs, fmtNumOrDash, fmtPct, fmtUSD } from "@/lib/format";
+import { fmtBytes, fmtCapital, fmtData, fmtDataHora, fmtMs, fmtNumOrDash, fmtPct, fmtUSD } from "@/lib/format";
 
 describe("fmtBytes", () => {
   it("formata MB com uma casa", () => {
@@ -72,5 +72,19 @@ describe("fmtDataHora", () => {
   it("inválido ou ausente vira travessão", () => {
     expect(fmtDataHora("ontem")).toBe("—");
     expect(fmtDataHora(null)).toBe("—");
+  });
+});
+
+describe("fmtCapital", () => {
+  it("formata capital informado", () => {
+    expect(fmtCapital(100000)).toBe("100.000");
+  });
+  it("0, negativo e o sentinela 999.999.999.999 são 'não informado' (docs/schema.md)", () => {
+    expect(fmtCapital(0)).toBe("não informado");
+    expect(fmtCapital(-5)).toBe("não informado");
+    expect(fmtCapital(999_999_999_999)).toBe("não informado");
+  });
+  it("ausente vira travessão", () => {
+    expect(fmtCapital(null)).toBe("—");
   });
 });

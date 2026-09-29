@@ -47,3 +47,13 @@ export function fmtDataHora(iso: string | null | undefined): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
 }
+
+/** Capital 0 (ou negativo) e o sentinela 999.999.999.999 significam "não
+ * informado" no cadastro da Receita (docs/schema.md), não capital zero. */
+export const CAPITAL_SENTINELA = 999_999_999_999;
+
+export function fmtCapital(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (v <= 0 || v >= CAPITAL_SENTINELA) return "não informado";
+  return fmtNum.format(v);
+}

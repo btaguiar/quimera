@@ -1,5 +1,5 @@
 import type { LeadRow } from "@/lib/types";
-import { fmtData, fmtNumOrDash } from "@/lib/format";
+import { fmtCapital, fmtData, fmtNumOrDash } from "@/lib/format";
 
 export function RankingTable({ rows, perfil }: { rows: LeadRow[]; perfil?: string | null }) {
   if (!rows.length) {
@@ -46,7 +46,7 @@ export function RankingTable({ rows, perfil }: { rows: LeadRow[]; perfil?: strin
                 </td>
                 <td className="py-3 pr-3 font-mono text-xs">{r.cnae_fiscal_principal ?? "—"}</td>
                 <td className="py-3 pr-3 font-mono text-xs">{fmtData(r.data_inicio_atividade)}</td>
-                <td className="py-3 pr-3 text-right font-mono">{fmtNumOrDash(r.capital_social)}</td>
+                <td className="py-3 pr-3 text-right font-mono">{fmtCapital(r.capital_social)}</td>
                 <td className="py-3 pr-3">{r.porte ?? "—"}</td>
                 <td className="py-3 pr-3 text-right">
                   {r.score == null ? (
