@@ -30,8 +30,10 @@ export function RequestForm({
   }
 
   function applyDraft(next: string) {
-    setDraft(next);
-    onChange(next);
+    setLocalError(null);
+    const clamped = next.slice(0, 500);
+    setDraft(clamped);
+    onChange(clamped);
   }
 
   function handleSubmit(event: FormEvent) {
@@ -59,10 +61,11 @@ export function RequestForm({
         onChange={(e) => applyDraft(e.target.value)}
         placeholder="ex.: clínicas odontológicas em Santo André abertas há mais de 2 anos"
         className="mt-2 border-input bg-card"
-        aria-describedby="contador"
+        aria-describedby="contador pedido-erro"
+        aria-invalid={!!localError}
       />
       <p id="contador" className="mt-1 text-right font-mono text-xs text-muted-foreground">
-        {value.length}/500
+        {draft.length}/500
       </p>
       <div className="mt-3">
         <ExampleChips examples={examples} onPick={applyDraft} />
@@ -75,7 +78,7 @@ export function RequestForm({
       >
         {loading ? "Analisando…" : "Analisar"}
       </Button>
-      <p role="status" aria-live="polite" className="mt-3 min-h-6 font-mono text-sm text-muted-foreground">
+      <p id="pedido-erro" role="status" aria-live="polite" className="mt-3 min-h-6 font-mono text-sm text-muted-foreground">
         {localError ?? ""}
       </p>
     </form>

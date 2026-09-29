@@ -24,7 +24,7 @@ function renderForm(overrides: Partial<ComponentProps<typeof RequestForm>> = {})
 }
 
 describe("RequestForm", () => {
-  it("mostra contador 0/500 e envia o pedido", async () => {
+  it("digitar acumula no onChange e envia o pedido", async () => {
     const user = userEvent.setup();
     const { onChange, onSubmit } = renderForm();
     const textarea = screen.getByLabelText(/pedido/i);
@@ -32,6 +32,34 @@ describe("RequestForm", () => {
     expect(onChange).toHaveBeenLastCalledWith("padarias");
     await user.click(screen.getByRole("button", { name: /analisar/i }));
     expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).toHaveBeenCalledWith("padarias");
+  });
+
+  it("contador acompanha o texto digitado", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const textarea = screen.getByLabelText(/pedido/i);
+    await user.type(textarea, "padarias");
+    expect(textarea).toHaveValue("padarias");
+    expect(screen.getByText("8/500")).toBeInTheDocument();
+  });
+
+  it("chips longos são aparados no limite de 500", async () => {
+    const user = userEvent.setup();
+    const longo = "x".repeat(520);
+    renderForm({ examples: [longo] });
+    await user.click(screen.getByRole("button", { name: longo }));
+    expect(screen.getByText("500/500")).toBeInTheDocument();
+  });
+
+  it("limpa o erro ao digitar e marca o campo como inválido", async () => {
+    const user = userEvent.setup();
+    renderForm({ value: "  " });
+    await user.click(screen.getByRole("button", { name: /analisar/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/escreva um pedido/i);
+    expect(screen.getByLabelText(/pedido/i)).toHaveAttribute("aria-invalid", "true");
+    await user.type(screen.getByLabelText(/pedido/i), "x");
+    expect(screen.queryByText(/escreva um pedido/i)).not.toBeInTheDocument();
   });
 
   it("chips de exemplo preenchem o textarea", async () => {
