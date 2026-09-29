@@ -8,11 +8,16 @@ web
 
 ## Users
 
+Produto primeiro, com transparência técnica para o avaliador.
+[confirmado em entrevista 2026-09-29]
+
+- Compradores de prospecção B2B (SDRs, agências, fornecedores, SaaS B2B) que
+  querem uma lista de empresas a partir de uma frase em português. A página
+  precisa parecer produto e levá-los a testar a demo.
 - Avaliadores técnicos do portfólio de AI Engineer do Bruno (recrutadores e
-  engenheiros seniores) chegando pelo GitHub/README, com poucos minutos e
-  ceticismo saudável. [confirmado em entrevista 2026-09-26]
-- Potenciais usuários de prospecção: quem quer uma lista de empresas a partir
-  de um pedido em português. [confirmado em entrevista 2026-09-26]
+  engenheiros seniores), com poucos minutos e ceticismo saudável. Encontram o
+  rigor em "Como funciona", "Números" e no detalhamento de cada resultado.
+  [confirmado em entrevista 2026-09-26]
 
 ## Product Purpose
 
@@ -25,8 +30,10 @@ demo existe para provar em uso real o rigor medido: cada decisão explicável
 
 ## Positioning
 
-Sistema avaliado com números públicos e custo limitado por design — não um
-"gerador de leads" genérico. O LLM nunca escreve SQL; público vs. privado
+"Um pedido em português. A lista de empresas certa." Prospecção por frase,
+ranqueada pelo perfil de cliente ideal do visitante, com o motivo de cada
+nota. Diferencial: sistema avaliado com números públicos e custo limitado
+por design, não um "gerador de leads" genérico. O LLM nunca escreve SQL; público vs. privado
 vive em um único `policy.py`; toda afirmação do README tem métrica
 reproduzível em `eval/results/` (regra de ouro do projeto).
 
@@ -43,8 +50,10 @@ reproduzível em `eval/results/` (regra de ouro do projeto).
 
 ## Capabilities and Constraints
 
-- UI em pt-BR, sem framework, arquivos estáticos servidos pela própria
-  FastAPI, mesma origem (sem CORS).
+- UI em pt-BR, React + Vite (`frontend/`), build estático servido pela
+  própria FastAPI, mesma origem (sem CORS).
+- Ação principal da página: testar a demo (`#demo`). Não há captura de
+  contato. [confirmado em entrevista 2026-09-29]
 - Estados da busca: idle, carregando, recusa, 401, 422, 429, 503 modo
   cache/orçamento, 504, cache hit, warnings de dados.
 - Nenhum dado pessoal em tela, resposta ou log; nenhuma afirmação sem
@@ -54,6 +63,11 @@ reproduzível em `eval/results/` (regra de ouro do projeto).
 ## Brand Commitments
 
 - Nome: Quimera. Idioma: português do Brasil em toda a UI. Sem emojis.
+- Visual: escuro quente com acento âmbar-queimado; logo = símbolo de três
+  partes fundidas num Q (LLM + embeddings + dados) + wordmark "quimera".
+  [confirmado em entrevista 2026-09-29]
+- Copy comercial (benefício antes do mecanismo), sem inventar depoimentos,
+  clientes, preços ou benchmarks. Exemplos fictícios sempre rotulados.
 
 ## Evidence on Hand
 
@@ -65,7 +79,7 @@ reproduzível em `eval/results/` (regra de ouro do projeto).
 
 ## Product Principles
 
-1. Rigor mensurado acima de aparência de produto: números antes de adjetivos.
+1. Parecer produto sem abrir mão do rigor: números medidos antes de adjetivos.
 2. Explicabilidade radical: mostrar filtros, CNAEs, SQL e custo de cada resposta.
 3. Custo como cidadão de primeira classe: bytes e orçamento visíveis ao visitante.
 4. Sem dado pessoal, sempre, em nenhum estado da interface.
