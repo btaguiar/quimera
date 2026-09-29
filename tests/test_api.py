@@ -812,3 +812,60 @@ class TestFrontend:
         assert "javascript" in js.headers["content-type"]
         assert "--acento" in css.text
         assert "renderizarLaudo" in js.text
+class TestSpaFallback:
+    @pytest.fixture()
+    def static_dir(self, tmp_path):
+        (tmp_path / "index.html").write_text(
+            '<!doctype html><html lang="pt-BR"><body><div id="root"></div></body></html>',
+            encoding="utf-8",
+        )
+        assets = tmp_path / "assets"
+        assets.mkdir()
+        (assets / "app.js").write_text("console.log('quimera')", encoding="utf-8")
+        (assets / "app.css").write_text("body{}", encoding="utf-8")
+        return tmp_path
+
+    def _client(self, static_dir):
+        extract, search, bq = _happy_clients()
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=search,
+            bq_client=bq,
+            static_dir=static_dir,
+        )
+        return TestClient(app)
+
+    def test_root_serves_spa_index(self, static_dir):
+        resp = self._client(static_dir).get("/")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/html")
+        assert 'lang="pt-BR"' in resp.text
+        assert 'id="root"' in resp.text
+
+    def test_metricas_falls_back_to_index(self, static_dir):
+        resp = self._client(static_dir).get("/metricas")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/html")
+        assert 'id="root"' in resp.text
+
+    def test_metrics_html_redirects_to_metricas(self, static_dir):
+        resp = self._client(static_dir).get("/metrics.html", follow_redirects=False)
+        assert resp.status_code == 308
+        assert resp.headers["location"] == "/metricas"
+
+    def test_metrics_route_stays_json(self, static_dir):
+        resp = self._client(static_dir).get("/metrics")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("application/json")
+
+    def test_missing_asset_is_404_not_index(self, static_dir):
+        resp = self._client(static_dir).get("/assets/nao-existe.js")
+        assert resp.status_code == 404
+        assert 'id="root"' not in resp.text
+
+    def test_unknown_api_path_is_404_json(self, static_dir):
+        resp = self._client(static_dir).get("/leads/nao-existe")
+        assert resp.status_code == 404
+        assert resp.headers["content-type"].startswith("application/json")
+        assert "error" in resp.json()

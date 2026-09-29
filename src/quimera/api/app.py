@@ -23,9 +23,11 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException
 
 from .. import __version__
 from ..extract import ExtractionError
@@ -69,6 +71,48 @@ class ApiError(Exception):
         self.headers = headers
 
 
+class SpaStaticFiles(StaticFiles):
+    """StaticFiles com fallback de SPA.
+
+    Regras: só GET sem extensão fora dos prefixos da API recebe
+    ``index.html``; path com extensão sem arquivo devolve 404; path sob
+    prefixo de API sem rota casada devolve 404 JSON.
+    """
+
+    API_PREFIXES = ("/leads", "/config", "/health", "/metrics")
+
+    async def get_response(self, path: str, scope):
+        # Starlette levanta HTTPException(404) em vez de devolver uma
+        # resposta 404; normalizamos para aplicar as regras da SPA.
+        try:
+            response = await super().get_response(path, scope)
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            response = Response(status_code=404)
+        if response.status_code != 404 or scope.get("method") != "GET":
+            return response
+        request_path = scope.get("path", "")
+        if self._is_api_path(request_path):
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": "não encontrado",
+                    "reason": f"rota desconhecida: {request_path}",
+                },
+            )
+        if "." in path.rsplit("/", 1)[-1]:
+            return response
+        return await super().get_response("index.html", scope)
+
+    @classmethod
+    def _is_api_path(cls, request_path: str) -> bool:
+        return any(
+            request_path == prefix or request_path.startswith(prefix + "/")
+            for prefix in cls.API_PREFIXES
+        )
+
+
 def create_app(
     *,
     config: ApiConfig | None = None,
@@ -79,6 +123,7 @@ def create_app(
     bq_client: Any | None = None,
     turnstile_verify: Any | None = None,
     warmup: bool = False,
+    static_dir: Path | None = None,
 ) -> FastAPI:
     config = config or ApiConfig.from_env()
     if config.api_token is None and config.turnstile_secret_key is None:
@@ -329,10 +374,12 @@ def create_app(
             state.cache_set(key, payload)
         return {**payload, "cached": False, "cache_mode": state.cache_mode()}
 
-    static_dir = Path(__file__).parent / "static"
-    if static_dir.is_dir():
-        from fastapi.staticfiles import StaticFiles
+    @app.get("/metrics.html")
+    def _metrics_html_redirect():
+        return RedirectResponse(url="/metricas", status_code=308)
 
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    resolved_static = static_dir if static_dir is not None else Path(__file__).parent / "static"
+    if resolved_static.is_dir():
+        app.mount("/", SpaStaticFiles(directory=resolved_static, html=True), name="static")
 
     return app
