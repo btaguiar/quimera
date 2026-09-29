@@ -15,3 +15,8 @@ eval/results/report.md
 PRODUCT.md
 DESIGN.md
 .impeccable/
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+src/quimera/api/static
