@@ -52,11 +52,13 @@ describe("TurnstileController", () => {
     expect(ctl.consume()).toEqual({ ok: false, reason: "sem token" });
   });
 
-  it("token vazio nunca é enviado", async () => {
+  it("token vazio não vira 'ready' nem é enviado", async () => {
     const ctl = new TurnstileController();
     await ctl.render(document.createElement("div"), "site-key");
     const cb = render.mock.calls[0][1].callback as (t: string) => void;
     cb("");
+    expect(ctl.status).toBe("pending");
+    expect(ctl.token).toBeNull();
     expect(ctl.consume()).toEqual({ ok: false, reason: "sem token" });
   });
 
@@ -119,6 +121,26 @@ describe("TurnstileController", () => {
     expect(remove).toHaveBeenCalledWith("w-1");
     expect(render).toHaveBeenCalledTimes(2);
     expect(ctl.status).toBe("pending");
+  });
+
+  it("renders sobrepostos: só o mais novo cria widget (race do StrictMode)", async () => {
+    const ctl = new TurnstileController();
+    await ctl.render(document.createElement("div"), "site-key");
+    const stale = render.mock.calls[0][1];
+    render.mockClear();
+    remove.mockClear();
+    render.mockReturnValueOnce("w-2");
+    const p1 = ctl.render(document.createElement("div"), "site-key");
+    const p2 = ctl.render(document.createElement("div"), "site-key");
+    await Promise.all([p1, p2]);
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith("w-1");
+    expect(ctl.widgetId).toBe("w-2");
+    const survivor = render.mock.calls[0][1];
+    survivor.callback("tok-novo");
+    stale.callback("tok-velho");
+    expect(ctl.consume()).toEqual({ ok: true, token: "tok-novo" });
   });
 
   it("render que lança exceção vira 'unavailable'", async () => {

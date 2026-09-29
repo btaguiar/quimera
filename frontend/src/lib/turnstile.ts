@@ -83,26 +83,33 @@ export class TurnstileController {
   widgetId: string | null = null;
   token: string | null = null;
   status: TurnstileStatus = "idle";
+  private generation = 0;
 
   async render(container: HTMLElement, siteKey: string): Promise<void> {
     this.destroy();
+    const generation = this.generation;
     try {
       await loadTurnstile();
+      if (generation !== this.generation) return;
       if (typeof window.turnstile?.render !== "function") {
+        console.error("window.turnstile.render indisponível após o script carregar");
         this.status = "unavailable";
         return;
       }
       this.widgetId = window.turnstile.render(container, {
         sitekey: siteKey,
         callback: (token: string) => {
+          if (generation !== this.generation || !token) return;
           this.token = token;
           this.status = "ready";
         },
         "expired-callback": () => {
+          if (generation !== this.generation) return;
           this.token = null;
           this.status = "idle";
         },
         "error-callback": () => {
+          if (generation !== this.generation) return;
           this.token = null;
           this.status = "error";
         },
@@ -111,6 +118,7 @@ export class TurnstileController {
       this.status = "pending";
     } catch (err) {
       console.error(err);
+      if (generation !== this.generation) return;
       this.status = "unavailable";
     }
   }
@@ -138,6 +146,7 @@ export class TurnstileController {
   }
 
   destroy(): void {
+    this.generation += 1;
     if (this.widgetId !== null && typeof window.turnstile?.remove === "function") {
       window.turnstile.remove(this.widgetId);
     }
