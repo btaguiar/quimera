@@ -63,6 +63,7 @@ export default function Home() {
   }, []);
 
   async function handleSearch(text: string) {
+    if (!text) return;
     const ctl = getTurnstile();
     const consumed = ctl.consume();
     if (!consumed.ok) {
