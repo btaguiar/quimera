@@ -102,8 +102,11 @@ if [ "$PUBLIC_ACCESS" != "true" ]; then
 fi
 curl -fsS "${CURL_AUTH[@]}" "$URL/health"; echo
 curl -fsS "${CURL_AUTH[@]}" "$URL/metrics" -o /dev/null -w 'metrics: %{http_code}\n'
-curl -fsS "${CURL_AUTH[@]}" "$URL/" | grep -qi '<html' && echo 'front: ok'
-curl -fsS "${CURL_AUTH[@]}" "$URL/metrics.html" | grep -qi 'anexo' && echo 'anexo: ok'
+curl -fsS "${CURL_AUTH[@]}" "$URL/" | grep -q 'id="root"' && echo 'front: ok'
+curl -fsS "${CURL_AUTH[@]}" "$URL/metricas" | grep -q 'id="root"' && echo 'metricas: ok'
+# Link antigo do laudo: /metrics.html redireciona (308) para /metricas.
+[ "$(curl -sS "${CURL_AUTH[@]}" -o /dev/null -w '%{http_code} %{redirect_url}' "$URL/metrics.html")" = "308 $URL/metricas" ] \
+  && echo 'redirect metrics.html: ok'
 
 if [ -n "$BUDGET" ]; then
   log "alertas de orçamento (50/80/100%)"
@@ -126,5 +129,5 @@ if [ "$PUBLIC_ACCESS" != "true" ]; then
   printf '\nDEMO (privada — precisa de IAM invoker): %s\n' "$URL"
   printf 'Para abrir ao público depois: PUBLIC_ACCESS=true bash scripts/deploy.sh\n'
 else
-  printf '\nDEMO: %s\nANEXO: %s/metrics.html\n' "$URL" "$URL"
+  printf '\nDEMO: %s\nMETRICAS: %s/metricas\n' "$URL" "$URL"
 fi
