@@ -120,7 +120,7 @@ export default function Home() {
             onSubmit={handleSearch}
             loading={state.kind === "loading"}
             examples={EXEMPLOS}
-            turnstileSlot={<div ref={turnstileBox} className="min-h-16" />}
+            turnstileSlot={turnstileOff ? null : <div ref={turnstileBox} className="min-h-16" />}
           />
         </Hero>
 

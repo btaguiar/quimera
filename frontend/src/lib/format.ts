@@ -38,3 +38,12 @@ export function fmtData(yyyymmdd: string | null | undefined): string {
 export function fmtPct(v: number | null | undefined): string {
   return v == null || !Number.isFinite(v) ? "—" : `${fmt1.format(v * 100)}%`;
 }
+
+/** Data/hora ISO do eval (``2026-09-26T11:21:58+00:00``) em UTC, sem depender do fuso do navegador. */
+export function fmtDataHora(iso: string | null | undefined): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return "—";
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+}

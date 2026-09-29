@@ -1,4 +1,4 @@
-import { fmtNumOrDash, fmtPct } from "@/lib/format";
+import { fmtDataHora, fmtNumOrDash, fmtPct } from "@/lib/format";
 
 export interface MetricLinha {
   rotulo: string;
@@ -25,7 +25,7 @@ export function MetricSuite({
         {titulo}
       </h2>
       <p className="mt-1 font-mono text-xs text-muted-foreground">
-        execução: {meta.date ?? "?"} · commit {meta.commit ?? "?"}
+        execução: {fmtDataHora(meta.date)} · commit {meta.commit ?? "?"}
       </p>
       <table className="mt-4 w-full text-sm">
         <thead>

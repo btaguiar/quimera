@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtBytes, fmtData, fmtMs, fmtNumOrDash, fmtPct, fmtUSD } from "@/lib/format";
+import { fmtBytes, fmtData, fmtDataHora, fmtMs, fmtNumOrDash, fmtPct, fmtUSD } from "@/lib/format";
 
 describe("fmtBytes", () => {
   it("formata MB com uma casa", () => {
@@ -58,5 +58,19 @@ describe("fmtNumOrDash", () => {
   it("formata inteiros e protege nulos", () => {
     expect(fmtNumOrDash(20)).toBe("20");
     expect(fmtNumOrDash(null)).toBe("—");
+  });
+});
+
+describe("fmtDataHora", () => {
+  it("formata o ISO do eval em UTC", () => {
+    expect(fmtDataHora("2026-09-26T11:21:58+00:00")).toBe("26/09/2026 11:21 UTC");
+    expect(fmtDataHora("2026-09-28T12:00:00Z")).toBe("28/09/2026 12:00 UTC");
+  });
+  it("converte offset para UTC", () => {
+    expect(fmtDataHora("2026-09-26T08:21:58-03:00")).toBe("26/09/2026 11:21 UTC");
+  });
+  it("inválido ou ausente vira travessão", () => {
+    expect(fmtDataHora("ontem")).toBe("—");
+    expect(fmtDataHora(null)).toBe("—");
   });
 });

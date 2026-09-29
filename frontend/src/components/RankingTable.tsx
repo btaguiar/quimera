@@ -12,7 +12,7 @@ export function RankingTable({ rows }: { rows: LeadRow[] }) {
   return (
     <div>
       <p className="mb-3 font-mono text-xs text-muted-foreground">
-        {rows.length} empresas — ordenadas pela nota do ICP
+        {rows.length} {rows.length === 1 ? "empresa" : "empresas"} — ordenadas pela nota do ICP
       </p>
       <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Ranking de empresas">
         <table className="w-full text-sm">

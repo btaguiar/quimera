@@ -70,7 +70,7 @@ export function RequestForm({
       <div className="mt-3">
         <ExampleChips examples={examples} onPick={applyDraft} />
       </div>
-      <div className="mt-5">{turnstileSlot}</div>
+      {turnstileSlot ? <div className="mt-5">{turnstileSlot}</div> : null}
       <Button
         type="submit"
         disabled={loading}
