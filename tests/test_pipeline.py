@@ -33,14 +33,14 @@ def _uma_atividade():
     return _cnae_search_recorder([("8630-5/04", "Atividade odontológica", 0.9)])
 
 
-def _run(bq, policy=PUBLIC, **filters):
+def _run(bq, policy=PUBLIC, request="pedido", **filters):
     """Executa o pipeline com extração fixa nos ``filters`` e CNAE resolvido."""
     extract = FakeGenaiClient(_extraction_payload(**filters))
     cnae_search = _cnae_search_recorder(
         [("8630-5/01", "Atividade médica ambulatorial", 0.92)]
     )
     return run(
-        "pedido", policy, extract_client=extract, cnae_search=cnae_search, bq_client=bq
+        request, policy, extract_client=extract, cnae_search=cnae_search, bq_client=bq
     )
 
 
@@ -481,14 +481,14 @@ CEP_ROWS = [{"latitude": -23.56, "longitude": -46.65}]
 class TestSinaisOnda1:
     def test_cep_center_passed_to_query(self):
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
-        _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
+        _run(bq, request="clínicas perto do CEP 01310-100", cnae_query="clínicas", cep_centro="01310100", raio_km=3)
         sql, _ = bq.executed[0]
         assert "ST_DWITHIN" in sql
         assert bq.cep_queries
 
     def test_unknown_cep_warns_and_skips_query(self):
         bq = FakePipelineBQ(cep_rows=[])
-        result = _run(bq, cnae_query="clínicas", cep_centro="99999999", raio_km=3)
+        result = _run(bq, request="clínicas perto do CEP 99999-999", cnae_query="clínicas", cep_centro="99999999", raio_km=3)
         assert not bq.executed
         assert any("CEP 99999999" in w for w in result.warnings)
 
@@ -496,11 +496,54 @@ class TestSinaisOnda1:
         # CEP ausente não aplica o padrão: raio_km fica None e não há aviso
         # contraditório de "padrão de 5 km" para um raio que não rodou.
         bq = FakePipelineBQ(cep_rows=[])
-        result = _run(bq, cnae_query="clínicas", cep_centro="99999999")
+        result = _run(bq, request="clínicas perto do CEP 99999-999", cnae_query="clínicas", cep_centro="99999999")
         assert not bq.executed
         assert result.filters.raio_km is None
         assert any("CEP 99999999" in w for w in result.warnings)
         assert not any("5 km" in w for w in result.warnings)
+
+    def test_invented_cep_is_dropped_and_radius_ignored(self):
+        # e2e_027: "raio de 2 km do centro de Curitiba" sem CEP no pedido; o
+        # Gemini devolvia 80000000 e o pedido voltava vazio.
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
+        result = _run(
+            bq,
+            request="padarias num raio de 2 km do centro de Curitiba",
+            cnae_query="padarias",
+            cep_centro="80000000",
+            raio_km=2,
+        )
+        assert result.filters.cep_centro is None
+        assert result.filters.raio_km is None
+        assert not bq.cep_queries
+        assert bq.executed and "ST_DWITHIN" not in bq.executed[0][0]
+        assert any("80000000" in w and "não aparece no pedido" in w for w in result.warnings)
+        assert any("CEP de referência" in w for w in result.warnings)
+
+    def test_cep_in_request_accepts_common_formats(self):
+        for escrito in ("01310-100", "01310100", "01.310-100"):
+            bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
+            result = _run(
+                bq,
+                request=f"clínicas a 3 km do CEP {escrito}",
+                cnae_query="clínicas",
+                cep_centro="01310100",
+                raio_km=3,
+            )
+            assert result.filters.cep_centro == "01310100", escrito
+            assert bq.cep_queries, escrito
+
+    def test_cep_must_match_whole_number_in_request(self):
+        # Dígitos que só aparecem dentro de um número maior não contam.
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
+        result = _run(
+            bq,
+            request="clínicas com capital acima de 9013101001",
+            cnae_query="clínicas",
+            cep_centro="01310100",
+        )
+        assert result.filters.cep_centro is None
+        assert not bq.cep_queries
 
     def test_radius_without_cep_warns_and_is_ignored(self):
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
@@ -512,7 +555,7 @@ class TestSinaisOnda1:
     def test_cep_without_radius_uses_default(self):
         # raio padrão 5 km, com aviso
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
-        result = _run(bq, cnae_query="clínicas", cep_centro="01310100")
+        result = _run(bq, request="clínicas perto do CEP 01310-100", cnae_query="clínicas", cep_centro="01310100")
         sql, job_config = bq.executed[0]
         assert "ST_DWITHIN" in sql
         raio_m = next(p for p in job_config.query_parameters if p.name == "raio_m")
@@ -522,7 +565,7 @@ class TestSinaisOnda1:
     def test_radius_warns_about_coverage(self):
         # aviso: "~9% dos estabelecimentos não têm coordenada e ficam de fora"
         bq = FakePipelineBQ(lead_rows=LEAD_ROWS, cep_rows=CEP_ROWS)
-        result = _run(bq, cnae_query="clínicas", cep_centro="01310100", raio_km=3)
+        result = _run(bq, request="clínicas perto do CEP 01310-100", cnae_query="clínicas", cep_centro="01310100", raio_km=3)
         assert "cep" in result.timings_ms
         assert any("9%" in w and "coordenada" in w for w in result.warnings)
 

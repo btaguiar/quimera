@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -36,6 +37,15 @@ logger = logging.getLogger("quimera.pipeline")
 BQ_USD_PER_TIB = 6.25
 
 RAIO_PADRAO_KM = 5.0
+
+# CEP escrito no pedido: 01310-100, 01310100 ou 01.310-100, sem colar em
+# outro número (os dígitos de "capital acima de 9013101001" não contam).
+_CEP_NO_PEDIDO = re.compile(r"(?<!\d)(\d{2})\.?(\d{3})-?(\d{3})(?!\d)")
+
+
+def ceps_no_pedido(text: str) -> set[str]:
+    """CEPs (8 dígitos) escritos literalmente no pedido."""
+    return {"".join(m.groups()) for m in _CEP_NO_PEDIDO.finditer(text)}
 # Medido em 2026-09-26: 91,2% dos ativos têm centroide de CEP.
 AVISO_COBERTURA_RAIO = (
     "Busca por raio usa o centro do CEP de cada empresa; cerca de 9% dos "
@@ -306,6 +316,15 @@ def run(
     #    municipio_names) e da policy (regimes removidos no público), mas
     #    ANTES da consulta.
     tables = tables or resolve_leads_tables()
+    if filters.cep_centro and filters.cep_centro not in ceps_no_pedido(request):
+        # O LLM inventava CEP ("centro de Curitiba" virava 80000000) e o
+        # pedido voltava vazio. Como no CNAE, o código não vem do modelo:
+        # só vale o CEP escrito no pedido. Sem ele, o raio cai no aviso abaixo.
+        warnings.append(
+            f"CEP {filters.cep_centro} não aparece no pedido e foi descartado; "
+            "escreva o CEP de referência para buscar por proximidade."
+        )
+        filters = filters.model_copy(update={"cep_centro": None})
     raio_sem_cep = filters.raio_km is not None and not filters.cep_centro
     bairros_sem_municipio = bool(filters.bairros) and not filters.municipio_names
     mei_removido = "mei" in regimes_pedidos and "mei" not in filters.regimes

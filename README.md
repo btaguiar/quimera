@@ -306,11 +306,13 @@ pedido de clínicas em Santo André, 17 notas distintas entre 50 empresas
 (antes 2) e a operadora de R$ 207 mi fora do top 50; "empresas em Santo
 André" volta o aviso sem consultar (0 bytes).
 
-1. **O LLM inventa CEP.** No pedido "padarias num raio de 2 km do centro de
-   Curitiba", o Gemini devolveu o CEP 80000000 em 2 de 5 execuções; o
-   pipeline não o encontra e o pedido volta vazio. O caso e2e_027 passava por
-   sorte. Correção determinística: só aceitar CEP cujos dígitos estejam no
-   próprio pedido, como já se faz com o CNAE (o LLM nunca inventa código).
+1. ~~**O LLM inventa CEP.**~~ **Feito (2026-09-29):** o pipeline só aceita
+   CEP escrito no próprio pedido (`ceps_no_pedido`), como já se faz com o
+   CNAE; o inventado é descartado com aviso e o raio cai no aviso de "CEP de
+   referência". Medido com o Gemini real: em 5 execuções do e2e_027 ele
+   inventou 80000000 uma vez, e o pedido voltou com 50 padarias de Curitiba
+   em vez de vazio; o e2e_024 (CEP escrito) segue com raio de 3 km. Custo do
+   e2e_027 sem raio: 520–585 MB (a cidade inteira).
 2. **Abrir ao público.** Criar o widget no Cloudflare para `*.run.app`,
    rodar `scripts/deploy.sh` com `PUBLIC_ACCESS=true` e as chaves reais (isso
    também remove as chaves de teste do Turnstile que estão ativas no serviço
