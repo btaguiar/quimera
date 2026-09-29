@@ -9,7 +9,7 @@ const API = process.env.VITE_API_ORIGIN ?? "http://127.0.0.1:8000";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: { "@": path.resolve(import.meta.dirname, "./src") },
   },
   build: {
     outDir: "../src/quimera/api/static",

@@ -29,3 +29,10 @@ Thumbs.db
 # Worktrees e rascunhos locais
 .worktrees/
 .scratch/
+
+# Bundle do front (gerado por npm run build)
+src/quimera/api/static/
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/

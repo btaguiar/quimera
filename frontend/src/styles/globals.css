@@ -1,3 +1,6 @@
+/* Fontes self-hosted via @fontsource (Inter/JetBrains Mono), sem CDN em runtime.
+   O pacote "geist" so embute fontes via next/font (exclusivo de Next.js),
+   por isso nao funciona neste app Vite. */
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
