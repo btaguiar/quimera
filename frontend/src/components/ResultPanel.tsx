@@ -26,9 +26,11 @@ function Section({
 export function ResultPanel({
   data,
   browserSeconds,
+  budgetRemainingBytes,
 }: {
   data: LeadsResponse;
   browserSeconds: number;
+  budgetRemainingBytes?: number | null;
 }) {
   const snapshot = data.snapshot ? Object.values(data.snapshot)[0] : null;
   return (
@@ -71,7 +73,7 @@ export function ResultPanel({
         <RankingTable rows={data.rows} />
       </Section>
       <Section titulo="5 — Custos e latência">
-        <CostSummary data={data} browserSeconds={browserSeconds} />
+        <CostSummary data={data} browserSeconds={browserSeconds} budgetRemainingBytes={budgetRemainingBytes} />
       </Section>
       {data.warnings.length ? (
         <Section titulo="6 — Ressalvas">
