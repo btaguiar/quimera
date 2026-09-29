@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export function SqlBlock({ sql }: { sql: string }) {
   const [copiado, setCopiado] = useState(false);
   const [falha, setFalha] = useState(false);
+  const [prevSql, setPrevSql] = useState(sql);
 
-  useEffect(() => {
+  if (prevSql !== sql) {
+    setPrevSql(sql);
     setCopiado(false);
     setFalha(false);
-  }, [sql]);
+  }
 
   return (
     <div>
