@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   NetworkError,
+  TimeoutError,
   fetchConfig,
   fetchMetrics,
   fetchHealth,
@@ -65,6 +66,51 @@ describe("submitLead", () => {
     const abort = new DOMException("aborted", "AbortError");
     vi.mocked(fetch).mockRejectedValueOnce(abort);
     await expect(submitLead("x", null, AbortSignal.abort())).rejects.toBe(abort);
+  });
+});
+
+describe("submitLead — timeout do cliente", () => {
+  // fetch que só termina quando o signal aborta (servidor travado).
+  function hangingFetch() {
+    vi.mocked(fetch).mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("servidor travado vira TimeoutError com os segundos do limite", async () => {
+    vi.useFakeTimers();
+    hangingFetch();
+    const pending = submitLead("x", null, undefined, 90_000).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(90_000);
+    const err = await pending;
+    expect(err).toBeInstanceOf(TimeoutError);
+    expect((err as TimeoutError).seconds).toBe(90);
+  });
+
+  it("resposta antes do limite não dispara o timeout", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ refused: false }));
+    await expect(submitLead("x", null, undefined, 90_000)).resolves.toEqual({ refused: false });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("abort de quem chama continua sendo AbortError, não timeout", async () => {
+    hangingFetch();
+    const ctl = new AbortController();
+    const pending = submitLead("x", null, ctl.signal).catch((e) => e);
+    ctl.abort();
+    const err = await pending;
+    expect(err).not.toBeInstanceOf(TimeoutError);
+    expect((err as DOMException).name).toBe("AbortError");
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { StatusBanner, toErrorState, type ErrorState } from "@/components/StatusBanner";
-import { ApiError, NetworkError } from "@/lib/api";
+import { ApiError, NetworkError, TimeoutError } from "@/lib/api";
 
 describe("StatusBanner", () => {
   it("401 pede novo captcha", () => {
@@ -38,6 +38,12 @@ describe("StatusBanner", () => {
   it("rede mostra botão de tentar de novo", () => {
     const onRetry = () => {};
     render(<StatusBanner error={{ kind: "network" }} onRetry={onRetry} />);
+    expect(screen.getByRole("button", { name: /tentar de novo/i })).toBeInTheDocument();
+  });
+
+  it("timeout do cliente diz quanto esperou e oferece tentar de novo", () => {
+    render(<StatusBanner error={{ kind: "timeout", seconds: 90 }} onRetry={() => {}} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/não respondeu em 90 s/i);
     expect(screen.getByRole("button", { name: /tentar de novo/i })).toBeInTheDocument();
   });
 
@@ -114,6 +120,10 @@ describe("StatusBanner", () => {
 describe("toErrorState", () => {
   it("NetworkError vira kind network", () => {
     expect(toErrorState(new NetworkError())).toEqual({ kind: "network" });
+  });
+
+  it("TimeoutError vira kind timeout com os segundos", () => {
+    expect(toErrorState(new TimeoutError(90))).toEqual({ kind: "timeout", seconds: 90 });
   });
 
   it("ApiError carrega status, body e retryAfter", () => {

@@ -1,12 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { ApiError, NetworkError } from "@/lib/api";
+import { ApiError, NetworkError, TimeoutError } from "@/lib/api";
 import type { ApiErrorBody } from "@/lib/types";
 
 export type ErrorState =
   | { kind: "network" }
+  | { kind: "timeout"; seconds: number }
   | { kind: "http"; status: number; body: ApiErrorBody | null; retryAfter: number | null };
 
 export function toErrorState(err: unknown): ErrorState {
+  if (err instanceof TimeoutError) {
+    return { kind: "timeout", seconds: err.seconds };
+  }
   if (err instanceof NetworkError || (err instanceof Error && err.name === "NetworkError")) {
     return { kind: "network" };
   }
@@ -63,7 +67,12 @@ export function StatusBanner({
     );
   }
   if (!error) return null;
-  const texto = error.kind === "network" ? "Não foi possível conectar à API." : httpMessage(error);
+  const texto =
+    error.kind === "network"
+      ? "Não foi possível conectar à API."
+      : error.kind === "timeout"
+        ? `A API não respondeu em ${error.seconds} s. Tente de novo — pedidos mais específicos respondem mais rápido.`
+        : httpMessage(error);
   return (
     <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-5">
       <p className="font-mono text-xs uppercase tracking-widest text-destructive">
