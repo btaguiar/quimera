@@ -126,6 +126,20 @@ describe("Home — fluxo de busca", () => {
     expect(alert).toHaveTextContent(/não verificado|turnstile/i);
   });
 
+  it("sem site key no /config (auth desligada) envia o POST sem token", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchConfig).mockResolvedValue({ turnstile_site_key: null });
+    const fake = mockTurnstile([{ ok: false, reason: "sem token" }]);
+    renderHome();
+
+    await waitFor(() => expect(vi.mocked(fetchConfig)).toHaveBeenCalled());
+    await search(user);
+    await screen.findByText(/nenhuma empresa atendida/i);
+
+    expect(vi.mocked(submitLead).mock.calls.map((c) => c[1])).toEqual([null]);
+    expect(fake.consume).not.toHaveBeenCalled();
+  });
+
   it("re-busca /health após a busca (orçamento atualizado)", async () => {
     const user = userEvent.setup();
     mockTurnstile([{ ok: true, token: "tok-1" }]);

@@ -28,6 +28,9 @@ export default function Home() {
   const [state, setState] = useState<SearchState>({ kind: "idle" });
   const [version, setVersion] = useState<string | null>(null);
   const [budgetRemaining, setBudgetRemaining] = useState<number | null>(null);
+  // Só desliga quando o /config diz explicitamente que não há site key (auth
+  // desligada no dev); enquanto não responde, nunca POST sem token.
+  const [turnstileOff, setTurnstileOff] = useState(false);
   const turnstile = useRef<TurnstileController | null>(null);
   const turnstileBox = useRef<HTMLDivElement | null>(null);
   const resultadoRef = useRef<HTMLDivElement | null>(null);
@@ -52,7 +55,9 @@ export default function Home() {
       .catch(() => {});
     fetchConfig()
       .then((cfg) => {
-        if (cfg.turnstile_site_key && turnstileBox.current) {
+        if (!cfg.turnstile_site_key) {
+          setTurnstileOff(true);
+        } else if (turnstileBox.current) {
           void getTurnstile().render(turnstileBox.current, cfg.turnstile_site_key);
         }
       })
@@ -64,8 +69,9 @@ export default function Home() {
 
   async function handleSearch(text: string) {
     if (!text) return;
-    const ctl = getTurnstile();
-    const consumed = ctl.consume();
+    const consumed = turnstileOff
+      ? ({ ok: true, token: null } as const)
+      : getTurnstile().consume();
     if (!consumed.ok) {
       setState({
         kind: "error",
