@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, fetchMetrics, fetchHealth, submitLead } from "@/lib/api";
+import {
+  ApiError,
+  NetworkError,
+  fetchConfig,
+  fetchMetrics,
+  fetchHealth,
+  submitLead,
+} from "@/lib/api";
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -49,7 +56,9 @@ describe("submitLead", () => {
 
   it("lança NetworkError quando o fetch falha", async () => {
     vi.mocked(fetch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    await expect(submitLead("x", null)).rejects.toThrow("falha de rede");
+    const err = await submitLead("x", null).catch((e) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect((err as NetworkError).message).toBe("falha de rede");
   });
 
   it("propaga abort sem virar NetworkError", async () => {
@@ -74,5 +83,42 @@ describe("fetchHealth / fetchMetrics", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(500);
     expect((err as ApiError).body?.reason).toBe("r");
+  });
+});
+
+describe("fetchConfig", () => {
+  it("devolve o JSON de /config e encaminha o signal", async () => {
+    const signal = AbortSignal.abort();
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ turnstile_site_key: "site-key" }));
+    const out = await fetchConfig(signal);
+    expect(fetch).toHaveBeenCalledWith("/config", { signal });
+    expect(out.turnstile_site_key).toBe("site-key");
+  });
+});
+
+describe("parse", () => {
+  it("lança NetworkError em 200 com JSON inválido (não resolve null)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("<html>oops</html>", { status: 200 }));
+    const err = await fetchHealth().catch((e) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+  });
+
+  it("lança ApiError com body null quando o erro tem corpo ilegível", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("<html>oops</html>", { status: 500 }));
+    const err = await fetchHealth().catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(500);
+    expect((err as ApiError).body).toBeNull();
+  });
+
+  it("propaga abort que acontece durante a leitura do body", async () => {
+    const abort = new DOMException("aborted", "AbortError");
+    const resp = {
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(abort),
+    } as unknown as Response;
+    vi.mocked(fetch).mockResolvedValueOnce(resp);
+    await expect(fetchHealth()).rejects.toBe(abort);
   });
 });

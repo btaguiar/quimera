@@ -33,8 +33,14 @@ describe("fmtMs", () => {
 });
 
 describe("fmtData", () => {
+  it("converte ISO AAAA-MM-DD (formato real da API) em DD/MM/AAAA", () => {
+    expect(fmtData("2015-01-10")).toBe("10/01/2015");
+  });
   it("converte AAAAMMDD em DD/MM/AAAA", () => {
     expect(fmtData("20150110")).toBe("10/01/2015");
+  });
+  it("valida só por regex: data impossível é formatada mesmo assim", () => {
+    expect(fmtData("2015-02-30")).toBe("30/02/2015");
   });
   it("devolve traço para formato errado", () => {
     expect(fmtData("2015")).toBe("—");

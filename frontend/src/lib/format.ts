@@ -29,9 +29,10 @@ export function fmtNumOrDash(v: number | null | undefined): string {
 }
 
 export function fmtData(yyyymmdd: string | null | undefined): string {
-  return /^\d{8}$/.test(yyyymmdd ?? "")
-    ? `${yyyymmdd!.slice(6, 8)}/${yyyymmdd!.slice(4, 6)}/${yyyymmdd!.slice(0, 4)}`
-    : "—";
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(yyyymmdd ?? "");
+  if (!m) return "—";
+  const [, ano, mes, dia] = m;
+  return `${dia}/${mes}/${ano}`;
 }
 
 export function fmtPct(v: number | null | undefined): string {

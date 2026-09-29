@@ -19,37 +19,50 @@ export class ApiError extends Error {
 }
 
 export class NetworkError extends Error {
-  constructor() {
-    super("falha de rede");
+  constructor(message = "falha de rede") {
+    super(message);
     this.name = "NetworkError";
   }
 }
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
+function mapFetchError(err: unknown): never {
+  if (isAbortError(err)) throw err;
+  throw new NetworkError();
+}
+
 async function parse<T>(resp: Response): Promise<T> {
-  const body = await resp.json().catch(() => null);
+  let body: unknown;
+  try {
+    body = await resp.json();
+  } catch (err) {
+    if (isAbortError(err)) throw err;
+    if (!resp.ok) throw new ApiError(resp.status, null);
+    throw new NetworkError("JSON inválido na resposta");
+  }
   if (!resp.ok) throw new ApiError(resp.status, body as ApiErrorBody | null);
   return body as T;
 }
 
 function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   return fetch(url, { signal })
-    .catch((err) => {
-      if (err instanceof DOMException && err.name === "AbortError") throw err;
-      throw new NetworkError();
-    })
+    .catch(mapFetchError)
     .then((resp) => parse<T>(resp));
 }
 
-export function fetchConfig(): Promise<ConfigResponse> {
-  return get<ConfigResponse>("/config");
+export function fetchConfig(signal?: AbortSignal): Promise<ConfigResponse> {
+  return get<ConfigResponse>("/config", signal);
 }
 
-export function fetchHealth(): Promise<HealthResponse> {
-  return get<HealthResponse>("/health");
+export function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {
+  return get<HealthResponse>("/health", signal);
 }
 
-export function fetchMetrics(): Promise<MetricsResponse> {
-  return get<MetricsResponse>("/metrics");
+export function fetchMetrics(signal?: AbortSignal): Promise<MetricsResponse> {
+  return get<MetricsResponse>("/metrics", signal);
 }
 
 export function submitLead(
@@ -63,9 +76,6 @@ export function submitLead(
     body: JSON.stringify(turnstile ? { request, turnstile } : { request }),
     signal,
   })
-    .catch((err) => {
-      if (err instanceof DOMException && err.name === "AbortError") throw err;
-      throw new NetworkError();
-    })
+    .catch(mapFetchError)
     .then((resp) => parse<LeadsResponse>(resp));
 }
