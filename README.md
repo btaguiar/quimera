@@ -98,9 +98,14 @@ bytes com modo cache (`DAILY_BYTES_BUDGET`) e timeout por request
 
 Deploy: `bash scripts/deploy.sh` (runbook em `docs/deploy.md`, incluindo
 Cloudflare Turnstile, service account mínimo, alertas de orçamento, tabela de
-custos por pedido e o registro do trabalho da Fase 3b). A página é um laudo
-técnico: pedido → achados numerados (interpretação, CNAEs, SQL, ranking,
-custos) e o anexo `/metrics.html` com as métricas medidas.
+custos por pedido e o registro do trabalho da Fase 3b). O front é React
+(Vite + TypeScript, código em `frontend/`, spec em
+`docs/superpowers/specs/2026-09-28-front-react-design.md`): pedido →
+resultado em seções (interpretação, CNAEs, SQL, ranking, custos, ressalvas)
+e a página `/metricas` com as métricas medidas (`/metrics.html` redireciona
+para ela). O bundle é gerado por `npm run build` em
+`src/quimera/api/static/` (fora do git) e entra na imagem pelo estágio Node
+do Dockerfile.
 
 Hoje o serviço está no ar **privado** (`PUBLIC_ACCESS=false`: só abre com
 login Google e permissão de invoker). Para ver no navegador:
@@ -269,6 +274,9 @@ GCP (cota/capacidade reservada), não no código.
   - [x] 3a — API + proteções (FastAPI: token, rate limit, orçamento diário
         com modo cache, timeout; `src/quimera/api/`)
   - [x] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
+  - [x] front novo em React (dark) + trava de CEP no ar (2026-09-29,
+        revisão `quimera-demo-00008`; pedido real com CEP: 50 empresas,
+        168 MB, 10,8 s com cold start)
   - [x] deploy real em modo privado + aceite da spec (2026-09-27;
         registro em `docs/deploy.md`)
   - [x] nota em faixa alvo: idade e capital graduais, capital acima de

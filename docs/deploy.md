@@ -4,8 +4,9 @@ Runbook para colocar e manter a demo no ar. O script `scripts/deploy.sh`
 automatiza quase tudo; este documento explica cada peça e o que fazer quando
 algo falha.
 
-**Estado atual (2026-09-27):** no ar em modo **privado** (serviço
-`quimera-demo`, `us-central1`, projeto `quimera-leads`), com o aceite da spec
+**Estado atual (2026-09-29):** no ar em modo **privado** (serviço
+`quimera-demo`, `us-central1`, projeto `quimera-leads`, revisão
+`quimera-demo-00008` com o front React e a trava de CEP), com o aceite da spec
 cumprido. **Chaves de teste do Turnstile ativas** (aprovam qualquer desafio):
 aceitável só enquanto o serviço é privado; o deploy público com as chaves
 reais as substitui. Orçamento de R$ 100 com alertas 50/80/100%, restrito ao
@@ -86,6 +87,26 @@ um `secrets.env` fora do git (`chmod 600`) e `source` antes do deploy, ou
 ## Re-deploy (só código)
 
 `bash scripts/deploy.sh` — secrets/SA/bindings já existem; só build+deploy.
+
+**Enquanto o serviço for privado com as chaves de teste, não use o script
+para re-deploy de código.** Ele tem `PUBLIC_ACCESS=true` por padrão (abriria
+o serviço) e usa `--set-env-vars`, que substitui todas as variáveis: as
+chaves de teste do Turnstile foram postas como variáveis de ambiente (não
+existe `quimera-turnstile-secret` no Secret Manager) e sumiriam, e todo
+pedido do navegador passaria a dar 401. Troque só a imagem, que preserva
+variáveis, secrets, IAM e escala (foi assim a revisão 00008, 2026-09-29):
+
+```bash
+TAG="$(date -u +%Y%m%dT%H%M%SZ)"
+IMAGE="us-central1-docker.pkg.dev/quimera-leads/quimera/quimera-demo:${TAG}"
+gcloud builds submit --project=quimera-leads --region=us-central1 --tag="$IMAGE" .
+gcloud run deploy quimera-demo --project=quimera-leads --region=us-central1 --image="$IMAGE"
+```
+
+Em máquina com IPv6 quebrado (o `gcloud` leva minutos por chamada), rode com
+`CLOUDSDK_PYTHON_SITEPACKAGES=1` e um `sitecustomize.py` no `PYTHONPATH` que
+force IPv4 (`socket.getaddrinfo` com `AF_INET`); sem a primeira variável o
+`gcloud` usa `python -S` e ignora o `sitecustomize`.
 
 Para **rotacionar** um secret depois de criado (o script só cria uma vez):
 
