@@ -17,14 +17,15 @@ export function SqlBlock({ sql }: { sql: string }) {
       <pre
         tabIndex={0}
         aria-label="SQL"
-        className="overflow-x-auto rounded-lg border border-border bg-card p-4 font-mono text-xs leading-relaxed"
+        className="overflow-x-auto rounded-md border border-border bg-background p-4 font-mono text-xs leading-relaxed text-muted-foreground"
       >
         {sql}
       </pre>
       <Button
         type="button"
         variant="outline"
-        className="mt-2 border-border bg-transparent font-mono text-xs"
+        size="sm"
+        className="mt-2 font-mono text-xs"
         onClick={() => {
           const clipboard = navigator.clipboard;
           if (!clipboard) {

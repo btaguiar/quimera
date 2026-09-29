@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Home from "@/pages/Home";
-import { fetchConfig, fetchHealth, submitLead } from "@/lib/api";
+import { fetchConfig, fetchHealth, fetchMetrics, submitLead } from "@/lib/api";
 import { TurnstileController, type ConsumeResult } from "@/lib/turnstile";
 import { PERFIS } from "@/lib/icp";
 import type { ConfigResponse, HealthResponse, LeadsResponse } from "@/lib/types";
@@ -14,6 +14,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...actual,
     fetchConfig: vi.fn(),
     fetchHealth: vi.fn(),
+    fetchMetrics: vi.fn(),
     submitLead: vi.fn(),
   };
 });
@@ -91,6 +92,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(fetchHealth).mockResolvedValue(HEALTH);
   vi.mocked(fetchConfig).mockResolvedValue(CONFIG);
+  vi.mocked(fetchMetrics).mockResolvedValue({ thresholds: {}, extraction: [], cnae: [], e2e: [] });
   vi.mocked(submitLead).mockResolvedValue(makeLeads());
 });
 

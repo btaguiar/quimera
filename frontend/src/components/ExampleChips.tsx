@@ -6,13 +6,13 @@ export function ExampleChips({
   onPick: (text: string) => void;
 }) {
   return (
-    <ul className="flex flex-wrap gap-2" aria-label="Exemplos">
+    <ul className="flex flex-wrap items-center gap-2" aria-label="Exemplos">
       {examples.map((ex) => (
         <li key={ex}>
           <button
             type="button"
             onClick={() => onPick(ex)}
-            className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-accent hover:text-foreground"
+            className="rounded-md border border-border px-2.5 py-1 text-[13px] text-muted-foreground transition-colors duration-150 hover:border-line-strong hover:bg-surface-3 hover:text-foreground"
           >
             {ex}
           </button>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { MetricSuite, type MetricLinha } from "@/components/MetricSuite";
+import { SiteHeader } from "@/components/SiteHeader";
 import { Footer } from "@/components/Footer";
 import { fetchMetrics } from "@/lib/api";
 import { selectE2e, selectUltima } from "@/lib/metrics";
@@ -31,26 +33,28 @@ export default function Metrics() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-5xl px-6">
-        <header className="border-b border-border py-10">
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Anexo A
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight">Métricas medidas</h1>
-          <p className="mt-3 max-w-2xl text-muted-foreground">
-            Resultados medidos em <code className="font-mono text-xs">eval/results/</code>,
+      <SiteHeader />
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <header className="border-b border-border pt-14 pb-12 lg:pt-20">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" strokeWidth={2} aria-hidden />
+            voltar à demo
+          </Link>
+          <h1 className="font-display mt-6 text-[clamp(2.2rem,4.5vw,3.5rem)] leading-[1.05] font-bold">
+            Métricas medidas
+          </h1>
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+            Resultados medidos em <code className="font-mono text-sm text-foreground">eval/results/</code>,
             comparados aos limiares de{" "}
-            <code className="font-mono text-xs">eval/thresholds.json</code>. Nenhum número é
-            escrito à mão.
-          </p>
-          <p className="mt-4">
-            <Link to="/" className="text-accent underline-offset-4 hover:underline">
-              ← voltar à demo
-            </Link>
+            <code className="font-mono text-sm text-foreground">eval/thresholds.json</code>. Nenhum
+            número é escrito à mão; o que fica abaixo do limiar aparece abaixo do limiar.
           </p>
         </header>
 
-        <main className="space-y-6 py-10">
+        <main className="space-y-6 py-12">
           {erro ? (
             <p className="text-muted-foreground">Não foi possível carregar as métricas.</p>
           ) : null}
@@ -102,13 +106,14 @@ export default function Metrics() {
             <p className="text-muted-foreground">Sem resultados de avaliação disponíveis.</p>
           ) : null}
           {e2e || cnae || ext ? (
-            <p className="inline-block rounded-lg border-2 border-double border-accent px-4 py-2 font-mono text-xs uppercase tracking-widest text-accent">
+            <p className="inline-flex items-center gap-2 pt-2 font-mono text-xs text-faint">
+              <span className="size-1.5 rounded-full bg-success" aria-hidden />
               Avaliado — {((e2e || cnae || ext)!.date ?? "").slice(0, 10)}
             </p>
           ) : null}
         </main>
-        <Footer />
       </div>
+      <Footer />
     </div>
   );
 }

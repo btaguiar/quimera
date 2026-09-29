@@ -52,10 +52,14 @@ export function RequestForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-8" noValidate>
-      <label htmlFor="pedido" className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-        Passo 2 — Pedido: o que a Quimera deve investigar
+    <form onSubmit={handleSubmit} className="mt-10 border-t border-border pt-8" noValidate>
+      <label htmlFor="pedido" className="font-display block text-lg font-semibold">
+        <span className="mr-2 font-mono text-sm font-normal text-accent">2</span>
+        Seu pedido
       </label>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Atividade, cidade ou bairro, porte, tempo de mercado. Escreva como falaria.
+      </p>
       <Textarea
         id="pedido"
         name="request"
@@ -64,27 +68,29 @@ export function RequestForm({
         rows={3}
         onChange={(e) => applyDraft(e.target.value)}
         placeholder="ex.: clínicas odontológicas em Santo André abertas há mais de 2 anos"
-        className="mt-2 border-input bg-card"
+        className="mt-4 min-h-28 rounded-md border-input bg-background px-4 py-3 text-base leading-relaxed shadow-none placeholder:text-faint hover:border-line-strong focus-visible:border-ring focus-visible:ring-0 md:text-base"
         aria-describedby="contador pedido-erro"
         aria-invalid={!!localError}
       />
-      <p id="contador" className="mt-1 text-right font-mono text-xs text-muted-foreground">
-        {draft.length}/500
-      </p>
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <ExampleChips examples={examples} onPick={applyDraft} />
+        <p id="contador" className="ml-auto font-mono text-xs text-faint">
+          {draft.length}/500
+        </p>
       </div>
       {turnstileSlot ? <div className="mt-5">{turnstileSlot}</div> : null}
-      <Button
-        type="submit"
-        disabled={loading || !!bloqueio}
-        className="mt-5 bg-primary px-8 py-6 text-sm font-semibold uppercase tracking-widest text-primary-foreground hover:opacity-90"
-      >
-        {loading ? "Analisando…" : "Analisar"}
-      </Button>
-      <p id="pedido-erro" role="status" aria-live="polite" className="mt-3 min-h-6 font-mono text-sm text-muted-foreground">
-        {localError ?? (bloqueio ? `Ajuste o perfil antes de analisar: ${bloqueio}` : "")}
-      </p>
+      <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <Button
+          type="submit"
+          disabled={loading || !!bloqueio}
+          className="font-display h-12 rounded-md px-8 text-base font-semibold [font-stretch:110%]"
+        >
+          {loading ? "Analisando…" : "Analisar"}
+        </Button>
+        <p id="pedido-erro" role="status" aria-live="polite" className="text-sm text-muted-foreground">
+          {localError ?? (bloqueio ? `Ajuste o perfil antes de analisar: ${bloqueio}` : "")}
+        </p>
+      </div>
     </form>
   );
 }

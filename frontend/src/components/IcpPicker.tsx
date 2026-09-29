@@ -37,8 +37,8 @@ function Campo({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[13px] font-medium text-muted-foreground">
         {rotulo}
       </label>
       {children}
@@ -71,7 +71,7 @@ function Numero({
       max={max}
       value={Number.isNaN(valor) ? "" : valor}
       onChange={(e) => onValor(e.target.valueAsNumber)}
-      className="w-full rounded-lg border border-input bg-card px-3 py-2 font-mono text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="h-10 w-full rounded-md border border-input bg-background px-3 font-mono text-sm text-foreground transition-colors duration-150 hover:border-line-strong focus-visible:border-ring focus-visible:outline-none"
     />
   );
 }
@@ -105,20 +105,24 @@ export function IcpPicker({ perfilId, params, onSelect, onChange }: IcpPickerPro
   }
 
   return (
-    <section className="mt-8" aria-labelledby={`${base}-titulo`}>
-      <h2 id={`${base}-titulo`} className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-        Passo 1 — Perfil de cliente ideal: como a Quimera ranqueia
-      </h2>
-      <div role="radiogroup" aria-labelledby={`${base}-titulo`} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <section aria-labelledby={`${base}-titulo`}>
+      <h3 id={`${base}-titulo`} className="font-display text-lg font-semibold">
+        <span className="mr-2 font-mono text-sm font-normal text-accent">1</span>
+        Perfil de cliente ideal
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">Define como a lista é ordenada.</p>
+      <div role="radiogroup" aria-labelledby={`${base}-titulo`} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {PERFIS.map((perfil) => {
           const marcado = perfil.id === perfilId;
           return (
             <label
               key={perfil.id}
               className={cn(
-                "relative flex cursor-pointer flex-col rounded-2xl border bg-card p-4 transition-colors duration-150",
-                "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                marcado ? "border-accent" : "border-border hover:border-accent/60",
+                "relative flex cursor-pointer flex-col rounded-lg border p-4 transition-colors duration-150",
+                "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring",
+                marcado
+                  ? "border-accent bg-accent-soft"
+                  : "border-border bg-background hover:border-line-strong hover:bg-surface-3/40",
               )}
             >
               <input
@@ -130,11 +134,22 @@ export function IcpPicker({ perfilId, params, onSelect, onChange }: IcpPickerPro
                 className="sr-only"
                 aria-describedby={`${base}-${perfil.id}-desc`}
               />
-              <span className="font-semibold">{perfil.nome}</span>
-              <span id={`${base}-${perfil.id}-desc`} className="mt-1 text-xs text-muted-foreground">
+              <span className="flex items-start justify-between gap-3">
+                <span className="font-medium">{perfil.nome}</span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                    marcado ? "border-accent" : "border-line-strong",
+                  )}
+                >
+                  {marcado ? <span className="size-2 rounded-full bg-accent" /> : null}
+                </span>
+              </span>
+              <span id={`${base}-${perfil.id}-desc`} className="mt-1.5 text-[13px] leading-snug text-muted-foreground">
                 {perfil.descricao}
               </span>
-              <ul className="mt-3 space-y-0.5 font-mono text-[11px] text-muted-foreground">
+              <ul className="mt-3 space-y-0.5 border-t border-border pt-3 font-mono text-[11px] text-faint">
                 {resumoPerfil(marcado ? params : perfil.params).map((linha) => (
                   <li key={linha}>{linha}</li>
                 ))}
@@ -150,18 +165,20 @@ export function IcpPicker({ perfilId, params, onSelect, onChange }: IcpPickerPro
           aria-expanded={aberto}
           aria-controls={`${base}-ajuste`}
           onClick={() => setAberto((v) => !v)}
-          className="inline-flex items-center gap-2 text-accent hover:underline"
+          className="inline-flex items-center gap-2 rounded-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
         >
-          <SlidersHorizontal className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          <SlidersHorizontal className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden />
           Ajustar este perfil
         </button>
         {ajustado ? (
           <>
-            <span className="font-mono text-xs text-warning">{nomeAtual} (ajustado)</span>
+            <span className="rounded-sm bg-warning/10 px-2 py-0.5 font-mono text-xs text-warning">
+              {nomeAtual} (ajustado)
+            </span>
             <button
               type="button"
               onClick={() => onSelect(perfilId)}
-              className="text-xs text-muted-foreground underline hover:text-foreground"
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
             >
               restaurar perfil
             </button>
@@ -170,9 +187,9 @@ export function IcpPicker({ perfilId, params, onSelect, onChange }: IcpPickerPro
       </div>
 
       {aberto ? (
-        <div id={`${base}-ajuste`} className="mt-4 space-y-5 rounded-2xl border border-border bg-card/60 p-5">
+        <div id={`${base}-ajuste`} className="mt-4 space-y-6 rounded-lg border border-border bg-background p-5">
           <fieldset>
-            <legend className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Porte alvo</legend>
+            <legend className="text-[13px] font-medium text-muted-foreground">Porte alvo</legend>
             <div className="mt-2 flex flex-wrap gap-4 text-sm">
               {PORTES.map((porte) => (
                 <label key={porte} className="inline-flex items-center gap-2">
@@ -208,9 +225,7 @@ export function IcpPicker({ perfilId, params, onSelect, onChange }: IcpPickerPro
           </div>
 
           <fieldset>
-            <legend className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-              Pesos da nota
-            </legend>
+            <legend className="text-[13px] font-medium text-muted-foreground">Pesos da nota</legend>
             <div className="mt-2 grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
               {PESOS.map(({ chave, rotulo }) => (
                 <Campo key={chave} id={`${base}-${chave}`} rotulo={rotulo}>
@@ -219,7 +234,7 @@ export function IcpPicker({ perfilId, params, onSelect, onChange }: IcpPickerPro
                 </Campo>
               ))}
             </div>
-            <p className="mt-2 font-mono text-xs text-muted-foreground">
+            <p className="mt-2 font-mono text-xs text-faint">
               somam {Number.isFinite(soma) ? soma.toLocaleString("pt-BR") : "—"} — normalizados para 100 na nota
             </p>
           </fieldset>

@@ -1,15 +1,13 @@
-import { Badge } from "@/components/ui/badge";
 import type { ReactNode } from "react";
 import type { LeadFilters } from "@/lib/types";
 
+/** Etiqueta de anotação: mesmo vocabulário do hero (rótulo tênue + valor). */
 function chip(label: string, valor: string) {
   return (
-    <Badge
-      variant="secondary"
-      className="border-border bg-secondary font-mono text-xs font-normal text-foreground"
-    >
-      <span className="text-muted-foreground">{label}:</span>&nbsp;{valor}
-    </Badge>
+    <span className="inline-flex items-center gap-1.5 rounded-sm bg-secondary px-2 py-1 font-mono text-xs">
+      <span className="text-faint">{label}</span>
+      <span className="text-foreground">{valor}</span>
+    </span>
   );
 }
 
@@ -33,7 +31,7 @@ export function FiltersBadge({ filters }: { filters: LeadFilters | null }) {
   return (
     <div>
       <ul className="flex flex-wrap gap-2">{chips.map((c, i) => <li key={i}>{c}</li>)}</ul>
-      <p className="mt-3 font-mono text-xs text-muted-foreground">
+      <p className="mt-3 text-xs text-faint">
         filtro aplicado pela policy pública: sem MEI, sem contato, sem pessoa física.
       </p>
     </div>

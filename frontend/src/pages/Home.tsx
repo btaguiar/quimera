@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { SiteHeader } from "@/components/SiteHeader";
 import { Hero } from "@/components/Hero";
+import { HowItWorks } from "@/components/HowItWorks";
+import { UseCases, type CasoDeUso } from "@/components/UseCases";
+import { Proof } from "@/components/Proof";
 import { RequestForm } from "@/components/RequestForm";
 import { StatusBanner, toErrorState, type ErrorState } from "@/components/StatusBanner";
 import { ResultPanel } from "@/components/ResultPanel";
-import { PipelineSteps } from "@/components/PipelineSteps";
 import { Footer } from "@/components/Footer";
 import { IcpPicker, perfilAjustado } from "@/components/IcpPicker";
 import { fetchConfig, fetchHealth, submitLead } from "@/lib/api";
@@ -12,10 +15,9 @@ import { TurnstileController } from "@/lib/turnstile";
 import { PERFIS, copiarParams, perfilPadrao, validarIcp, type IcpParams } from "@/lib/icp";
 
 const EXEMPLOS = [
-  "clínicas odontológicas em Santo André abertas há mais de 2 anos",
   "padarias artesanais em Curitiba",
-  "transportadoras de carga em São Paulo capital",
-  "escritórios de contabilidade em Belo Horizonte",
+  "oficinas mecânicas em Recife",
+  "pet shops em Goiânia abertos há mais de 3 anos",
 ];
 
 type SearchState =
@@ -119,72 +121,103 @@ export default function Home() {
     }
   }, [state]);
 
+  function escolherPerfil(id: string) {
+    setPerfilId(id);
+    setIcp(copiarParams(PERFIS.find((p) => p.id === id)!.params));
+  }
+
+  function usarCaso(caso: CasoDeUso) {
+    escolherPerfil(caso.perfilId);
+    setPedido(caso.pedido);
+    document.getElementById("demo")?.scrollIntoView?.({ block: "start" });
+    document.getElementById("pedido")?.focus({ preventScroll: true });
+  }
+
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-5xl px-6">
-        <Hero version={version}>
-          <IcpPicker
-            perfilId={perfilId}
-            params={icp}
-            onSelect={(id) => {
-              setPerfilId(id);
-              setIcp(copiarParams(PERFIS.find((p) => p.id === id)!.params));
-            }}
-            onChange={setIcp}
-          />
-          <RequestForm
-            value={pedido}
-            onChange={setPedido}
-            onSubmit={handleSearch}
-            loading={state.kind === "loading"}
-            examples={EXEMPLOS}
-            bloqueio={icpErro}
-            turnstileSlot={turnstileOff ? null : <div ref={turnstileBox} className="min-h-16" />}
-          />
-        </Hero>
+      <SiteHeader />
+      <main>
+        <Hero version={version} />
+        <HowItWorks />
+        <UseCases onPick={usarCaso} />
+        <Proof />
 
-        <div ref={resultadoRef} tabIndex={-1} className="outline-none" aria-live="polite">
-          {state.kind === "idle" ? (
-            <p className="py-16 text-center text-muted-foreground">
-              Escreva um pedido acima — ou escolha um dos modelos — e a Quimera devolve o
-              laudo completo da investigação.
+        <section id="demo" className="mx-auto max-w-6xl px-5 py-24 sm:px-8 lg:py-32">
+          <div className="max-w-2xl">
+            <h2 className="font-display text-[clamp(1.75rem,3.2vw,2.5rem)] leading-[1.1] font-bold">
+              Teste agora com a sua frase
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Escolha o que define um bom cliente para você, descreva quem procura e analise. A
+              resposta mostra a lista, o porquê de cada nota e o que a consulta custou.
             </p>
-          ) : null}
-          {state.kind === "loading" ? (
-            <div className="space-y-4 py-16" aria-busy="true">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-2xl bg-card" />
-              ))}
-            </div>
-          ) : null}
-          {state.kind === "refused" ? (
-            <div className="py-10">
-              <StatusBanner refusal={state.data.refusal_reason || "pedido recusado"} />
-            </div>
-          ) : null}
-          {state.kind === "error" ? (
-            <div className="py-10">
-              <StatusBanner
-                error={state.error}
-                onRetry={() => void handleSearch(pedido.trim())}
-              />
-            </div>
-          ) : null}
-          {state.kind === "success" ? (
-            <div className="py-10">
-              <ResultPanel
-                data={state.data}
-                browserSeconds={state.browserSeconds}
-                budgetRemainingBytes={budgetRemaining}
-                perfil={state.perfil}
-              />
-            </div>
-          ) : null}
-        </div>
+          </div>
 
-        <PipelineSteps />
-        <Footer />
-      </div>
+          <div className="mt-12 rounded-xl border border-line-strong bg-card p-5 sm:p-8">
+            <IcpPicker
+              perfilId={perfilId}
+              params={icp}
+              onSelect={escolherPerfil}
+              onChange={setIcp}
+            />
+            <RequestForm
+              value={pedido}
+              onChange={setPedido}
+              onSubmit={handleSearch}
+              loading={state.kind === "loading"}
+              examples={EXEMPLOS}
+              bloqueio={icpErro}
+              turnstileSlot={turnstileOff ? null : <div ref={turnstileBox} className="min-h-16" />}
+            />
+          </div>
+
+          <div ref={resultadoRef} tabIndex={-1} className="scroll-mt-24 outline-none" aria-live="polite">
+            {state.kind === "idle" ? (
+              <p className="mx-auto max-w-xl py-16 text-center text-muted-foreground">
+                Escreva um pedido acima, ou escolha um caso de uso, e a Quimera devolve a lista com
+                o motivo de cada escolha.
+              </p>
+            ) : null}
+            {state.kind === "loading" ? (
+              <div className="py-12" aria-busy="true">
+                <p className="text-sm text-muted-foreground">
+                  Analisando: interpretando a frase, escolhendo CNAEs, consultando a base e
+                  ranqueando. Costuma levar poucos segundos.
+                </p>
+                <div className="mt-6 space-y-3">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-md bg-card" />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {state.kind === "refused" ? (
+              <div className="py-12">
+                <StatusBanner refusal={state.data.refusal_reason || "pedido recusado"} />
+              </div>
+            ) : null}
+            {state.kind === "error" ? (
+              <div className="py-12">
+                <StatusBanner
+                  error={state.error}
+                  onRetry={() => void handleSearch(pedido.trim())}
+                />
+              </div>
+            ) : null}
+            {state.kind === "success" ? (
+              <div className="pt-12">
+                <ResultPanel
+                  data={state.data}
+                  browserSeconds={state.browserSeconds}
+                  budgetRemainingBytes={budgetRemaining}
+                  perfil={state.perfil}
+                />
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </main>
+      <Footer version={version} />
     </div>
   );
 }

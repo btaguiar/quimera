@@ -56,9 +56,9 @@ export function StatusBanner({
 }) {
   if (refusal != null) {
     return (
-      <div role="status" className="rounded-xl border border-warning/40 bg-warning/10 p-5 text-warning-foreground">
-        <p className="font-mono text-xs uppercase tracking-widest text-warning">Pedido não atendido</p>
-        <p className="mt-2 text-sm">{refusal || "pedido recusado"}</p>
+      <div role="status" className="rounded-lg border border-warning/30 bg-warning/[0.06] p-5 sm:p-6">
+        <p className="font-display font-semibold text-warning">Pedido não atendido</p>
+        <p className="mt-2 text-foreground">{refusal || "pedido recusado"}</p>
         <p className="mt-2 text-sm text-muted-foreground">
           A política pública não responde pedidos de dado pessoal — de sócios, contato ou
           qualquer pessoa física.
@@ -74,18 +74,11 @@ export function StatusBanner({
         ? `A API não respondeu em ${error.seconds} s. Tente de novo — pedidos mais específicos respondem mais rápido.`
         : httpMessage(error);
   return (
-    <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-5">
-      <p className="font-mono text-xs uppercase tracking-widest text-destructive">
-        Pedido não atendido
-      </p>
-      <p className="mt-2 text-sm">{texto}</p>
+    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/[0.06] p-5 sm:p-6">
+      <p className="font-display font-semibold text-destructive">Pedido não atendido</p>
+      <p className="mt-2 text-foreground">{texto}</p>
       {onRetry ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-4 border-border bg-transparent"
-          onClick={onRetry}
-        >
+        <Button type="button" variant="outline" className="mt-4" onClick={onRetry}>
           Tentar de novo
         </Button>
       ) : null}

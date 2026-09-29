@@ -4,8 +4,8 @@ import { fmtBytes, fmtMs, fmtUSD } from "@/lib/format";
 function Linha({ label, valor }: { label: string; valor: string }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-widest text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-sm">{valor}</dd>
+      <dt className="text-xs text-faint">{label}</dt>
+      <dd className="mt-0.5 font-mono text-sm">{valor}</dd>
     </div>
   );
 }
@@ -27,12 +27,12 @@ export function CostSummary({
     <div>
       {data.cache_mode ? (
         <p className="mb-4">
-          <span className="rounded-full border border-warning/50 px-3 py-1 font-mono text-xs uppercase tracking-widest text-warning">
+          <span className="rounded-sm bg-warning/10 px-2 py-1 font-mono text-xs text-warning">
             Modo cache — orçamento do dia esgotado
           </span>
         </p>
       ) : null}
-      <dl className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+      <dl className="grid max-w-2xl grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
         <Linha label="Bytes cobrados" valor={fmtBytes(data.bytes_billed)} />
         <Linha label="Custo estimado" valor={fmtUSD(data.estimated_cost_usd)} />
         <Linha label="Latência do pipeline" valor={fmtMs(data.latency_ms)} />
@@ -43,7 +43,7 @@ export function CostSummary({
         />
         <Linha label="Modelo" valor={data.model || "—"} />
       </dl>
-      {etapas ? <p className="mt-4 font-mono text-xs text-muted-foreground">{etapas}</p> : null}
+      {etapas ? <p className="mt-4 font-mono text-xs text-faint">{etapas}</p> : null}
     </div>
   );
 }
