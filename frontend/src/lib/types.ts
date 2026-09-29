@@ -1,3 +1,5 @@
+import type { IcpParams } from "./icp";
+
 export interface LeadFilters {
   cnae_query?: string | null;
   cnae_codes: string[];
@@ -53,6 +55,8 @@ export interface LeadsResponse {
   query_sql: string;
   cached: boolean;
   cache_mode: boolean;
+  /** ICP efetivamente usado (pesos normalizados para 100). */
+  icp?: IcpParams;
 }
 
 export interface ApiErrorBody {

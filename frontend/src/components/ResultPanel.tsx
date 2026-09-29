@@ -27,10 +27,13 @@ export function ResultPanel({
   data,
   browserSeconds,
   budgetRemainingBytes,
+  perfil,
 }: {
   data: LeadsResponse;
   browserSeconds: number;
   budgetRemainingBytes?: number | null;
+  /** Nome do perfil de ICP usado no ranking (ex.: "Estabelecida (ajustado)"). */
+  perfil?: string | null;
 }) {
   const snapshot = data.snapshot ? Object.values(data.snapshot)[0] : null;
   return (
@@ -70,7 +73,7 @@ export function ResultPanel({
         </dl>
       </Section>
       <Section titulo="4 — Ranking de empresas">
-        <RankingTable rows={data.rows} />
+        <RankingTable rows={data.rows} perfil={perfil} />
       </Section>
       <Section titulo="5 — Custos e latência">
         <CostSummary data={data} browserSeconds={browserSeconds} budgetRemainingBytes={budgetRemainingBytes} />

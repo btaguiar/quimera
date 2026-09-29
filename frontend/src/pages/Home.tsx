@@ -5,9 +5,11 @@ import { StatusBanner, toErrorState, type ErrorState } from "@/components/Status
 import { ResultPanel } from "@/components/ResultPanel";
 import { PipelineSteps } from "@/components/PipelineSteps";
 import { Footer } from "@/components/Footer";
+import { IcpPicker, perfilAjustado } from "@/components/IcpPicker";
 import { fetchConfig, fetchHealth, submitLead } from "@/lib/api";
 import type { LeadsResponse } from "@/lib/types";
 import { TurnstileController } from "@/lib/turnstile";
+import { PERFIS, copiarParams, perfilPadrao, validarIcp, type IcpParams } from "@/lib/icp";
 
 const EXEMPLOS = [
   "clínicas odontológicas em Santo André abertas há mais de 2 anos",
@@ -19,12 +21,15 @@ const EXEMPLOS = [
 type SearchState =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "success"; data: LeadsResponse; browserSeconds: number }
+  | { kind: "success"; data: LeadsResponse; browserSeconds: number; perfil: string }
   | { kind: "refused"; data: LeadsResponse }
   | { kind: "error"; error: ErrorState };
 
 export default function Home() {
   const [pedido, setPedido] = useState("");
+  const [perfilId, setPerfilId] = useState(perfilPadrao().id);
+  const [icp, setIcp] = useState<IcpParams>(() => copiarParams(perfilPadrao().params));
+  const icpErro = validarIcp(icp);
   const [state, setState] = useState<SearchState>({ kind: "idle" });
   const [version, setVersion] = useState<string | null>(null);
   const [budgetRemaining, setBudgetRemaining] = useState<number | null>(null);
@@ -68,7 +73,11 @@ export default function Home() {
   }, []);
 
   async function handleSearch(text: string) {
-    if (!text) return;
+    if (!text || icpErro) return;
+    // Captura o perfil no envio: trocar de perfil depois não reescreve o resultado.
+    const nomePerfil = PERFIS.find((p) => p.id === perfilId)?.nome ?? "Perfil";
+    const perfil = perfilAjustado(perfilId, icp) ? `${nomePerfil} (ajustado)` : nomePerfil;
+    const icpEnviado = copiarParams(icp);
     const consumed = turnstileOff
       ? ({ ok: true, token: null } as const)
       : getTurnstile().consume();
@@ -93,10 +102,10 @@ export default function Home() {
     setState({ kind: "loading" });
     const inicio = performance.now();
     try {
-      const data = await submitLead(text, consumed.token);
+      const data = await submitLead(text, consumed.token, { icp: icpEnviado });
       const browserSeconds = (performance.now() - inicio) / 1000;
       if (data.refused) setState({ kind: "refused", data });
-      else setState({ kind: "success", data, browserSeconds });
+      else setState({ kind: "success", data, browserSeconds, perfil });
     } catch (err) {
       setState({ kind: "error", error: toErrorState(err) });
     } finally {
@@ -114,12 +123,22 @@ export default function Home() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-6">
         <Hero version={version}>
+          <IcpPicker
+            perfilId={perfilId}
+            params={icp}
+            onSelect={(id) => {
+              setPerfilId(id);
+              setIcp(copiarParams(PERFIS.find((p) => p.id === id)!.params));
+            }}
+            onChange={setIcp}
+          />
           <RequestForm
             value={pedido}
             onChange={setPedido}
             onSubmit={handleSearch}
             loading={state.kind === "loading"}
             examples={EXEMPLOS}
+            bloqueio={icpErro}
             turnstileSlot={turnstileOff ? null : <div ref={turnstileBox} className="min-h-16" />}
           />
         </Hero>
@@ -157,6 +176,7 @@ export default function Home() {
                 data={state.data}
                 browserSeconds={state.browserSeconds}
                 budgetRemainingBytes={budgetRemaining}
+                perfil={state.perfil}
               />
             </div>
           ) : null}

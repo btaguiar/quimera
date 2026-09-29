@@ -5,6 +5,7 @@ import type {
   LeadsResponse,
   MetricsResponse,
 } from "./types";
+import type { IcpParams } from "./icp";
 
 export class ApiError extends Error {
   status: number;
@@ -88,11 +89,17 @@ export function fetchMetrics(signal?: AbortSignal): Promise<MetricsResponse> {
   return get<MetricsResponse>("/metrics", signal);
 }
 
+export interface SubmitLeadOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  /** Perfil escolhido; sem ele o servidor usa o ICP padrão. */
+  icp?: IcpParams;
+}
+
 export function submitLead(
   request: string,
   turnstile: string | null,
-  signal?: AbortSignal,
-  timeoutMs: number = LEADS_TIMEOUT_MS,
+  { signal, timeoutMs = LEADS_TIMEOUT_MS, icp }: SubmitLeadOptions = {},
 ): Promise<LeadsResponse> {
   const ctl = new AbortController();
   let timedOut = false;
@@ -107,7 +114,11 @@ export function submitLead(
   return fetch("/leads", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(turnstile ? { request, turnstile } : { request }),
+    body: JSON.stringify({
+      request,
+      ...(turnstile ? { turnstile } : {}),
+      ...(icp ? { icp } : {}),
+    }),
     signal: ctl.signal,
   })
     .catch(mapFetchError)

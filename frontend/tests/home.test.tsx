@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import Home from "@/pages/Home";
 import { fetchConfig, fetchHealth, submitLead } from "@/lib/api";
 import { TurnstileController, type ConsumeResult } from "@/lib/turnstile";
+import { PERFIS } from "@/lib/icp";
 import type { ConfigResponse, HealthResponse, LeadsResponse } from "@/lib/types";
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -138,6 +139,32 @@ describe("Home — fluxo de busca", () => {
 
     expect(vi.mocked(submitLead).mock.calls.map((c) => c[1])).toEqual([null]);
     expect(fake.consume).not.toHaveBeenCalled();
+  });
+
+  it("envia o perfil de ICP escolhido e mostra com qual ranqueou", async () => {
+    const user = userEvent.setup();
+    mockTurnstile([{ ok: true, token: "tok-1" }]);
+    renderHome();
+
+    await user.click(screen.getByRole("radio", { name: /pequeno negócio local/i }));
+    await search(user);
+    await screen.findByText(/nenhuma empresa atendida/i);
+
+    const opts = vi.mocked(submitLead).mock.calls[0][2];
+    expect(opts?.icp).toEqual(PERFIS.find((p) => p.id === "pequeno-local")!.params);
+  });
+
+  it("ICP inválido bloqueia o Analisar e não envia", async () => {
+    const user = userEvent.setup();
+    mockTurnstile([{ ok: true, token: "tok-1" }]);
+    renderHome();
+
+    await user.click(screen.getByRole("button", { name: /ajustar este perfil/i }));
+    await user.click(screen.getByRole("checkbox", { name: /demais/i }));
+    await user.type(screen.getByLabelText(/pedido/i), "padarias artesanais");
+
+    expect(screen.getByRole("button", { name: /^analisar$/i })).toBeDisabled();
+    expect(vi.mocked(submitLead)).not.toHaveBeenCalled();
   });
 
   it("re-busca /health após a busca (orçamento atualizado)", async () => {

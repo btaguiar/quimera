@@ -1,7 +1,7 @@
 import type { LeadRow } from "@/lib/types";
 import { fmtData, fmtNumOrDash } from "@/lib/format";
 
-export function RankingTable({ rows }: { rows: LeadRow[] }) {
+export function RankingTable({ rows, perfil }: { rows: LeadRow[]; perfil?: string | null }) {
   if (!rows.length) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -12,7 +12,7 @@ export function RankingTable({ rows }: { rows: LeadRow[] }) {
   return (
     <div>
       <p className="mb-3 font-mono text-xs text-muted-foreground">
-        {rows.length} {rows.length === 1 ? "empresa" : "empresas"} — ordenadas pela nota do ICP
+        {rows.length} {rows.length === 1 ? "empresa" : "empresas"} — ordenadas pela nota do ICP{perfil ? ` «${perfil}»` : ""}
       </p>
       <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Ranking de empresas">
         <table className="w-full text-sm">

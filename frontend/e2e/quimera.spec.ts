@@ -32,6 +32,25 @@ test("pedido vira resultado com ranking", async ({ page }) => {
   await page.screenshot({ path: "test-results/estado-resultado.png", fullPage: true });
 });
 
+test("perfil de ICP escolhido vai no POST e aparece no ranking", async ({ page }) => {
+  await mockarApi(page);
+  let corpo: { icp?: { preferred_portes: string[]; w_rede: number } } = {};
+  await page.route("**/leads", async (r) => {
+    corpo = r.request().postDataJSON();
+    await r.fulfill({ json: fixture("leads-success.json") });
+  });
+  await page.goto("/");
+  await page.locator("label", { hasText: "Rede em expansão" }).click();
+  await expect(page.getByRole("radio", { name: /rede em expansão/i })).toBeChecked();
+  await page.getByLabel(/pedido/i).fill("clínicas em Santo André");
+  await page.getByRole("button", { name: /^analisar$/i }).click();
+  await expect(page.getByText(/ordenadas pela nota do ICP «Rede em expansão»/)).toBeVisible();
+  expect(corpo.icp?.preferred_portes).toEqual(["pequena", "demais"]);
+  expect(corpo.icp?.w_rede).toBe(40);
+  await page.getByRole("button", { name: /ajustar este perfil/i }).click();
+  await page.screenshot({ path: "test-results/estado-icp.png", fullPage: true });
+});
+
 test("chips de exemplo preenchem o pedido", async ({ page }) => {
   await mockarApi(page);
   await page.goto("/");

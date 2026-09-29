@@ -8,6 +8,7 @@ import {
   fetchHealth,
   submitLead,
 } from "@/lib/api";
+import { perfilPadrao } from "@/lib/icp";
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -35,6 +36,17 @@ describe("submitLead", () => {
       }),
     );
     expect(out).toEqual(payload);
+  });
+
+  it("envia o ICP escolhido no corpo", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ refused: false }));
+    const icp = perfilPadrao().params;
+    await submitLead("padarias", "tok-1", { icp });
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]!.body as string)).toEqual({
+      request: "padarias",
+      turnstile: "tok-1",
+      icp,
+    });
   });
 
   it("omite turnstile quando nulo", async () => {
@@ -65,7 +77,7 @@ describe("submitLead", () => {
   it("propaga abort sem virar NetworkError", async () => {
     const abort = new DOMException("aborted", "AbortError");
     vi.mocked(fetch).mockRejectedValueOnce(abort);
-    await expect(submitLead("x", null, AbortSignal.abort())).rejects.toBe(abort);
+    await expect(submitLead("x", null, { signal: AbortSignal.abort() })).rejects.toBe(abort);
   });
 });
 
@@ -89,7 +101,7 @@ describe("submitLead — timeout do cliente", () => {
   it("servidor travado vira TimeoutError com os segundos do limite", async () => {
     vi.useFakeTimers();
     hangingFetch();
-    const pending = submitLead("x", null, undefined, 90_000).catch((e) => e);
+    const pending = submitLead("x", null, { timeoutMs: 90_000 }).catch((e) => e);
     await vi.advanceTimersByTimeAsync(90_000);
     const err = await pending;
     expect(err).toBeInstanceOf(TimeoutError);
@@ -99,14 +111,14 @@ describe("submitLead — timeout do cliente", () => {
   it("resposta antes do limite não dispara o timeout", async () => {
     vi.useFakeTimers();
     vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ refused: false }));
-    await expect(submitLead("x", null, undefined, 90_000)).resolves.toEqual({ refused: false });
+    await expect(submitLead("x", null, { timeoutMs: 90_000 })).resolves.toEqual({ refused: false });
     expect(vi.getTimerCount()).toBe(0);
   });
 
   it("abort de quem chama continua sendo AbortError, não timeout", async () => {
     hangingFetch();
     const ctl = new AbortController();
-    const pending = submitLead("x", null, ctl.signal).catch((e) => e);
+    const pending = submitLead("x", null, { signal: ctl.signal }).catch((e) => e);
     ctl.abort();
     const err = await pending;
     expect(err).not.toBeInstanceOf(TimeoutError);

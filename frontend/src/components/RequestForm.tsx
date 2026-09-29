@@ -10,6 +10,8 @@ export interface RequestFormProps {
   loading: boolean;
   examples: string[];
   turnstileSlot: ReactNode;
+  /** Motivo para não enviar (ex.: ICP inválido); desabilita o Analisar. */
+  bloqueio?: string | null;
 }
 
 export function RequestForm({
@@ -19,6 +21,7 @@ export function RequestForm({
   loading,
   examples,
   turnstileSlot,
+  bloqueio = null,
 }: RequestFormProps) {
   const [localError, setLocalError] = useState<string | null>(null);
   const [draft, setDraft] = useState(value);
@@ -39,6 +42,7 @@ export function RequestForm({
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const pedido = draft.trim();
+    if (bloqueio) return;
     if (!pedido) {
       setLocalError("Escreva um pedido para analisar.");
       return;
@@ -50,7 +54,7 @@ export function RequestForm({
   return (
     <form onSubmit={handleSubmit} className="mt-8" noValidate>
       <label htmlFor="pedido" className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-        Pedido — o que a Quimera deve investigar
+        Passo 2 — Pedido: o que a Quimera deve investigar
       </label>
       <Textarea
         id="pedido"
@@ -73,13 +77,13 @@ export function RequestForm({
       {turnstileSlot ? <div className="mt-5">{turnstileSlot}</div> : null}
       <Button
         type="submit"
-        disabled={loading}
+        disabled={loading || !!bloqueio}
         className="mt-5 bg-primary px-8 py-6 text-sm font-semibold uppercase tracking-widest text-primary-foreground hover:opacity-90"
       >
         {loading ? "Analisando…" : "Analisar"}
       </Button>
       <p id="pedido-erro" role="status" aria-live="polite" className="mt-3 min-h-6 font-mono text-sm text-muted-foreground">
-        {localError ?? ""}
+        {localError ?? (bloqueio ? `Ajuste o perfil antes de analisar: ${bloqueio}` : "")}
       </p>
     </form>
   );
