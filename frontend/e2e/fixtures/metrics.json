@@ -1,0 +1,47 @@
+{
+  "thresholds": {
+    "correct_refusal_rate": 1.0,
+    "overall_field_accuracy": 0.85,
+    "recall_at_5": 0.9,
+    "e2e_case_pass_rate": 0.9,
+    "e2e_row_precision": 0.98,
+    "e2e_correct_refusal_rate": 1.0
+  },
+  "extraction": [
+    {
+      "suite": "extraction",
+      "date": "2026-09-28T12:00:00Z",
+      "commit": "abc1234",
+      "metrics": {
+        "correct_refusal_rate": 1.0,
+        "false_refusal_rate": 0.0,
+        "overall_field_accuracy": 0.87,
+        "exact_match_rate": 0.6,
+        "n_cases": 42
+      }
+    }
+  ],
+  "cnae": [
+    {
+      "suite": "cnae",
+      "date": "2026-09-28T12:00:00Z",
+      "commit": "abc1234",
+      "metrics": { "recall@1": 0.88, "recall@5": 0.955, "mrr": 0.92, "n_cases": 66 }
+    }
+  ],
+  "e2e": [
+    {
+      "suite": "e2e",
+      "golden": "golden_e2e.jsonl",
+      "date": "2026-09-28T12:00:00Z",
+      "commit": "abc1234",
+      "metrics": {
+        "case_pass_rate": 0.95,
+        "row_precision": 0.997,
+        "e2e_correct_refusal_rate": 1.0,
+        "n_rows": 795,
+        "n_cases": 20
+      }
+    }
+  ]
+}

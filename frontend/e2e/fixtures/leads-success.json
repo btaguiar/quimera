@@ -1,0 +1,53 @@
+{
+  "refused": false,
+  "refusal_reason": null,
+  "filters": {
+    "cnae_query": "clínicas odontológicas",
+    "cnae_codes": ["8630-5/01"],
+    "ufs": ["SP"],
+    "municipio_ids": ["3547807"],
+    "municipio_names": ["Santo André"],
+    "min_age_years": 2,
+    "max_age_years": null,
+    "min_capital": null,
+    "portes": ["pequena"],
+    "include_mei": false,
+    "min_estabelecimentos": null,
+    "regimes": [],
+    "bairros": [],
+    "cep_centro": null,
+    "raio_km": null,
+    "com_dominio_proprio": false,
+    "limit": 50
+  },
+  "cnae_matches": [["8630-5/01", "Atividade médica ambulatorial odontológica", 0.92]],
+  "municipio_resolution": {},
+  "snapshot": { "quimera.leads": "2026-09-01" },
+  "rows": [
+    {
+      "cnpj_basico": "12345678",
+      "razao_social": "CLINICA ALFA",
+      "nome_fantasia": null,
+      "sigla_uf": "SP",
+      "municipio": "Santo André",
+      "cnae_fiscal_principal": "8630-5/01",
+      "data_inicio_atividade": "20150110",
+      "capital_social": 100000.0,
+      "porte": "pequena",
+      "score": 87,
+      "motivos_score": ["idade 11 anos", "capital R$ 100.000"]
+    }
+  ],
+  "bytes_processed": 34603008,
+  "bytes_billed": 34603008,
+  "estimated_cost_usd": 0.0002,
+  "latency_ms": 4123.4,
+  "timings_ms": { "extract": 1200, "cnae": 800, "query": 800, "score": 100 },
+  "model": "gemini-2.5-flash",
+  "policy": "public",
+  "request_normalized": "clinicas odontologicas",
+  "warnings": [],
+  "query_sql": "SELECT * FROM `quimera.leads` WHERE sigla_uf = @uf",
+  "cached": false,
+  "cache_mode": false
+}

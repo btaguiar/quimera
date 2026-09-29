@@ -1,0 +1,21 @@
+{
+  "refused": true,
+  "refusal_reason": "pedido de dado pessoal (e-mail, telefone ou sócio)",
+  "filters": null,
+  "cnae_matches": [],
+  "municipio_resolution": {},
+  "snapshot": {},
+  "rows": [],
+  "bytes_processed": 0,
+  "bytes_billed": 0,
+  "estimated_cost_usd": 0,
+  "latency_ms": 300,
+  "timings_ms": {},
+  "model": "gemini-2.5-flash",
+  "policy": "public",
+  "request_normalized": "e-mails de clinicas",
+  "warnings": [],
+  "query_sql": "",
+  "cached": false,
+  "cache_mode": false
+}
