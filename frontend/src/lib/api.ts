@@ -9,12 +9,14 @@ import type {
 export class ApiError extends Error {
   status: number;
   body: ApiErrorBody | null;
+  retryAfter: number | null;
 
-  constructor(status: number, body: ApiErrorBody | null) {
+  constructor(status: number, body: ApiErrorBody | null, retryAfter: number | null = null) {
     super(body?.reason ?? `HTTP ${status}`);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -34,16 +36,23 @@ function mapFetchError(err: unknown): never {
   throw new NetworkError();
 }
 
+function parseRetryAfter(resp: Response): number | null {
+  const raw = resp.headers.get("Retry-After");
+  if (raw == null) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 async function parse<T>(resp: Response): Promise<T> {
   let body: unknown;
   try {
     body = await resp.json();
   } catch (err) {
     if (isAbortError(err)) throw err;
-    if (!resp.ok) throw new ApiError(resp.status, null);
+    if (!resp.ok) throw new ApiError(resp.status, null, parseRetryAfter(resp));
     throw new NetworkError("JSON inválido na resposta");
   }
-  if (!resp.ok) throw new ApiError(resp.status, body as ApiErrorBody | null);
+  if (!resp.ok) throw new ApiError(resp.status, body as ApiErrorBody | null, parseRetryAfter(resp));
   return body as T;
 }
 

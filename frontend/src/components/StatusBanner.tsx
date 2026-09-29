@@ -1,12 +1,25 @@
 import { Button } from "@/components/ui/button";
+import { ApiError, NetworkError } from "@/lib/api";
 import type { ApiErrorBody } from "@/lib/types";
 
 export type ErrorState =
   | { kind: "network" }
   | { kind: "http"; status: number; body: ApiErrorBody | null; retryAfter: number | null };
 
+export function toErrorState(err: unknown): ErrorState {
+  if (err instanceof NetworkError || (err instanceof Error && err.name === "NetworkError")) {
+    return { kind: "network" };
+  }
+  if (err instanceof ApiError || (err instanceof Error && err.name === "ApiError")) {
+    const e = err as ApiError;
+    return { kind: "http", status: e.status, body: e.body ?? null, retryAfter: e.retryAfter ?? null };
+  }
+  return { kind: "http", status: 0, body: null, retryAfter: null };
+}
+
 function httpMessage(state: Extract<ErrorState, { kind: "http" }>): string {
-  const reason = state.body?.reason?.trim();
+  const raw = state.body?.reason;
+  const reason = typeof raw === "string" ? raw.trim() : "";
   if (reason) return reason;
   switch (state.status) {
     case 401:
@@ -14,7 +27,7 @@ function httpMessage(state: Extract<ErrorState, { kind: "http" }>): string {
     case 422:
       return "Pedido inválido: escreva um pedido com até 500 caracteres.";
     case 429:
-      return state.retryAfter
+      return state.retryAfter != null
         ? `Muitas tentativas; aguarde ${state.retryAfter} s.`
         : "Muitas tentativas; aguarde alguns minutos.";
     case 500:
@@ -37,11 +50,11 @@ export function StatusBanner({
   refusal?: string | null;
   onRetry?: () => void;
 }) {
-  if (refusal) {
+  if (refusal != null) {
     return (
       <div role="status" className="rounded-xl border border-warning/40 bg-warning/10 p-5 text-warning-foreground">
         <p className="font-mono text-xs uppercase tracking-widest text-warning">Pedido não atendido</p>
-        <p className="mt-2 text-sm">{refusal}</p>
+        <p className="mt-2 text-sm">{refusal || "pedido recusado"}</p>
         <p className="mt-2 text-sm text-muted-foreground">
           A política pública não responde pedidos de dado pessoal — de sócios, contato ou
           qualquer pessoa física.

@@ -122,3 +122,26 @@ describe("parse", () => {
     await expect(fetchHealth()).rejects.toBe(abort);
   });
 });
+
+describe("Retry-After", () => {
+  it("429 com Retry-After expõe os segundos no ApiError", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "rate limit", reason: "limite" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "30" },
+      }),
+    );
+    const err = (await submitLead("x", null).catch((e) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.retryAfter).toBe(30);
+  });
+
+  it("sem Retry-After o campo fica null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ error: "rate limit", reason: "limite" }, 429),
+    );
+    const err = (await submitLead("x", null).catch((e) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.retryAfter).toBeNull();
+  });
+});
