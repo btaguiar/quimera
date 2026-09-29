@@ -778,40 +778,60 @@ class TestConfigEndpoint:
 
 
 class TestFrontend:
-    def test_root_serves_laudo_page(self):
-        resp = TestClient(_app()).get("/")
+    @pytest.fixture()
+    def static_dir(self, tmp_path):
+        (tmp_path / "index.html").write_text(
+            '<!doctype html><html lang="pt-BR"><head><title>Quimera</title></head>'
+            '<body><div id="root"></div></body></html>',
+            encoding="utf-8",
+        )
+        assets = tmp_path / "assets"
+        assets.mkdir()
+        (assets / "index-abc123.js").write_text(
+            "console.log('quimera')", encoding="utf-8"
+        )
+        (assets / "index-abc123.css").write_text("body{}", encoding="utf-8")
+        return tmp_path
+
+    def _client(self, static_dir):
+        extract, search, bq = _happy_clients()
+        app = create_app(
+            config=_config(),
+            extract_client=extract,
+            cnae_search=search,
+            bq_client=bq,
+            static_dir=static_dir,
+        )
+        return TestClient(app)
+
+    def test_root_serves_spa_index(self, static_dir):
+        resp = self._client(static_dir).get("/")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
-        assert "Quimera — Laudo de Prospecção" in resp.text
-        assert "Emitir laudo" in resp.text
         assert 'lang="pt-BR"' in resp.text
+        assert 'id="root"' in resp.text
+        assert "Quimera" in resp.text
 
-    def test_metrics_html_served(self):
-        resp = TestClient(_app()).get("/metrics.html")
+    def test_metricas_served_via_fallback(self, static_dir):
+        resp = self._client(static_dir).get("/metricas")
         assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/html")
-        assert "Métricas medidas" in resp.text
+        assert 'id="root"' in resp.text
 
-    def test_metrics_page_renders_from_api_json(self):
-        client = TestClient(_app())
-        html = client.get("/metrics.html").text
-        js = client.get("/metrics.js")
-        assert "Anexo A" in html
-        assert "regra de ouro" in html.lower()
+    def test_metrics_html_redirects(self, static_dir):
+        resp = self._client(static_dir).get("/metrics.html", follow_redirects=False)
+        assert resp.status_code == 308
+        assert resp.headers["location"] == "/metricas"
+
+    def test_static_assets_served(self, static_dir):
+        client = self._client(static_dir)
+        js = client.get("/assets/index-abc123.js")
+        css = client.get("/assets/index-abc123.css")
         assert js.status_code == 200
         assert "javascript" in js.headers["content-type"]
-        assert "carregarMetricas" in js.text
-
-    def test_static_assets_served(self):
-        client = TestClient(_app())
-        css = client.get("/style.css")
-        js = client.get("/app.js")
         assert css.status_code == 200
         assert "text/css" in css.headers["content-type"]
-        assert js.status_code == 200
-        assert "javascript" in js.headers["content-type"]
-        assert "--acento" in css.text
-        assert "renderizarLaudo" in js.text
+
+
 class TestSpaFallback:
     @pytest.fixture()
     def static_dir(self, tmp_path):
@@ -869,3 +889,4 @@ class TestSpaFallback:
         assert resp.status_code == 404
         assert resp.headers["content-type"].startswith("application/json")
         assert "error" in resp.json()
+        assert "reason" in resp.json()
