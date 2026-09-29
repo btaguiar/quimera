@@ -9,9 +9,15 @@ export function CnaeList({ matches }: { matches: LeadsResponse["cnae_matches"] }
         </caption>
         <thead>
           <tr className="border-b border-foreground/20 text-left font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            <th className="py-2 pr-4">Código</th>
-            <th className="py-2 pr-4">Descrição</th>
-            <th className="py-2 text-right">Simil.</th>
+            <th className="py-2 pr-4" scope="col">
+              Código
+            </th>
+            <th className="py-2 pr-4" scope="col">
+              Descrição
+            </th>
+            <th className="py-2 text-right" scope="col">
+              Simil.
+            </th>
           </tr>
         </thead>
         <tbody>

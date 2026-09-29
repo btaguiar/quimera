@@ -5,7 +5,6 @@ import type { LeadFilters } from "@/lib/types";
 function chip(label: string, valor: string) {
   return (
     <Badge
-      key={label + valor}
       variant="secondary"
       className="border-border bg-secondary font-mono text-xs font-normal text-foreground"
     >

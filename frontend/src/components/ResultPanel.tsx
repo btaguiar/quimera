@@ -23,7 +23,13 @@ function Section({
   );
 }
 
-export function ResultPanel({ data, browserMs }: { data: LeadsResponse; browserMs: number }) {
+export function ResultPanel({
+  data,
+  browserSeconds,
+}: {
+  data: LeadsResponse;
+  browserSeconds: number;
+}) {
   const snapshot = data.snapshot ? Object.values(data.snapshot)[0] : null;
   return (
     <div>
@@ -34,9 +40,11 @@ export function ResultPanel({ data, browserMs }: { data: LeadsResponse; browserM
           </span>
         </p>
       ) : null}
-      <Section titulo="1 — Interpretação do pedido">
-        <FiltersBadge filters={data.filters} />
-      </Section>
+      {data.filters ? (
+        <Section titulo="1 — Interpretação do pedido">
+          <FiltersBadge filters={data.filters} />
+        </Section>
+      ) : null}
       {data.cnae_matches.length ? (
         <Section titulo="2 — Classificação CNAE">
           <CnaeList matches={data.cnae_matches} />
@@ -63,13 +71,13 @@ export function ResultPanel({ data, browserMs }: { data: LeadsResponse; browserM
         <RankingTable rows={data.rows} />
       </Section>
       <Section titulo="5 — Custos e latência">
-        <CostSummary data={data} browserMs={browserMs} />
+        <CostSummary data={data} browserSeconds={browserSeconds} />
       </Section>
       {data.warnings.length ? (
         <Section titulo="6 — Ressalvas">
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-            {data.warnings.map((w) => (
-              <li key={w}>{w}</li>
+            {data.warnings.map((w, i) => (
+              <li key={`${i}-${w}`}>{w}</li>
             ))}
           </ul>
         </Section>
