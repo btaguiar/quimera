@@ -14,7 +14,7 @@ export function RankingTable({ rows }: { rows: LeadRow[] }) {
       <p className="mb-3 font-mono text-xs text-muted-foreground">
         {rows.length} empresas — ordenadas pela nota do ICP
       </p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Ranking de empresas">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-foreground/20 text-left font-mono text-xs uppercase tracking-widest text-muted-foreground">
@@ -49,28 +49,39 @@ export function RankingTable({ rows }: { rows: LeadRow[] }) {
                 <td className="py-3 pr-3 text-right font-mono">{fmtNumOrDash(r.capital_social)}</td>
                 <td className="py-3 pr-3">{r.porte ?? "—"}</td>
                 <td className="py-3 pr-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <span
-                      aria-hidden
-                      className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"
-                    >
+                  {r.score == null ? (
+                    <span className="font-mono">—</span>
+                  ) : (
+                    <div className="flex items-center justify-end gap-2">
                       <span
-                        className="block h-full rounded-full bg-accent"
-                        style={{ width: `${Math.max(0, Math.min(100, r.score ?? 0))}%` }}
-                      />
-                    </span>
-                    <span className="font-mono">{fmtNumOrDash(r.score)}</span>
-                  </div>
+                        aria-hidden
+                        className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"
+                      >
+                        <span
+                          className="block h-full rounded-full bg-accent"
+                          style={{ width: `${Math.max(0, Math.min(100, r.score))}%` }}
+                        />
+                      </span>
+                      <span className="font-mono">{fmtNumOrDash(r.score)}</span>
+                    </div>
+                  )}
                 </td>
                 <td className="py-3">
-                  <details>
-                    <summary className="cursor-pointer font-mono text-xs text-accent">motivos</summary>
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                      {(r.motivos_score ?? []).map((m) => (
-                        <li key={m}>{m}</li>
-                      ))}
-                    </ul>
-                  </details>
+                  {r.motivos_score?.length ? (
+                    <details>
+                      <summary
+                        aria-label={`motivos de ${r.razao_social}`}
+                        className="cursor-pointer font-mono text-xs text-accent"
+                      >
+                        motivos
+                      </summary>
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                        {r.motivos_score.map((m, j) => (
+                          <li key={`${j}-${m}`}>{m}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
                 </td>
               </tr>
             ))}

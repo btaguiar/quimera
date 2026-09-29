@@ -17,6 +17,7 @@ export function CostSummary({
 }: {
   data: LeadsResponse;
   browserSeconds: number;
+  /** saldo após a última busca — o pai deve re-buscar /health a cada busca concluída */
   budgetRemainingBytes?: number | null;
 }) {
   const etapas = Object.entries(data.timings_ms ?? {})
@@ -38,7 +39,7 @@ export function CostSummary({
         <Linha label="No navegador" valor={`${browserSeconds.toFixed(1).replace(".", ",")} s`} />
         <Linha
           label="Orçamento diário restante"
-          valor={budgetRemainingBytes == null ? "—" : fmtBytes(budgetRemainingBytes)}
+          valor={fmtBytes(budgetRemainingBytes)}
         />
         <Linha label="Modelo" valor={data.model || "—"} />
       </dl>
