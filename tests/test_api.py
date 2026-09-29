@@ -460,6 +460,109 @@ class TestCache:
         assert cached["cache_mode"] is False
 
 
+ICP_LOCAL = {
+    "preferred_portes": ["micro", "pequena"],
+    "target_min_age_years": 1,
+    "target_full_age_years": 5,
+    "target_min_capital": 10_000,
+    "target_max_capital": 500_000,
+    "w_porte": 40,
+    "w_age": 30,
+    "w_capital": 30,
+    "w_rede": 0,
+    "w_dominio": 0,
+    "target_min_estabelecimentos": 2,
+    "mei_factor": 0.5,
+}
+
+
+def _param(bq, name):
+    _, job_config = bq.executed[-1]
+    return next(p.value for p in job_config.query_parameters if p.name == name)
+
+
+class TestIcp:
+    def test_without_icp_uses_default_profile(self):
+        app = _app()
+        bq = app.state.pipeline_deps["bq_client"]
+        resp = TestClient(app).post("/leads", json={"request": "empresas em SP"})
+        assert resp.status_code == 200
+        assert _param(bq, "icp_w_porte") == 40.0
+        assert resp.json()["icp"]["preferred_portes"] == ["demais"]
+
+    def test_icp_reaches_sql_ranking_and_score(self):
+        app = _app()
+        bq = app.state.pipeline_deps["bq_client"]
+        resp = TestClient(app).post(
+            "/leads", json={"request": "empresas em SP", "icp": ICP_LOCAL}
+        )
+        assert resp.status_code == 200
+        assert _param(bq, "icp_capital_max") == 500_000.0
+        rows = {r["razao_social"]: r for r in resp.json()["rows"]}
+        # CLINICA BETA é micro: com o ICP local, o porte dela é o alvo.
+        assert any("micro é o alvo" in m for m in rows["CLINICA BETA"]["motivos_score"])
+
+    def test_weights_are_normalized_to_100(self):
+        app = _app()
+        bq = app.state.pipeline_deps["bq_client"]
+        icp = {**ICP_LOCAL, "w_porte": 2, "w_age": 1, "w_capital": 1}
+        resp = TestClient(app).post(
+            "/leads", json={"request": "empresas em SP", "icp": icp}
+        )
+        assert resp.status_code == 200
+        usado = resp.json()["icp"]
+        assert (usado["w_porte"], usado["w_age"], usado["w_capital"]) == (50, 25, 25)
+        assert _param(bq, "icp_w_porte") == 50.0
+
+    def test_cache_separates_profiles(self):
+        app = _app()
+        bq = app.state.pipeline_deps["bq_client"]
+        client = TestClient(app)
+        client.post("/leads", json={"request": "empresas em SP"})
+        outro = client.post("/leads", json={"request": "empresas em SP", "icp": ICP_LOCAL})
+        mesmo = client.post("/leads", json={"request": "empresas em SP", "icp": ICP_LOCAL})
+        assert outro.json()["cached"] is False
+        assert mesmo.json()["cached"] is True
+        assert mesmo.json()["icp"] == outro.json()["icp"]
+        assert len(bq.executed) == 2
+
+    @pytest.mark.parametrize(
+        "campo, valor",
+        [
+            ("preferred_portes", []),
+            ("preferred_portes", ["gigante"]),
+            ("preferred_portes", ["micro", "micro"]),
+            ("target_min_age_years", -1),
+            ("target_full_age_years", 0),  # abaixo do mínimo (1)
+            ("target_max_capital", 5_000),  # abaixo do mínimo (10 mil)
+            ("target_min_capital", 10),
+            ("w_porte", 101),
+            ("mei_factor", 1.5),
+            ("target_min_estabelecimentos", 1),
+        ],
+    )
+    def test_invalid_icp_returns_422_pointing_to_icp(self, campo, valor):
+        client = TestClient(_app())
+        icp = {**ICP_LOCAL, campo: valor}
+        resp = client.post("/leads", json={"request": "empresas em SP", "icp": icp})
+        assert resp.status_code == 422
+        assert "ICP" in resp.json()["reason"]
+
+    def test_all_weights_zero_is_invalid(self):
+        client = TestClient(_app())
+        icp = {**ICP_LOCAL, "w_porte": 0, "w_age": 0, "w_capital": 0}
+        resp = client.post("/leads", json={"request": "empresas em SP", "icp": icp})
+        assert resp.status_code == 422
+        assert "ICP" in resp.json()["reason"]
+
+    def test_partial_icp_is_invalid(self):
+        client = TestClient(_app())
+        resp = client.post(
+            "/leads", json={"request": "empresas em SP", "icp": {"w_porte": 10}}
+        )
+        assert resp.status_code == 422
+
+
 def _slow_cnae_search(results, delay_s=1.0):
     def search(query, k):
         time.sleep(delay_s)

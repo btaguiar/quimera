@@ -37,6 +37,8 @@ from ..query import (
     LeadsTableMissingError,
     resolve_max_bytes_billed,
 )
+from ..score import ICPConfig
+from .icp import IcpBody, icp_cache_suffix, icp_payload
 from .metrics import load_metrics
 from .protections import ApiConfig, normalize_request, request_hash, token_ok
 from .state import MemoryStateStore, StateStore
@@ -48,10 +50,11 @@ MAX_TURNSTILE_TOKEN_CHARS = 2048
 
 
 class LeadsRequestBody(BaseModel):
-    """Corpo de POST /leads: pedido em pt-BR e token opcional do Turnstile."""
+    """Corpo de POST /leads: pedido em pt-BR, token opcional do Turnstile e ICP opcional."""
 
     request: str = Field(min_length=1, max_length=MAX_REQUEST_CHARS)
     turnstile: str | None = Field(default=None, max_length=MAX_TURNSTILE_TOKEN_CHARS)
+    icp: IcpBody | None = None
 
 
 class ApiError(Exception):
@@ -185,15 +188,20 @@ def create_app(
                     content={"error": auth_error.error, "reason": auth_error.reason},
                     headers=auth_error.headers,
                 )
+        erros_icp = [e for e in exc.errors() if "icp" in [str(x) for x in e.get("loc", ())]]
+        if erros_icp:
+            err = erros_icp[0]
+            campo = ".".join(str(x) for x in err["loc"] if x not in ("body", "icp"))
+            detalhe = str(err.get("msg", "")).removeprefix("Value error, ")
+            reason = f"ICP inválido: {campo + ': ' if campo else ''}{detalhe}"
+        else:
+            reason = (
+                f"campo 'request' é obrigatório, não vazio e com até "
+                f"{MAX_REQUEST_CHARS} caracteres"
+            )
         return JSONResponse(
             status_code=422,
-            content={
-                "error": "validação",
-                "reason": (
-                    f"campo 'request' é obrigatório, não vazio e com até "
-                    f"{MAX_REQUEST_CHARS} caracteres"
-                ),
-            },
+            content={"error": "validação", "reason": reason},
         )
 
     @app.exception_handler(ApiError)
@@ -299,12 +307,13 @@ def create_app(
             headers={"Cache-Control": "no-store"},
         )
 
-    def _run_pipeline(text: str, max_bytes_billed: int):
+    def _run_pipeline(text: str, max_bytes_billed: int, icp: ICPConfig):
         from ..pipeline import run as run_pipeline
 
         return run_pipeline(
             text,
             policy,
+            icp=icp,
             extract_client=app.state.pipeline_deps["extract_client"],
             cnae_search=app.state.pipeline_deps["cnae_search"],
             bq_client=app.state.pipeline_deps["bq_client"],
@@ -316,7 +325,8 @@ def create_app(
         dependencies=[Depends(_authenticate), Depends(_enforce_rate_limit)],
     )
     def leads(body: LeadsRequestBody, request: Request):
-        key = request_hash(normalize_request(body.request))
+        icp = body.icp.to_config() if body.icp else ICPConfig()
+        key = request_hash(normalize_request(body.request) + icp_cache_suffix(icp))
         cached = state.cache_get(key)
         if cached is not None:
             return {**cached, "cached": True, "cache_mode": state.cache_mode()}
@@ -334,7 +344,7 @@ def create_app(
         max_bytes = min(ceiling, remaining)
 
         try:
-            future = _executor.submit(_run_pipeline, body.request, max_bytes)
+            future = _executor.submit(_run_pipeline, body.request, max_bytes, icp)
             result = future.result(timeout=config.request_timeout_s)
         except FuturesTimeoutError:
             logger.warning("timeout no pipeline (%ss)", config.request_timeout_s)
@@ -368,7 +378,7 @@ def create_app(
                 "o modelo devolveu uma resposta fora do contrato; "
                 "tente reformular o pedido",
             ) from None
-        payload = result.to_dict()
+        payload = {**result.to_dict(), "icp": icp_payload(icp)}
         if not result.refused:
             state.add_bytes(result.bytes_billed)
             state.cache_set(key, payload)
