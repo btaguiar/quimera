@@ -32,6 +32,22 @@ describe("selectE2e", () => {
     expect(selectE2e(lista)?.metrics?.n_cases).toBe(4);
   });
 
+  it("desempata goldens qualificados: o último vence", () => {
+    const lista = [
+      entry({ golden: "golden_e2e.jsonl", metrics: { n_cases: 25 } }),
+      entry({ golden: "golden_e2e.jsonl", metrics: { n_cases: 30 } }),
+    ];
+    expect(selectE2e(lista)?.metrics?.n_cases).toBe(30);
+  });
+
+  it("golden com menos de 20 perde para não-golden com 20+", () => {
+    const lista = [
+      entry({ golden: "golden_e2e.jsonl", metrics: { n_cases: 10 } }),
+      entry({ golden: "outro.jsonl", metrics: { n_cases: 21 } }),
+    ];
+    expect(selectE2e(lista)?.metrics?.n_cases).toBe(21);
+  });
+
   it("devolve null sem lista", () => {
     expect(selectE2e(undefined)).toBeNull();
     expect(selectE2e([])).toBeNull();
