@@ -64,16 +64,35 @@ def load_cases(path: str | Path) -> list[dict]:
     return cases
 
 
+# Código que muda o resultado de uma avaliação. eval/results fica de fora:
+# ganha um arquivo novo a cada rodada e marcaria toda execução.
+_CAMINHOS_AVALIADOS = ["src", "eval", "frontend/src", ":(exclude)eval/results"]
+MARCA_ALTERACOES = "+alterações"
+
+
 def _commit() -> str:
+    """Commit do HEAD; com ``+alterações`` se o código avaliado difere dele.
+
+    Sem a marca, uma rodada feita antes do commit aparecia com o hash
+    anterior: os 10 mil do golden sintético (2026-09-30) mostravam b796f84,
+    que não tem o código que produziu os números.
+    """
     try:
-        return subprocess.run(
+        head = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        pendente = subprocess.run(
+            ["git", "status", "--porcelain", "--", *_CAMINHOS_AVALIADOS],
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+    return head + MARCA_ALTERACOES if pendente else head
 
 
 def _payload(suite: str, metrics: dict, latencies: list[float], **extra) -> dict:

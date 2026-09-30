@@ -231,3 +231,41 @@ def test_sintetico_golden_uses_its_own_threshold():
     m = {"row_precision": 0.96}
     assert check_thresholds(m, th, golden="golden_e2e_sintetico.jsonl") == []
     assert len(check_thresholds(m, th, golden="golden_e2e.jsonl")) == 1
+
+
+class TestCommit:
+    """O commit gravado marca quando o código avaliado não é o do HEAD."""
+
+    def _fake_git(self, monkeypatch, status_out):
+        import subprocess
+
+        from eval import run_eval
+
+        chamadas = []
+
+        def fake_run(cmd, **kw):
+            chamadas.append(cmd)
+            out = "abc1234\n" if "rev-parse" in cmd else status_out
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(run_eval.subprocess, "run", fake_run)
+        return run_eval._commit(), chamadas
+
+    def test_clean_tree_is_plain_hash(self, monkeypatch):
+        commit, _ = self._fake_git(monkeypatch, "")
+        assert commit == "abc1234"
+
+    def test_pending_changes_are_marked(self, monkeypatch):
+        commit, chamadas = self._fake_git(monkeypatch, " M src/quimera/pipeline.py\n")
+        assert commit == "abc1234+alterações"
+        # results/ fica fora: cada rodada cria um arquivo novo ali.
+        assert ":(exclude)eval/results" in chamadas[1]
+
+    def test_git_missing_is_unknown(self, monkeypatch):
+        from eval import run_eval
+
+        def falha(*a, **k):
+            raise OSError
+
+        monkeypatch.setattr(run_eval.subprocess, "run", falha)
+        assert run_eval._commit() == "unknown"
