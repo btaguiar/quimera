@@ -1,7 +1,7 @@
 {
   "suite": "e2e",
   "date": "2026-09-27T14:47:01+00:00",
-  "commit": "20e83b0",
+  "commit": "4248de1",
   "metrics": {
     "n_cases": 33,
     "case_pass_rate": 0.9090909090909091,

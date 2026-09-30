@@ -1,7 +1,7 @@
 {
   "suite": "extraction",
   "date": "2026-09-27T12:47:33+00:00",
-  "commit": "20e83b0",
+  "commit": "4248de1",
   "metrics": {
     "n_cases": 55,
     "n_refusal_cases": 11,

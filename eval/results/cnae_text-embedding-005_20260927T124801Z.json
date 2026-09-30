@@ -1,7 +1,7 @@
 {
   "suite": "cnae",
   "date": "2026-09-27T12:48:01+00:00",
-  "commit": "20e83b0",
+  "commit": "4248de1",
   "metrics": {
     "n_cases": 66,
     "recall@1": 0.7575757575757576,
