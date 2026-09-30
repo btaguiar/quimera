@@ -22,6 +22,9 @@ API_TOKEN="${API_TOKEN:-}"              # valor do secret (só na 1ª criação)
 TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-}"
 TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-}"
 PUBLIC_ACCESS="${PUBLIC_ACCESS:-true}"  # false -> exige IAM invoker (sem acesso anonimo)
+# Firebase Hosting na frente (https://<projeto>.web.app): serve o front pela CDN
+# e repassa /leads, /metrics, /config e /health ao Cloud Run (firebase.json).
+FIREBASE_HOSTING="${FIREBASE_HOSTING:-true}"
 
 ALLOW_FLAG="--allow-unauthenticated"
 if [ "$PUBLIC_ACCESS" != "true" ]; then
@@ -90,7 +93,7 @@ gcloud run deploy "$SERVICE" \
   --min-instances=0 --max-instances=1 --concurrency=4 \
   --cpu=1 --memory=1Gi --timeout=120 \
   "$ALLOW_FLAG" \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},BQ_LOCATION=${BQ_LOCATION},VERTEX_LOCATION=${VERTEX_LOCATION},EXTRACT_MODEL=gemini-2.5-flash,EMBED_MODEL=text-embedding-005,MAX_BYTES_BILLED=5368709120,LEADS_DATASET=${LEADS_DATASET},DAILY_BYTES_BUDGET=${DAILY_BYTES_BUDGET},RATE_LIMIT_MAX=${RATE_LIMIT_MAX},RATE_LIMIT_WINDOW_S=3600,CACHE_TTL_S=86400,REQUEST_TIMEOUT_S=60,TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}" \
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT},BQ_LOCATION=${BQ_LOCATION},VERTEX_LOCATION=${VERTEX_LOCATION},EXTRACT_MODEL=gemini-2.5-flash,EMBED_MODEL=text-embedding-005,MAX_BYTES_BILLED=5368709120,LEADS_DATASET=${LEADS_DATASET},DAILY_BYTES_BUDGET=${DAILY_BYTES_BUDGET},RATE_LIMIT_MAX=${RATE_LIMIT_MAX},RATE_LIMIT_WINDOW_S=3600,CACHE_TTL_S=86400,REQUEST_TIMEOUT_S=60,TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY},TRUST_FASTLY_CLIENT_IP=${FIREBASE_HOSTING}" \
   --set-secrets="$SECRETS"
 
 URL=$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')
@@ -125,9 +128,25 @@ else
   echo "BUDGET vazio: alertas não criados (console: Billing > Orçamentos; 50/80/100%)"
 fi
 
+if [ "$FIREBASE_HOSTING" = "true" ]; then
+  if [ "$PUBLIC_ACCESS" = "true" ]; then
+    log "firebase hosting (front na CDN + repasse ao Cloud Run)"
+    npx -y firebase-tools@latest deploy --only hosting --project "$PROJECT"
+    SITE="https://${PROJECT}.web.app"
+    curl -fsS "$SITE/health"; echo
+    curl -fsS "$SITE/" | grep -q 'id="root"' && echo 'firebase front: ok'
+  else
+    echo "Firebase Hosting não publicado: o Cloud Run privado recusa o repasse (403)."
+  fi
+fi
+
 if [ "$PUBLIC_ACCESS" != "true" ]; then
   printf '\nDEMO (privada — precisa de IAM invoker): %s\n' "$URL"
   printf 'Para abrir ao público depois: PUBLIC_ACCESS=true bash scripts/deploy.sh\n'
 else
-  printf '\nDEMO: %s\nMETRICAS: %s/metricas\n' "$URL" "$URL"
+  if [ "$FIREBASE_HOSTING" = "true" ]; then
+    printf '\nDEMO: https://%s.web.app\nMETRICAS: https://%s.web.app/metricas\n' "$PROJECT" "$PROJECT"
+  else
+    printf '\nDEMO: %s\nMETRICAS: %s/metricas\n' "$URL" "$URL"
+  fi
 fi

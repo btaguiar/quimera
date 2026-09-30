@@ -267,7 +267,12 @@ def create_app(
     def _client_ip(request: Request) -> str:
         """IP do cliente: último hop do X-Forwarded-For (o Cloud Run anexa o
         IP real observado; hops anteriores são controláveis pelo cliente).
-        Sem XFF, o endereço direto."""
+        Sem XFF, o endereço direto. Com ``trust_fastly_client_ip`` (deploy
+        atrás do Firebase Hosting), o Fastly-Client-IP tem precedência."""
+        if config.trust_fastly_client_ip:
+            fastly = (request.headers.get("fastly-client-ip") or "").strip()
+            if fastly:
+                return fastly
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
             parts = [p.strip() for p in forwarded.split(",") if p.strip()]

@@ -50,6 +50,12 @@ class ApiConfig:
     request_timeout_s: float
     turnstile_secret_key: str | None = None
     turnstile_site_key: str | None = None
+    # Atrás do Firebase Hosting, o último hop do X-Forwarded-For é o servidor
+    # do Firebase (o mesmo para todos): o IP do visitante vem em
+    # Fastly-Client-IP. Só ligar nesse deploy — chamado direto ao Cloud Run,
+    # o cabeçalho pode ser forjado (o Turnstile por pedido e o orçamento
+    # diário continuam valendo).
+    trust_fastly_client_ip: bool = False
 
     @classmethod
     def from_env(cls) -> "ApiConfig":
@@ -62,4 +68,8 @@ class ApiConfig:
             request_timeout_s=float(os.environ.get("REQUEST_TIMEOUT_S", "60")),
             turnstile_secret_key=os.environ.get("TURNSTILE_SECRET_KEY") or None,
             turnstile_site_key=os.environ.get("TURNSTILE_SITE_KEY") or None,
+            trust_fastly_client_ip=os.environ.get("TRUST_FASTLY_CLIENT_IP", "")
+            .strip()
+            .lower()
+            in ("1", "true", "sim"),
         )

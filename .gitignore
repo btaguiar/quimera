@@ -41,3 +41,7 @@ frontend/test-results/
 docs/superpowers/
 .impeccable/
 PRODUCT.md
+
+# Firebase CLI
+.firebase/
+firebase-debug.log

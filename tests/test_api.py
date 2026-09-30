@@ -993,3 +993,39 @@ class TestSpaFallback:
         assert resp.headers["content-type"].startswith("application/json")
         assert "error" in resp.json()
         assert "reason" in resp.json()
+
+
+class TestClientIpBehindFirebase:
+    """Atrás do Firebase Hosting, o último hop é o servidor do Firebase."""
+
+    FIREBASE = "35.1.2.3"  # igual para todos os visitantes
+
+    def _post(self, client, visitante):
+        return client.post(
+            "/leads",
+            json={"request": "empresas em SP"},
+            headers={
+                "X-Forwarded-For": f"{visitante}, {self.FIREBASE}",
+                "Fastly-Client-IP": visitante,
+            },
+        )
+
+    def test_trusted_fastly_ip_separates_visitors(self):
+        client = TestClient(_app(rate_limit_max=1, trust_fastly_client_ip=True))
+        assert self._post(client, "1.1.1.1").status_code == 200
+        assert self._post(client, "2.2.2.2").status_code == 200
+        assert self._post(client, "1.1.1.1").status_code == 429
+
+    def test_untrusted_by_default(self):
+        # Sem a opção, o cabeçalho é ignorado (pode ser forjado no Cloud Run
+        # direto) e todos atrás do mesmo proxy dividem o limite.
+        client = TestClient(_app(rate_limit_max=1))
+        assert self._post(client, "1.1.1.1").status_code == 200
+        assert self._post(client, "2.2.2.2").status_code == 429
+
+    def test_env_flag(self, monkeypatch):
+        from quimera.api.protections import ApiConfig
+
+        for valor, esperado in [("true", True), ("1", True), ("", False), ("nao", False)]:
+            monkeypatch.setenv("TRUST_FASTLY_CLIENT_IP", valor)
+            assert ApiConfig.from_env().trust_fastly_client_ip is esperado

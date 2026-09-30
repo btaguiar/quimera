@@ -20,11 +20,35 @@ projeto. Detalhes em "Registro do deploy real".
    (ver Troubleshooting).
 2. **Projeto GCP** `quimera-leads` com billing ativo (crédito de teste).
 3. **Turnstile (Cloudflare)**: dashboard > Turnstile > Add site.
-   Hostname: `*.run.app` (a URL final do Cloud Run; dá para adicionar depois
-   do 1º deploy). Widget "Managed". Guarde o **Site Key** (público) e o
+   Hostnames: `quimera-leads.web.app` e `quimera-leads.firebaseapp.com` (o
+   endereço público via Firebase Hosting). Sem Firebase, `*.run.app`. Widget "Managed". Guarde o **Site Key** (público) e o
    **Secret Key** (vai para o Secret Manager).
 4. Componentes do SDK: `gcloud`, `bq`, `curl`. O caminho de orçamento usa
    `gcloud beta billing budgets` (componente `beta`).
+
+## Firebase Hosting (endereço público)
+
+Desde 2026-09-30 o endereço público é **https://quimera-leads.web.app**: o
+Firebase Hosting (projeto `quimera-leads`, o mesmo do Cloud Run) serve o
+front pela CDN e repassa `/leads`, `/metrics`, `/config` e `/health` ao
+serviço `quimera-demo` (`firebase.json`). O front usa caminhos relativos,
+então nada muda no código dele. App Web registrado: `quimera-web`
+(`1:1077923511370:web:2ed63799a2c1cfcf01bab3`), sem SDK no front enquanto
+nenhum recurso do Firebase for usado.
+
+- **O repasse exige o Cloud Run público** (`--allow-unauthenticated`): com o
+  serviço privado, o Firebase recebe 403 nas rotas da API (medido num canal
+  de pré-visualização). Por isso `deploy.sh` só publica o Hosting com
+  `PUBLIC_ACCESS=true`.
+- **IP do visitante:** atrás do Firebase, o último hop do `X-Forwarded-For`
+  é o servidor do Firebase, o mesmo para todos, e o limite por IP viraria
+  global. O IP real vem em `Fastly-Client-IP`; o deploy liga
+  `TRUST_FASTLY_CLIENT_IP=true`. Quem chamar o `run.app` direto pode forjar
+  esse cabeçalho, mas cada `/leads` ainda exige um token novo do Turnstile e
+  o orçamento diário continua valendo.
+- Só o front: `npx -y firebase-tools@latest deploy --only hosting --project quimera-leads`
+  (o `predeploy` roda `npm run build`). Pré-visualização sem tocar no
+  endereço principal: `npx -y firebase-tools@latest hosting:channel:deploy <nome> --expires 7d`.
 
 ## Testar a imagem localmente (opcional, antes do 1º deploy)
 

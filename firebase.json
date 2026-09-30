@@ -1,0 +1,29 @@
+{
+  "hosting": {
+    "public": "src/quimera/api/static",
+    "predeploy": ["npm --prefix frontend run build"],
+    "ignore": ["firebase.json", "**/.*"],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "redirects": [
+      { "source": "/metrics.html", "destination": "/metricas", "type": 301 }
+    ],
+    "rewrites": [
+      { "source": "/leads", "run": { "serviceId": "quimera-demo", "region": "us-central1" } },
+      { "source": "/metrics", "run": { "serviceId": "quimera-demo", "region": "us-central1" } },
+      { "source": "/config", "run": { "serviceId": "quimera-demo", "region": "us-central1" } },
+      { "source": "/health", "run": { "serviceId": "quimera-demo", "region": "us-central1" } },
+      { "source": "**", "destination": "/index.html" }
+    ],
+    "headers": [
+      {
+        "source": "/assets/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "/index.html",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
+  }
+}
