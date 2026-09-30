@@ -17,8 +17,8 @@ jobs:
     name: Python (ruff + pytest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           # Mesma versão da imagem (Dockerfile: python:3.12).
           python-version: "3.12"
@@ -39,8 +39,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           # Mesma versão da imagem (Dockerfile: node:22).
           node-version: "22"
@@ -58,27 +58,27 @@ jobs:
     name: Imagem Docker
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build
         run: docker build -t quimera-demo:ci .
       - name: Smoke sem GCP
         # /health, /metrics e o front respondem sem credencial; /leads sem
         # token tem de ser recusado (401).
         run: |
-          docker run -d --name q -p 8080:8080 -e PORT=8080 -e API_TOKEN=ci quimera-demo:ci
+          docker run -d --name quimera-smoke -p 8080:8080 -e PORT=8080 -e API_TOKEN=ci quimera-demo:ci
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/health && break; sleep 1; done
           curl -fsS http://127.0.0.1:8080/metrics -o /dev/null
           curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' \
             -d '{"request":"padarias em Campinas"}' http://127.0.0.1:8080/leads)
           test "$code" = "401"
-          docker rm -f q
+          docker rm -f quimera-smoke
 
   segredos:
     name: Segredos (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # o histórico inteiro, não só o último commit
       - uses: gitleaks/gitleaks-action@v2
