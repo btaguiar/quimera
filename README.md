@@ -4,9 +4,11 @@
 > há mais de 2 anos em Santo André, porte médio") em uma lista ranqueada de
 > empresas (CNPJ), combinando LLM, embeddings e BigQuery.
 
-**Status: Fase 3 no ar em modo privado (2026-09-27).** A demo roda no Cloud Run
-com o aceite da spec cumprido, mas ainda sem acesso anônimo; a abertura ao
-público depende dos itens em [Próximos passos](#próximos-passos). Este README só
+**Demo pública: <https://quimera-leads.web.app>**
+
+**Status: Fase 3 no ar, aberta ao público.** A demo roda no Cloud Run, com
+Firebase Hosting na frente, e aceita pedidos anônimos dentro das proteções
+da API (Turnstile, rate limit por IP, orçamento diário de bytes). Este README só
 afirma métricas com resultados reproduzíveis em `eval/` (regra de ouro do projeto).
 
 ## Como funciona
@@ -106,12 +108,9 @@ para ela). O bundle é gerado por `npm run build` em
 `src/quimera/api/static/` (fora do git) e entra na imagem pelo estágio Node
 do Dockerfile.
 
-Hoje o serviço está no ar **privado** (`PUBLIC_ACCESS=false`: só abre com
-login Google e permissão de invoker). Para ver no navegador:
-`gcloud run services proxy quimera-demo --region us-central1 --project
-quimera-leads` e abrir `http://127.0.0.1:8080`. O registro do deploy real,
-os bugs que ele revelou e como testar pela linha de comando estão em
-`docs/deploy.md`.
+O serviço está no ar **público** em <https://quimera-leads.web.app>. O
+registro do deploy real, os bugs que ele revelou e como testar pela linha de
+comando estão em `docs/deploy.md`.
 
 Variáveis de ambiente: `GOOGLE_CLOUD_PROJECT`, `BQ_LOCATION`, `VERTEX_LOCATION`,
 `EXTRACT_MODEL`, `EMBED_MODEL`, `MAX_BYTES_BILLED`, `LEADS_DATASET` (dataset da
@@ -334,7 +333,7 @@ GCP (cota/capacidade reservada), não no código.
 - [x] Primeira medição real (extraction + CNAE) e baseline de recall@5 (0,742)
 - [x] Revisão dos rótulos `flag: review` do golden CNAE contra a CNAE 2.3
 - [x] Revisão dos 5 rótulos `flag: review` restantes (golden de extração, Bruno)
-- [ ] Fase 3 — demo pública no Cloud Run
+- [x] Fase 3 — demo pública no Cloud Run
   - [x] 3a — API + proteções (FastAPI: token, rate limit, orçamento diário
         com modo cache, timeout; `src/quimera/api/`)
   - [x] 3b — front (HTML+JS), Dockerfile, deploy, Secret Manager
@@ -347,7 +346,7 @@ GCP (cota/capacidade reservada), não no código.
         R$ 10 mi perde nota (2026-09-28; antes metade empatava em 100)
   - [x] re-deploy com a nota nova e a exigência de atividade (2026-09-28,
         revisão `quimera-demo-00007`)
-  - [ ] abertura ao público (Turnstile real, `PUBLIC_ACCESS=true`, URL aqui)
+  - [x] abertura ao público: <https://quimera-leads.web.app>
   - [ ] agendar `python -m quimera.dados build` mensal (Cloud Scheduler/Run job)
 - [x] Ranking do ICP no SQL (antes: LIMIT devolvia amostra arbitrária) e um
       estabelecimento por empresa
@@ -355,7 +354,8 @@ GCP (cota/capacidade reservada), não no código.
 - [x] Latência: ~25 s → ~4 s por pedido (clientes reaproveitados, caches,
       sem raciocínio no Gemini, aquecimento na inicialização)
 - [x] Avaliação ponta a ponta com limiares (`run_eval` sai ≠ 0 abaixo deles)
-- [ ] Repositório público no GitHub + CI (testes, eval com limiares, gitleaks)
+- [x] Repositório público no GitHub + CI (ruff, pytest, front, imagem Docker, gitleaks)
+- [ ] Eval com limiares no CI (exige credencial GCP)
 - [ ] Cota do Gemini (429) — cauda de latência
 - [ ] "empresas de TI": pedido genérico ainda falha na busca (único erro no top-15)
 - [ ] Fase 5 — uso privado (repositório da Turno 24)
@@ -363,8 +363,7 @@ GCP (cota/capacidade reservada), não no código.
 
 ## Próximos passos
 
-Em ordem de prioridade. O primeiro vem antes da abertura ao público
-(item 2), porque é o que um visitante veria.
+Em ordem de prioridade.
 
 Feitos em 2026-09-28: a nota em faixa alvo (antes metade das empresas
 empatava em 100 e uma operadora de R$ 207 mi aparecia em 1º num pedido de
@@ -385,15 +384,11 @@ André" volta o aviso sem consultar (0 bytes).
    inventou 80000000 uma vez, e o pedido voltou com 50 padarias de Curitiba
    em vez de vazio; o e2e_024 (CEP escrito) segue com raio de 3 km. Custo do
    e2e_027 sem raio: 520–585 MB (a cidade inteira).
-2. **Abrir ao público.** Criar o widget no Cloudflare para `*.run.app`,
-   rodar `scripts/deploy.sh` com `PUBLIC_ACCESS=true` e as chaves reais (isso
-   também remove as chaves de teste do Turnstile que estão ativas no serviço
-   privado) e anotar a URL aqui. Fecha a Fase 3.
-3. **Repositório público e CI.** A definição de pronto da spec pede o repo
-   público no GitHub e CI verde com o eval; hoje o repositório é só local, sem
-   remoto. O CI precisa rodar `pytest`, o eval com os limiares (exige
-   credencial GCP e custa ~US$ 0,02 por execução) e `gitleaks` — antes do
-   primeiro push, para nenhum segredo entrar no histórico público.
+2. ~~**Abrir ao público.**~~ **Feito:** demo pública em
+   <https://quimera-leads.web.app>. Fecha a Fase 3.
+3. **Eval no CI.** O repositório é público e o CI já roda ruff, pytest, o
+   front, o build da imagem com smoke e `gitleaks`. Falta o eval com os
+   limiares, que exige credencial GCP e custa ~US$ 0,02 por execução.
 4. **Build mensal agendado.** Cloud Scheduler disparando um Cloud Run job com
    `python -m quimera.dados build`; sem isso a tabela própria envelhece e a
    demo mostra um snapshot cada vez mais velho.
