@@ -16,8 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Dependências de GCP nunca são importadas no topo dos módulos:
-# todo import é lazy (dentro de funções), então `pytest` roda sem este extra.
+# Dependências de GCP nunca são importadas no topo dos módulos (import lazy,
+# dentro de funções). Os testes não chamam GCP nem rede, mas alguns caminhos
+# testados com clientes falsos importam tipos do SDK (ex.: NotFound): o CI
+# instala `.[dev,gcp]`, sem credencial.
 gcp = [
     "google-cloud-bigquery>=3",
     "google-genai>=1",
@@ -29,6 +31,9 @@ api = [
 ]
 dev = [
     "pytest>=8",
+    # Fixo: o 0.16 ampliou as regras padrão e acusaria 31 itens num código
+    # limpo no 0.15 — atualizar é uma decisão, não um efeito do CI.
+    "ruff==0.15.9",
     "fastapi>=0.115,<0.150",
     "httpx>=0.27",
 ]
