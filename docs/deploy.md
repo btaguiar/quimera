@@ -4,13 +4,23 @@ Runbook para colocar e manter a demo no ar. O script `scripts/deploy.sh`
 automatiza quase tudo; este documento explica cada peça e o que fazer quando
 algo falha.
 
-**Estado atual (2026-09-29):** no ar em modo **privado** (serviço
-`quimera-demo`, `us-central1`, projeto `quimera-leads`, revisão
-`quimera-demo-00008` com o front React e a trava de CEP), com o aceite da spec
-cumprido. **Chaves de teste do Turnstile ativas** (aprovam qualquer desafio):
-aceitável só enquanto o serviço é privado; o deploy público com as chaves
-reais as substitui. Orçamento de R$ 100 com alertas 50/80/100%, restrito ao
-projeto. Detalhes em "Registro do deploy real".
+**Estado atual (2026-09-30):** **público** em https://quimera-leads.web.app
+(Firebase Hosting na frente do Cloud Run `quimera-demo`, revisão
+`quimera-demo-00009`, projeto `quimera-leads`). **Ainda com as chaves de
+teste do Turnstile** (aprovam qualquer visitante): publicado assim por
+decisão do Bruno, com o limite por IP (10/h, lido do `Fastly-Client-IP`), o
+teto por consulta (5 GB), o orçamento diário (10 GB, depois só cache) e o
+alerta de R$ 100 como proteção. Trocar pelas chaves reais: criar o widget no
+Cloudflare (hostnames `quimera-leads.web.app` e `quimera-leads.firebaseapp.com`)
+e atualizar as duas variáveis — as de teste estão em variável de ambiente,
+não no Secret Manager:
+
+```bash
+gcloud run services update quimera-demo --project=quimera-leads --region=us-central1   --update-env-vars=TURNSTILE_SITE_KEY=<site key>,TURNSTILE_SECRET_KEY=<secret key>
+```
+
+(O ideal é a secret ir para o Secret Manager como `quimera-turnstile-secret`;
+aí `deploy.sh` volta a servir para re-deploy.)
 
 ## Pré-requisitos (uma vez)
 
