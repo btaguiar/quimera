@@ -409,3 +409,11 @@ Decisões aceitas por simplicidade, a revisitar só se virarem problema
 memória (`MemoryStateStore`), que zeram a cada cold start — a spec previa
 Firestore, que entra pelo mesmo protocolo de `src/quimera/api/state.py`;
 dependências da imagem sem lock; índice CNAE duplicado na imagem (~27 MB).
+
+## Licença
+
+Código sob licença MIT (`LICENSE`). Os dados de empresas vêm do cadastro
+público de CNPJ da Receita Federal, lido pela Base dos Dados
+(`basedosdados.br_me_cnpj`), e não fazem parte deste repositório; a demo
+pública não exibe nenhum dado pessoal (sem MEI, sem pessoa física, sem
+contato).
