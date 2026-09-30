@@ -282,8 +282,7 @@ mesma regra. Validado no real: "≥ 2 anos" devolveu idade mínima de 2,06 anos.
 mesmo snapshot: rede (`n_estabelecimentos`), regime tributário, bairro
 (+ `bairro_norm`), coordenada por CEP (`latitude`/`longitude`) e domínio
 próprio. Mais uma tabela auxiliar, `quimera.ceps` (coordenadas por CEP, para
-resolver o centro do raio sem ler `GEOGRAPHY` a cada pedido). Plano:
-`docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md`.
+resolver o centro do raio sem ler `GEOGRAPHY` a cada pedido).
 
 ### Checagens do build real (mesmo snapshot 2026-01-11)
 

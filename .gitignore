@@ -36,3 +36,8 @@ frontend/node_modules/
 frontend/dist/
 frontend/playwright-report/
 frontend/test-results/
+
+# Material de trabalho (planos, specs, notas de design): fica só local
+docs/superpowers/
+.impeccable/
+PRODUCT.md

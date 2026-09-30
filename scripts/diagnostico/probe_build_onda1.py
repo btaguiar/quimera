@@ -2,8 +2,7 @@
 
 Cada SQL roda com ``maximum_bytes_billed=1``: o BigQuery recusa ANTES de
 executar, sem cobrar, e informa "N or higher required" — N é o custo do build.
-Portão da Onda 1: nenhum build real antes de N <= 25 GB
-(docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md, Task 1).
+Portão da Onda 1: nenhum build real antes de N <= 25 GB.
 
 Os snapshots vêm dos labels da tabela própria (leitura de metadados, sem custo),
 não da descoberta por consulta (que lê GBs da coluna ``data``).

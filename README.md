@@ -99,8 +99,7 @@ bytes com modo cache (`DAILY_BYTES_BUDGET`) e timeout por request
 Deploy: `bash scripts/deploy.sh` (runbook em `docs/deploy.md`, incluindo
 Cloudflare Turnstile, service account mínimo, alertas de orçamento, tabela de
 custos por pedido e o registro do trabalho da Fase 3b). O front é React
-(Vite + TypeScript, código em `frontend/`, spec em
-`docs/superpowers/specs/2026-09-28-front-react-design.md`): pedido →
+(Vite + TypeScript, código em `frontend/`): pedido →
 resultado em seções (interpretação, CNAEs, SQL, ranking, custos, ressalvas)
 e a página `/metricas` com as métricas medidas (`/metrics.html` redireciona
 para ela). O bundle é gerado por `npm run build` em
@@ -326,8 +325,7 @@ GCP (cota/capacidade reservada), não no código.
 - [x] Tabela própria `quimera.estabelecimentos_ativos` com checagens de
       qualidade no build (custo por pedido: ~13 GB → 70–500 MB)
 - [x] Onda 1 — sinais do próprio cadastro: rede, regime tributário, bairro,
-      raio por CEP e domínio próprio (`docs/schema.md`; plano em
-      `docs/superpowers/plans/2026-09-26-onda1-sinais-cadastro.md`)
+      raio por CEP e domínio próprio (`docs/schema.md`)
   - [x] pedidos sem CNAE caros (1,6–2,5 GB): não era poda nem maturação da
         tabela, e sim o pedido sem atividade; o público agora exige
         atividade (2026-09-28, `docs/schema.md`)
