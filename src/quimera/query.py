@@ -729,6 +729,7 @@ def resolve_municipality_ids(
     *,
     ufs: list[str] | None = None,
     client: Any | None = None,
+    ufs_por_nome: dict[str, list[str]] | None = None,
 ) -> dict[str, list[str]]:
     """Resolve nomes de municípios (como escritos pelo usuário) para códigos IBGE.
 
@@ -739,6 +740,11 @@ def resolve_municipality_ids(
     Nomes se repetem entre UFs (233 nomes; "Santo André" existe em SP e na PB),
     então cada nome resolve para uma LISTA de códigos: restrita às ``ufs`` do
     pedido quando houver, ou todos os homônimos quando não houver.
+
+    ``ufs_por_nome`` restringe um nome específico (UF escrita junto dele no
+    pedido, como em "Valença, BA"). Se o nome não existe nessa UF, a
+    restrição é ignorada e vale a regra geral — uma UF lida errado do texto
+    não apaga um município que existe.
     Devolve apenas os nomes resolvidos: ``{nome_digitado: [id_ibge, ...]}``.
     """
     rows = (
@@ -746,17 +752,28 @@ def resolve_municipality_ids(
         if client is not None
         else _default_municipality_directory()
     )
-    wanted_ufs = set(ufs or ())
-    lookup: dict[str, list[str]] = {}
+    por_uf: dict[str, dict[str, list[str]]] = {}
     for nome, uf, id_municipio in rows:
-        if wanted_ufs and uf not in wanted_ufs:
+        por_uf.setdefault(normalize_name(nome), {}).setdefault(uf, []).append(
+            id_municipio
+        )
+    resolved: dict[str, list[str]] = {}
+    for name in names:
+        candidatos = por_uf.get(normalize_name(name))
+        if not candidatos:
             continue
-        lookup.setdefault(normalize_name(nome), []).append(id_municipio)
-    return {
-        name: sorted(lookup[key])
-        for name in names
-        if (key := normalize_name(name)) in lookup
-    }
+        preferidas = (ufs_por_nome or {}).get(name)
+        for restricao in ([preferidas] if preferidas else []) + [ufs]:
+            ids = sorted(
+                mid
+                for uf, mids in candidatos.items()
+                if not restricao or uf in restricao
+                for mid in mids
+            )
+            if ids:
+                resolved[name] = ids
+                break
+    return resolved
 
 
 CEP_LOOKUP_MAX_BYTES = 100 * 1024**2  # tabela ceps ~905 mil linhas (medido)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -627,3 +628,130 @@ class TestQuerySql:
         )
         assert result.query_sql == ""
         assert result.to_dict()["query_sql"] == ""
+
+
+class TestRowLimit:
+    """``limit`` da avaliação substitui o do LLM; o teto da policy segue valendo."""
+
+    def _run(self, policy, limit):
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="padarias", ufs=["SP"], limit=10)
+        )
+        cnae_search = _cnae_search_recorder([("1091-1/02", "Padaria", 0.9)])
+        bq = FakePipelineBQ(lead_rows=LEAD_ROWS)
+        return run(
+            "padarias em SP",
+            policy,
+            extract_client=extract,
+            cnae_search=cnae_search,
+            bq_client=bq,
+            limit=limit,
+        )
+
+    def test_overrides_llm_limit_up_to_policy_cap(self):
+        policy = replace(PUBLIC, max_rows=200)
+        assert self._run(policy, 200).filters.limit == 200
+        assert self._run(PUBLIC, 200).filters.limit == 50
+
+    def test_without_limit_keeps_llm_value(self):
+        assert self._run(PUBLIC, None).filters.limit == 10
+
+
+class TestUfJuntoDoMunicipio:
+    """UF escrita junto da cidade: colada no nome ou fora de ``ufs``."""
+
+    @pytest.mark.parametrize(
+        "nome, esperado",
+        [
+            ("Extrema/MG", ("Extrema", "MG")),
+            ("Ouro (SC)", ("Ouro", "SC")),
+            ("Valença - BA", ("Valença", "BA")),
+            ("Valença, ba", ("Valença", "BA")),
+            ("Embu-Guaçu", ("Embu-Guaçu", None)),
+            ("Campinas", ("Campinas", None)),
+            ("Santo André/XX", ("Santo André/XX", None)),
+        ],
+    )
+    def test_separar_uf_do_nome(self, nome, esperado):
+        from quimera.pipeline import separar_uf_do_nome
+
+        assert separar_uf_do_nome(nome) == esperado
+
+    @pytest.mark.parametrize(
+        "pedido, nome, esperado",
+        [
+            ("pousadas em Valença, BA com 2 anos", "Valença", ["BA"]),
+            ("marmitex em Sobradinho/RS", "Sobradinho", ["RS"]),
+            ("praia grande - sp, padarias", "Praia Grande", ["SP"]),
+            ("padarias em Campinas com mais de 2 anos", "Campinas", []),
+            ("padarias em Campinas, se possível", "Campinas", ["SE"]),
+        ],
+    )
+    def test_ufs_apos_nome(self, pedido, nome, esperado):
+        from quimera.pipeline import ufs_apos_nome
+
+        assert ufs_apos_nome(pedido, nome) == esperado
+
+    MUNICIPIOS = [
+        {"nome": "Valença", "sigla_uf": "BA", "id_municipio": "2932903"},
+        {"nome": "Valença", "sigla_uf": "RJ", "id_municipio": "3306107"},
+        {"nome": "Extrema", "sigla_uf": "MG", "id_municipio": "3125101"},
+    ]
+
+    def test_glued_uf_resolves_the_city(self):
+        bq = FakePipelineBQ(municipio_rows=self.MUNICIPIOS, lead_rows=LEAD_ROWS)
+        result = _run(bq, cnae_query="cafeterias", municipio_names=["Extrema/MG"])
+        assert result.municipio_resolution == {"Extrema": ["3125101"]}
+        assert result.filters.municipio_names == ["Extrema"]
+        assert not any("não encontrado" in w for w in result.warnings)
+
+    def test_uf_written_after_homonym_picks_one_city(self):
+        bq = FakePipelineBQ(municipio_rows=self.MUNICIPIOS, lead_rows=LEAD_ROWS)
+        result = _run(
+            bq,
+            request="pousadas em Valença, BA",
+            cnae_query="pousadas",
+            municipio_names=["Valença"],
+        )
+        assert result.municipio_resolution == {"Valença": ["2932903"]}
+        assert not any("existe em" in w for w in result.warnings)
+
+    def test_homonym_without_uf_still_warns(self):
+        bq = FakePipelineBQ(municipio_rows=self.MUNICIPIOS, lead_rows=LEAD_ROWS)
+        result = _run(
+            bq, request="pousadas em Valença", cnae_query="pousadas", municipio_names=["Valença"]
+        )
+        assert result.municipio_resolution == {"Valença": ["2932903", "3306107"]}
+        assert any("existe em 2" in w for w in result.warnings)
+
+
+class TestCnaeFallbackFlag:
+    """O resultado marca quando a seleção de CNAE caiu no plano B."""
+
+    def _run(self, monkeypatch, select):
+        from quimera import cnae
+
+        monkeypatch.setattr(
+            cnae, "hybrid_candidates", lambda q, k: [("1091-1/02", "Padaria", 0.9)]
+        )
+        monkeypatch.setattr(cnae, "select_codes", select)
+        extract = FakeGenaiClient(_extraction_payload(cnae_query="padarias", ufs=["SP"]))
+        return run(
+            "padarias em SP",
+            PUBLIC,
+            extract_client=extract,
+            bq_client=FakePipelineBQ(lead_rows=LEAD_ROWS),
+        )
+
+    def test_selection_ok(self, monkeypatch):
+        result = self._run(monkeypatch, lambda q, c: c)
+        assert result.cnae_fallback is False
+        assert result.to_dict()["cnae_fallback"] is False
+
+    def test_selection_failure_is_flagged(self, monkeypatch):
+        def falha(q, c):
+            raise TimeoutError
+
+        result = self._run(monkeypatch, falha)
+        assert result.cnae_fallback is True
+        assert result.filters.cnae_codes == ["1091-1/02"]

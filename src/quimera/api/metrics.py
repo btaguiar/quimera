@@ -16,7 +16,9 @@ DEFAULT_EVAL_DIR = "eval"
 
 
 def _strip_per_case(payload: dict) -> dict:
+    # detail: um item por caso (10 mil no golden sintético), sem uso no front.
     payload.pop("per_case", None)
+    payload.pop("detail", None)
     metrics = payload.get("metrics")
     if isinstance(metrics, dict):
         metrics.pop("per_case", None)

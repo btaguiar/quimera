@@ -442,6 +442,11 @@ def _activities_by_code() -> dict[str, list[str]]:
 
 
 def build_select_prompt(activity: str, candidates: list[tuple[str, str, float]]) -> str:
+    # Exemplos na ordem do IBGE. Pôr primeiro os que citam o pedido foi
+    # testado em 2026-09-29: melhorou a seleção isolada (golden CNAE, acerto
+    # 0,957 -> 0,986), mas piorou o ponta a ponta na média de 2 rodadas
+    # (principal 0,893 -> 0,857; separado 0,879 -> 0,818): código vizinho com
+    # a palavra do pedido num exemplo passava a parecer a atividade pedida.
     examples = _activities_by_code()
     lines = [
         f"- {code} — {descricao} — "

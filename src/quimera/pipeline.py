@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ from typing import Any, Callable
 
 from . import cnae
 from .extract import DEFAULT_MODEL, extract_filters
-from .filters import LeadFilters
+from .filters import VALID_UFS, LeadFilters
 from .policy import Policy, apply_policy
 from .query import (
     PORTE_LABELS_DEMAIS,
@@ -30,6 +31,7 @@ from .query import (
     run_query,
 )
 from .score import ICPConfig, score_lead
+from .text import normalize_name
 
 logger = logging.getLogger("quimera.pipeline")
 
@@ -52,8 +54,43 @@ AVISO_COBERTURA_RAIO = (
     "estabelecimentos não têm coordenada e ficam de fora."
 )
 
+# UF colada no nome do município pela extração: "Extrema/MG", "Ouro (SC)",
+# "Valença - BA", "Valença, BA". Sem separar, o nome não existe no diretório
+# e o pedido para em "município não encontrado" (golden sintético, 2026-09-29).
+_UF_COLADA = re.compile(r"^(.+?)\s*(?:[/,\-–]\s*|\(\s*)([A-Za-z]{2})\s*\)?$")
+_SEPARADOR_UF = r"\s*(?:[/,\-–]\s*|\(\s*)"
+
+
+def separar_uf_do_nome(nome: str) -> tuple[str, str | None]:
+    """("Extrema/MG") -> ("Extrema", "MG"); nome sem UF volta intacto."""
+    m = _UF_COLADA.match(nome.strip())
+    if m and m.group(2).upper() in VALID_UFS:
+        return m.group(1).strip(), m.group(2).upper()
+    return nome, None
+
+
+def ufs_apos_nome(request: str, nome: str) -> list[str]:
+    """UFs escritas logo depois do município no pedido ("Valença, BA").
+
+    A extração às vezes lê o município e deixa a UF de fora; com um homônimo
+    ("Valença" existe na BA e no RJ), a consulta traria as duas cidades.
+    ``resolve_municipality_ids`` só usa a UF se o município existir nela, o
+    que descarta falsos positivos como "Campinas, se possível" (SE).
+    """
+    texto = normalize_name(request)
+    alvo = re.escape(normalize_name(nome))
+    achadas = re.findall(rf"{alvo}{_SEPARADOR_UF}([A-Z]{{2}})\b", texto)
+    return [uf for uf in dict.fromkeys(achadas) if uf in VALID_UFS]
+
+
 # Busca CNAE injetável: (query, k) -> [(codigo, descricao, similaridade)]
 CnaeSearchFn = Callable[[str, int], list[tuple[str, str, float]]]
+
+
+# Se a última seleção desta thread caiu no plano B. A avaliação separa essas
+# falhas das de qualidade: com pedidos em paralelo, o 429 de cota do Gemini
+# chegou a 20% dos casos (2026-09-29), coisa que o tráfego da demo não gera.
+_selecao = threading.local()
 
 
 def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
@@ -63,6 +100,7 @@ def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
     chaveiros e atacado de pães); o LLM só escolhe entre os candidatos.
     """
     candidates = cnae.hybrid_candidates(query, cnae.SELECT_CANDIDATES)
+    _selecao.fallback = False
     try:
         return cnae.select_codes(query, candidates)[:k]
     except Exception as exc:  # 429/timeout: não segura o pedido por ~20 s
@@ -70,6 +108,7 @@ def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
             "seleção de CNAE falhou (%s); usando corte por similaridade",
             type(exc).__name__,
         )
+        _selecao.fallback = True
         return cnae.fallback_codes(candidates)[:k]
 
 
@@ -97,6 +136,8 @@ class PipelineResult:
     warnings: list[str] = field(default_factory=list)
     # SQL parametrizado executado (vazio quando a consulta não roda).
     query_sql: str = ""
+    # A seleção de CNAE falhou (429/timeout) e valeu o corte por similaridade.
+    cnae_fallback: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -104,6 +145,7 @@ class PipelineResult:
             "refusal_reason": self.refusal_reason,
             "filters": self.filters.model_dump() if self.filters else None,
             "cnae_matches": [list(m) for m in self.cnae_matches],
+            "cnae_fallback": self.cnae_fallback,
             "municipio_resolution": self.municipio_resolution,
             "snapshot": self.snapshot,
             "rows": self.rows,
@@ -189,8 +231,13 @@ def run(
     bq_client: Any | None = None,
     max_bytes_billed: int | None = None,
     tables: LeadsTables | None = None,
+    limit: int | None = None,
 ) -> PipelineResult:
-    """Executa o fluxo completo e devolve o resultado explicável."""
+    """Executa o fluxo completo e devolve o resultado explicável.
+
+    ``limit`` substitui o nº de linhas pedido pelo LLM (a avaliação usa para
+    conferir mais empresas por caso); o teto da policy continua valendo.
+    """
     started = time.perf_counter()
     icp = icp or ICPConfig()
     cnae_search = cnae_search or default_cnae_search
@@ -219,9 +266,12 @@ def run(
 
     # 1. cnae_query -> códigos CNAE por embeddings (o LLM nunca inventa código).
     cnae_matches: list[tuple[str, str, float]] = []
+    cnae_fallback = False
     if filters.cnae_query:
+        _selecao.fallback = False
         with _stage(timings, "cnae"):
             cnae_matches = cnae_search(filters.cnae_query, cnae_top_k)
+        cnae_fallback = getattr(_selecao, "fallback", False)
         filters = filters.model_copy(
             update={"cnae_codes": [c for c, _, _ in cnae_matches]}
         )
@@ -230,6 +280,8 @@ def run(
     # Regimes pedidos ANTES da policy: no público o pedido "só MEI" fica vazio
     # e a query ignoraria o regime — a etapa cep detecta e avisa.
     regimes_pedidos = list(filters.regimes)
+    if limit is not None:
+        filters = filters.model_copy(update={"limit": limit})
     filters = apply_policy(filters, policy)
 
     warnings: list[str] = []
@@ -241,6 +293,7 @@ def run(
             refused=False,
             filters=filters,
             cnae_matches=cnae_matches,
+            cnae_fallback=cnae_fallback,
             municipio_resolution=municipio_resolution,
             model=resolved_model,
             policy=policy.name,
@@ -278,9 +331,23 @@ def run(
 
     # 3. Nome de município -> códigos IBGE por lookup no diretório.
     if filters.municipio_names:
+        nomes: list[str] = []
+        ufs_por_nome: dict[str, list[str]] = {}
+        for nome in filters.municipio_names:
+            limpo, uf = separar_uf_do_nome(nome)
+            nomes.append(limpo)
+            if uf:
+                ufs_por_nome[limpo] = [uf]
+            elif not filters.ufs and (escritas := ufs_apos_nome(request, limpo)):
+                ufs_por_nome[limpo] = escritas
+        nomes = list(dict.fromkeys(nomes))
+        filters = filters.model_copy(update={"municipio_names": nomes})
         with _stage(timings, "municipios"):
             municipio_resolution = resolve_municipality_ids(
-                filters.municipio_names, ufs=filters.ufs or None, client=bq_client
+                nomes,
+                ufs=filters.ufs or None,
+                client=bq_client,
+                ufs_por_nome=ufs_por_nome,
             )
         unresolved = [
             name for name in filters.municipio_names if name not in municipio_resolution
@@ -406,6 +473,7 @@ def run(
         refused=False,
         filters=filters,
         cnae_matches=cnae_matches,
+        cnae_fallback=cnae_fallback,
         municipio_resolution=municipio_resolution,
         snapshot={table: snap.isoformat() for table, snap in snapshots.items()},
         rows=rows,

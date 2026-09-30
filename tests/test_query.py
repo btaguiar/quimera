@@ -634,6 +634,30 @@ class TestResolveMunicipalityIds:
         )
         assert resolve_municipality_ids(["Campinas"], ufs=["RJ"], client=client) == {}
 
+    def test_uf_per_name_restricts_only_that_name(self):
+        client = FakeDirectoryClient(
+            [
+                {"nome": "Valença", "sigla_uf": "BA", "id_municipio": "2932903"},
+                {"nome": "Valença", "sigla_uf": "RJ", "id_municipio": "3306107"},
+                {"nome": "Condado", "sigla_uf": "PB", "id_municipio": "2504504"},
+                {"nome": "Condado", "sigla_uf": "PE", "id_municipio": "2604601"},
+            ]
+        )
+        resolved = resolve_municipality_ids(
+            ["Valença", "Condado"], client=client, ufs_por_nome={"Valença": ["BA"]}
+        )
+        assert resolved == {"Valença": ["2932903"], "Condado": ["2504504", "2604601"]}
+
+    def test_uf_per_name_where_city_does_not_exist_is_ignored(self):
+        # "Campinas, se possível": SE lido como UF não pode apagar Campinas/SP.
+        client = FakeDirectoryClient(
+            [{"nome": "Campinas", "sigla_uf": "SP", "id_municipio": "3509502"}]
+        )
+        resolved = resolve_municipality_ids(
+            ["Campinas"], client=client, ufs_por_nome={"Campinas": ["SE"]}
+        )
+        assert resolved == {"Campinas": ["3509502"]}
+
     def test_queries_directory_table_without_user_input(self):
         client = FakeDirectoryClient([])
         resolve_municipality_ids(["São Paulo"], client=client)
