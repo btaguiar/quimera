@@ -5,7 +5,7 @@ import { MetricSuite, type MetricLinha } from "@/components/MetricSuite";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Footer } from "@/components/Footer";
 import { fetchMetrics } from "@/lib/api";
-import { selectE2e, selectUltima } from "@/lib/metrics";
+import { selectE2e, selectSintetico, selectUltima } from "@/lib/metrics";
 import type { MetricsResponse } from "@/lib/types";
 
 function pctLinha(rotulo: string, medido: number | undefined, limiar: number | undefined): MetricLinha {
@@ -29,6 +29,7 @@ export default function Metrics() {
   const ext = selectUltima(dados?.extraction);
   const cnae = selectUltima(dados?.cnae);
   const e2e = selectE2e(dados?.e2e);
+  const escala = selectSintetico(dados?.e2e);
   const lim = dados?.thresholds ?? {};
 
   return (
@@ -99,6 +100,22 @@ export default function Metrics() {
                 pctLinha("Recusa correta", e2e.metrics?.e2e_correct_refusal_rate, lim.e2e_correct_refusal_rate),
                 qtdLinha("Empresas avaliadas", e2e.metrics?.n_rows),
                 qtdLinha("Casos", e2e.metrics?.n_cases),
+              ]}
+            />
+          ) : null}
+          {escala ? (
+            <MetricSuite
+              numero={4}
+              titulo="Ponta a ponta em escala (golden sintético)"
+              meta={{ date: escala.date, commit: escala.commit }}
+              linhas={[
+                pctLinha("Casos 100% corretos", escala.metrics?.case_pass_rate, lim.e2e_sintetico_case_pass_rate),
+                pctLinha("Precisão por empresa", escala.metrics?.row_precision, lim.e2e_sintetico_row_precision),
+                pctLinha("Recusa correta", escala.metrics?.e2e_correct_refusal_rate, lim.e2e_correct_refusal_rate),
+                pctLinha("Seleção de CNAE no plano B (cota do Gemini)", escala.metrics?.cnae_fallback_rate, undefined),
+                pctLinha("Casos corretos sem o plano B", escala.metrics?.case_pass_rate_sem_fallback, undefined),
+                qtdLinha("Empresas avaliadas", escala.metrics?.n_rows),
+                qtdLinha("Casos", escala.metrics?.n_cases),
               ]}
             />
           ) : null}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { fetchMetrics } from "@/lib/api";
-import { selectE2e, selectUltima } from "@/lib/metrics";
+import { margem95, selectE2e, selectSintetico, selectUltima } from "@/lib/metrics";
 import { fmtDataHora, fmtNumOrDash, fmtPct } from "@/lib/format";
 import type { MetricsResponse } from "@/lib/types";
 
@@ -28,6 +28,48 @@ const COMPROMISSOS = [
   },
 ];
 
+const fmtPontos = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+function LinhasMedidas({ linhas }: { linhas: Linha[] }) {
+  return (
+    <ul>
+      {linhas.map((l) => {
+        const batida = l.meta == null || (l.medido ?? 0) >= l.meta;
+        return (
+          <li
+            key={l.rotulo}
+            className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-5 border-b border-border px-5 py-4 last:border-b-0 sm:gap-x-8"
+          >
+            <span>
+              <span className="block">{l.rotulo}</span>
+              <span className="block text-sm text-faint">{l.detalhe}</span>
+            </span>
+            <span
+              className={`w-16 text-right font-mono text-lg ${batida ? "text-foreground" : "text-destructive"}`}
+            >
+              {fmtPct(l.medido)}
+            </span>
+            <span className="w-20 text-right font-mono text-sm text-faint">
+              {l.meta == null ? "—" : `≥ ${fmtPct(l.meta)}`}
+              <span className="sr-only">{batida ? ", meta batida" : ", abaixo da meta"}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Cabecalho() {
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto] gap-x-5 border-b border-border px-5 py-3 text-xs text-faint sm:gap-x-8">
+      <span>Métrica</span>
+      <span className="w-16 text-right">Medido</span>
+      <span className="w-20 text-right">Meta</span>
+    </div>
+  );
+}
+
 export function Proof() {
   const [dados, setDados] = useState<MetricsResponse | null>(null);
   const [erro, setErro] = useState(false);
@@ -45,6 +87,7 @@ export function Proof() {
   const ext = selectUltima(dados?.extraction);
   const cnae = selectUltima(dados?.cnae);
   const e2e = selectE2e(dados?.e2e);
+  const escala = selectSintetico(dados?.e2e);
   const lim = dados?.thresholds ?? {};
 
   const linhas: Linha[] = [
@@ -80,6 +123,32 @@ export function Proof() {
     },
   ].filter((l) => l.medido != null);
 
+  const m = escala?.metrics;
+  const margem = margem95(m?.case_pass_rate, m?.n_cases);
+  const linhasEscala: Linha[] = [
+    {
+      rotulo: "Pedidos com a lista inteira correta",
+      detalhe:
+        margem == null
+          ? "ponta a ponta"
+          : `margem de ±${fmtPontos.format(margem * 100)} ${margem * 100 < 2 ? "ponto" : "pontos"} no intervalo de 95%`,
+      medido: m?.case_pass_rate,
+      meta: lim.e2e_sintetico_case_pass_rate,
+    },
+    {
+      rotulo: "Empresas devolvidas que atendem ao pedido",
+      detalhe: "até 200 conferidas por pedido",
+      medido: m?.row_precision,
+      meta: lim.e2e_sintetico_row_precision,
+    },
+    {
+      rotulo: "Pedidos de dado pessoal recusados",
+      detalhe: "sem exceção",
+      medido: m?.e2e_correct_refusal_rate,
+      meta: lim.e2e_correct_refusal_rate,
+    },
+  ].filter((l) => l.medido != null);
+
   return (
     <section id="numeros" className="border-b border-border">
       <div className="mx-auto max-w-6xl px-5 py-24 sm:px-8 lg:py-32">
@@ -104,11 +173,7 @@ export function Proof() {
 
           <div className="lg:col-span-7">
             <div className="rounded-xl border border-line-strong bg-card">
-              <div className="grid grid-cols-[1fr_auto_auto] gap-x-5 border-b border-border px-5 py-3 text-xs text-faint sm:gap-x-8">
-                <span>Métrica</span>
-                <span className="w-16 text-right">Medido</span>
-                <span className="w-20 text-right">Meta</span>
-              </div>
+              <Cabecalho />
               {erro ? (
                 <p className="px-5 py-8 text-muted-foreground">
                   As métricas não carregaram agora. A página de métricas tem os mesmos números.
@@ -124,39 +189,35 @@ export function Proof() {
               ) : linhas.length === 0 ? (
                 <p className="px-5 py-8 text-muted-foreground">Sem avaliação publicada ainda.</p>
               ) : (
-                <ul>
-                  {linhas.map((l) => {
-                    const batida = l.meta == null || (l.medido ?? 0) >= l.meta;
-                    return (
-                      <li
-                        key={l.rotulo}
-                        className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-5 border-b border-border px-5 py-4 last:border-b-0 sm:gap-x-8"
-                      >
-                        <span>
-                          <span className="block">{l.rotulo}</span>
-                          <span className="block text-sm text-faint">{l.detalhe}</span>
-                        </span>
-                        <span
-                          className={`w-16 text-right font-mono text-lg ${batida ? "text-foreground" : "text-destructive"}`}
-                        >
-                          {fmtPct(l.medido)}
-                        </span>
-                        <span className="w-20 text-right font-mono text-sm text-faint">
-                          {l.meta == null ? "—" : `≥ ${fmtPct(l.meta)}`}
-                          <span className="sr-only">{batida ? ", meta batida" : ", abaixo da meta"}</span>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <LinhasMedidas linhas={linhas} />
               )}
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-faint">
-              <span className="font-mono text-xs">
-                {e2e
-                  ? `avaliação ${fmtDataHora(e2e.date)} · ${fmtNumOrDash(e2e.metrics?.n_rows)} empresas conferidas · commit ${e2e.commit ?? "?"}`
-                  : null}
-              </span>
+            <p className="mt-3 font-mono text-xs text-faint">
+              {e2e
+                ? `avaliação ${fmtDataHora(e2e.date)} · ${fmtNumOrDash(e2e.metrics?.n_cases)} pedidos escritos à mão · ${fmtNumOrDash(e2e.metrics?.n_rows)} empresas conferidas · commit ${e2e.commit ?? "?"}`
+                : null}
+            </p>
+
+            {escala && linhasEscala.length ? (
+              <section aria-labelledby="em-escala" className="mt-10">
+                <h3 id="em-escala" className="font-display text-lg font-semibold">
+                  Em escala: {fmtNumOrDash(m?.n_cases)} pedidos
+                </h3>
+                <p className="mt-1 mb-4 text-muted-foreground">
+                  Pedidos gerados por modelo, com {fmtNumOrDash(m?.n_rows)} empresas conferidas. O
+                  gabarito sai do cadastro, não de uma IA; ela só reescreve a frase.
+                </p>
+                <div className="rounded-xl border border-line-strong bg-card">
+                  <Cabecalho />
+                  <LinhasMedidas linhas={linhasEscala} />
+                </div>
+                <p className="mt-3 font-mono text-xs text-faint">
+                  avaliação {fmtDataHora(escala.date)} · commit {escala.commit ?? "?"}
+                </p>
+              </section>
+            ) : null}
+
+            <div className="mt-6 flex justify-end text-sm">
               <Link
                 to="/metricas"
                 className="inline-flex items-center gap-1.5 text-accent transition-colors duration-150 hover:text-accent-strong"

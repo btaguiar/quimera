@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectE2e, selectUltima } from "@/lib/metrics";
+import { margem95, selectE2e, selectSintetico, selectUltima } from "@/lib/metrics";
 import type { MetricEntry } from "@/lib/types";
 
 const entry = (o: Partial<MetricEntry>): MetricEntry => ({
@@ -58,5 +58,29 @@ describe("selectUltima", () => {
   it("devolve o último item", () => {
     expect(selectUltima([entry({}), entry({ commit: "abc" })])?.commit).toBe("abc");
     expect(selectUltima([])).toBeNull();
+  });
+});
+
+describe("golden sintético", () => {
+  const sint = (n: number, commit = "x") =>
+    entry({ golden: "golden_e2e_sintetico.jsonl", commit, metrics: { n_cases: n } });
+
+  it("nunca ocupa o lugar do golden principal", () => {
+    const lista = [entry({ golden: "golden_e2e.jsonl", metrics: { n_cases: 28 } }), sint(10000)];
+    expect(selectE2e(lista)?.golden).toBe("golden_e2e.jsonl");
+    expect(selectE2e([sint(10000)])).toBeNull();
+  });
+
+  it("pega a última rodada em escala e ignora pilotos pequenos", () => {
+    const lista = [sint(10000, "a"), sint(500, "b")];
+    expect(selectSintetico(lista)?.commit).toBe("a");
+    expect(selectSintetico([sint(500)])).toBeNull();
+    expect(selectSintetico(undefined)).toBeNull();
+  });
+
+  it("margem95 é a meia-largura do intervalo de 95%", () => {
+    expect(margem95(0.92, 10000)).toBeCloseTo(0.0053, 4);
+    expect(margem95(undefined, 10000)).toBeNull();
+    expect(margem95(0.9, 0)).toBeNull();
   });
 });
