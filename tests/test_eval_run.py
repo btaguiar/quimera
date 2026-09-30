@@ -222,3 +222,12 @@ class TestSaveResult:
         assert data["suite"] == "extraction"
         assert path.name.startswith("extraction_")
         assert path.suffix == ".json"
+
+
+def test_sintetico_golden_uses_its_own_threshold():
+    from eval.run_eval import check_thresholds
+
+    th = {"e2e_row_precision": 0.98, "e2e_sintetico_row_precision": 0.95}
+    m = {"row_precision": 0.96}
+    assert check_thresholds(m, th, golden="golden_e2e_sintetico.jsonl") == []
+    assert len(check_thresholds(m, th, golden="golden_e2e.jsonl")) == 1

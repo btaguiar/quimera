@@ -214,7 +214,11 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 | seleção por lista, extração recusava local fictício | 20 | 0,75 | 0,944 | 1,00 | 3,5 s | 6,0 s | 136 |
 | seleção por nota + extração corrigida | 20 | 0,95 | 0,997 | 1,00 | 3,7 s | 7,0 s | 77 |
 | **+ Onda 1 (rede, regime, bairro, raio, domínio próprio)** | 27 | **0,926** | **0,990** | 1,00 | 3,5 s | 5,2 s | 110 |
+| + UF junto do município (2026-09-30) | 28 | 0,964 | 0,957 | 1,00 | 4,2 s | — | — |
 
+Na medição de 2026-09-30 a única falha foi `e2e_026` (a seleção de CNAE
+trocou os códigos de material de construção), variação entre rodadas vista
+também no A/B; a precisão (0,957) ficou abaixo do limiar por esse caso.
 Os 7 casos novos da Onda 1 passaram todos; os 2 casos que falharam já
 falhavam antes (ambiguidade de seleção de CNAE, não é regressão da Onda 1 —
 `docs/schema.md`). Limiares: casos ≥ 0,90, precisão ≥ 0,98, recusa =
@@ -230,6 +234,7 @@ generalização:
 | 1ª execução, inédita (medida honesta) | 30 | 0,900 | 0,942 |
 | após busca híbrida (já não é inédito) | 30 | 0,933 | 0,960 |
 | + Onda 1 (3 casos novos) | 33 | 0,909 | 0,945 |
+| + UF junto do município (2026-09-30) | 33 | 0,909 | 0,952 |
 
 A precisão do conjunto separado nunca atingiu a mesma barra do golden
 principal (0,942 a 0,96, sempre por ambiguidade de seleção de CNAE, mesmo
@@ -246,6 +251,62 @@ fabricação de joias: a regra "fabricantes/fornecedores recebem no máximo 1"
 foi restaurada no prompt, mas o Gemini sem raciocínio a ignora nesse caso
 (métricas iguais: golden CNAE 0,970/0,819/0,895; ajuste 0,95/0,997;
 separado 0,933/0,960).
+
+**Golden sintético** (`eval/golden_e2e_sintetico.jsonl`) — 10.000 pedidos
+gerados por `eval/sintetico/gerar.py`, para medir com amostra grande o que os
+28 + 33 casos curados medem com intervalo largo (28 casos: ±15 pontos; e a
+mesma configuração variou 7 pontos entre duas rodadas). Como é feito:
+
+- **O gabarito nunca vem de um LLM.** Cada caso nasce de um template:
+  atividade de um catálogo curado (`eval/sintetico/atividades.jsonl`, 159
+  atividades, códigos conferidos nas atividades oficiais do IBGE) × local ×
+  filtros. O `expect` sai do próprio template.
+- **Todo caso "com resultado" tem empresas de verdade.** Um censo na tabela de
+  leads (mesmas exclusões do público; ~US$ 0,02) conta empresas por atividade ×
+  município × filtro, só no CNAE **principal** de cada atividade; a célula
+  entra com 5 ou mais empresas.
+- **O Gemini só reescreve a frase.** A paráfrase é descartada se perder
+  cidade, UF, número, bairro, CEP ou a atividade, ou se inverter o sentido
+  ("fora do Simples" → "do Simples"); 97% passaram.
+- Tipos: cidade (29%), cidade + 1 filtro (28%), + 2 filtros (8%), bairro,
+  raio por CEP, UF, homônimo sem UF, pedido de dado pessoal, cidade fictícia,
+  pedido sem atividade. Até 200 empresas conferidas por caso.
+
+```bash
+python -m eval.sintetico.gerar censo                          # BigQuery, ~4 min
+python -m eval.sintetico.gerar golden --total 10000 --n 10000 # paráfrases, ~45 min
+python -m eval.run_eval --suite e2e --golden golden_e2e_sintetico.jsonl \
+  --max-rows 200 --workers 4 --checkpoint /tmp/ckpt.jsonl     # ~2h30, ~US$ 7 de BigQuery
+```
+
+Resultado (2026-09-30, 10.000 casos, 379.962 empresas):
+
+| métrica | valor | limiar |
+|---|---|---|
+| casos 100% corretos | **0,920** (IC95 0,915–0,925) | ≥ 0,90 |
+| precisão por empresa | 0,960 | ≥ 0,95 |
+| recusa de dado pessoal | 1,000 (719 de 719) | = 1,00 |
+| recusa indevida | 2 casos | — |
+| seleção de CNAE no plano B (cota do Gemini) | 2,4% | — |
+| casos corretos sem os do plano B | 0,927 | — |
+| p50 / p95 | 3,5 s / 5,5 s | — |
+
+Das 800 falhas: 300 são CNAE extra ou errado na seleção; 173 são termos que
+não acham CNAE nenhum ("botecos", "docerias", "lojas de pneus"); 93 são
+cervejaria ≠ bar e joalheria ≠ fabricação, rótulos mantidos estritos como no
+holdout (um terço das empresas erradas); 83 são o plano B por cota; 62 são a
+extração perdendo um filtro em pedidos com dois (capital mínimo é o mais
+perdido: 92,8% das empresas conferidas). Pedidos com dois filtros acertam
+0,863; com um, 0,907; sem filtro, 0,93. 56 das 159 atividades acertam 100%;
+as piores são "empresas de TI" (0,21), cervejarias (0,37) e indústria de
+alimentos (0,40).
+
+O golden sintético achou dois bugs, corrigidos em 2026-09-29: UF colada no
+nome da cidade ("Extrema/MG", "Ouro (SC)") virava "município não encontrado",
+e UF escrita depois de uma cidade homônima ("pousadas em Valença, BA") era
+ignorada quando a extração não a devolvia. Uma terceira mudança (mostrar
+primeiro os exemplos do IBGE que citam o pedido, na seleção de CNAE) melhorou
+a seleção isolada e piorou o ponta a ponta no A/B — foi revertida.
 
 **Latência** (servidor aquecido): p50 ~3,7–5 s por pedido, antes ~25 s. O
 tempo por etapa vem em `timings_ms` no resultado. A cauda (p95 ~7 s, picos

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 
 import pytest
@@ -255,3 +256,68 @@ class TestGoldenE2e:
         for case in cases:
             for code in case["expect"].get("cnae", []):
                 assert code in valid, (case["id"], code)
+
+
+class TestSuiteLarge:
+    """Paralelismo, checkpoint e retomada (golden sintético de 10 mil casos)."""
+
+    CASES = [
+        {"id": f"s{i}", "request": f"pedido {i}", "expect": {"uf": ["SP"]}}
+        for i in range(6)
+    ]
+
+    def test_parallel_matches_sequential(self):
+        fn = lambda request: _result([_row()])  # noqa: E731
+        seq = run_e2e_suite(self.CASES, fn)
+        par = run_e2e_suite(self.CASES, fn, workers=4)
+        assert par["metrics"]["n_cases"] == seq["metrics"]["n_cases"] == 6
+        assert [d["id"] for d in par["detail"]] == [c["id"] for c in self.CASES]
+
+    def test_checkpoint_resumes_without_rerunning(self, tmp_path):
+        ckpt = tmp_path / "ckpt.jsonl"
+        calls: list[str] = []
+
+        def fn(request):
+            calls.append(request)
+            return _result([_row()])
+
+        run_e2e_suite(self.CASES[:3], fn, checkpoint=ckpt)
+        payload = run_e2e_suite(self.CASES, fn, checkpoint=ckpt)
+        assert len(calls) == 6  # 3 na 1ª chamada + só os 3 que faltavam
+        assert payload["metrics"]["n_cases"] == 6
+
+    def test_failing_case_raises_and_stays_out_of_checkpoint(self, tmp_path):
+        ckpt = tmp_path / "ckpt.jsonl"
+
+        def fn(request):
+            if request == "pedido 2":
+                raise ConnectionError("rede")
+            return _result([_row()])
+
+        with pytest.raises(RuntimeError, match="1 caso"):
+            run_e2e_suite(self.CASES, fn, checkpoint=ckpt, retries=1)
+        ids = [json.loads(line)["id"] for line in ckpt.read_text().splitlines()]
+        assert sorted(ids) == ["s0", "s1", "s3", "s4", "s5"]
+
+    def test_max_rows_is_recorded(self):
+        payload = run_e2e_suite(
+            self.CASES[:1], lambda request: _result([_row()]), max_rows=200
+        )
+        assert payload["max_rows"] == 200
+
+
+def test_suite_separates_fallback_cases():
+    cases = [
+        {"id": "a", "request": "ok", "expect": {"uf": ["SP"]}},
+        {"id": "b", "request": "plano b", "expect": {"uf": ["SP"]}},
+    ]
+
+    def fn(request):
+        if request == "plano b":
+            return {**_result([_row(sigla_uf="RJ")]), "cnae_fallback": True}
+        return _result([_row()])
+
+    m = run_e2e_suite(cases, fn)["metrics"]
+    assert m["case_pass_rate"] == 0.5
+    assert m["cnae_fallback_rate"] == 0.5
+    assert m["case_pass_rate_sem_fallback"] == 1.0

@@ -392,6 +392,8 @@ def e2e_case_outcome(
         "n_rows": len(rows),
         "rows_ok": rows_ok,
         "per_check": per_check,
+        "refused": refused,
+        "expect_refused": bool(expect.get("refused", False)),
     }
 
 
@@ -405,30 +407,36 @@ def e2e_metrics(
         raise ValueError("cases e results precisam ter o mesmo comprimento")
     today = today or date.today()
     outcomes = [e2e_case_outcome(c, r, today) for c, r in zip(cases, results)]
+    return e2e_metrics_from_outcomes(outcomes)
+
+
+def e2e_metrics_from_outcomes(outcomes: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Agrega desfechos de ``e2e_case_outcome`` já calculados.
+
+    Separado de ``e2e_metrics`` para a suíte grande (golden sintético): cada
+    desfecho é calculado assim que o caso termina e as linhas são
+    descartadas — 10 mil casos × 200 empresas não cabem em memória à toa.
+    """
     n_rows = sum(o["n_rows"] for o in outcomes)
     per_check: dict[str, float | None] = {}
     for name in E2E_ROW_CHECKS:
         ok = sum(o["per_check"][name][0] for o in outcomes)
         tot = sum(o["per_check"][name][1] for o in outcomes)
         per_check[name] = ok / tot if tot else None
-    refusal_cases = [
-        (c, r) for c, r in zip(cases, results) if c["expect"].get("refused")
-    ]
+    refusal_cases = [o for o in outcomes if o["expect_refused"]]
     return {
-        "n_cases": len(cases),
-        "case_pass_rate": sum(o["passed"] for o in outcomes) / len(cases)
-        if cases
+        "n_cases": len(outcomes),
+        "case_pass_rate": sum(o["passed"] for o in outcomes) / len(outcomes)
+        if outcomes
         else None,
         "row_precision": sum(o["rows_ok"] for o in outcomes) / n_rows
         if n_rows
         else None,
         "row_precision_by_check": per_check,
-        "e2e_correct_refusal_rate": sum(
-            bool(r.get("refused")) for _, r in refusal_cases
-        )
+        "e2e_correct_refusal_rate": sum(o["refused"] for o in refusal_cases)
         / len(refusal_cases)
         if refusal_cases
         else None,
         "n_rows": n_rows,
-        "per_case": outcomes,
+        "per_case": list(outcomes),
     }

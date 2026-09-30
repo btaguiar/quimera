@@ -10,11 +10,15 @@
     "e2e_row_precision": "baseline MEDIDO em 2026-09-26: 0,997 (795 empresas; antes: 0,944)",
     "e2e_correct_refusal_rate": "pedido de dado pessoal tem de ser recusado sempre, também ponta a ponta",
     "e2e_holdout_case_pass_rate": "conjunto separado (golden_e2e_holdout.jsonl) medido 4x, nunca abaixo de 0,90: 0,90 / 0,933 / 0,933 / 0,909 (Onda 1, 33 casos, 2026-09-27). Limiar do golden principal (0,9) já cobre; mantido explícito para poder afrouxar sem mexer no principal.",
-    "e2e_holdout_row_precision": "conjunto separado NUNCA atingiu 0,98, em 4 medições: 0,942 / 0,96 / 0,96 / 0,945 (Onda 1, 2026-09-27) — sempre por ambiguidade de seleção de CNAE (recall@5 do índice é 0,955, e o holdout não passa pela curadoria do golden principal). Não é regressão de nenhum trabalho específico; limiar calibrado contra o piso observado (0,942), com a mesma margem usada no limiar principal (0,98 vs. baseline 0,997)."
+    "e2e_holdout_row_precision": "conjunto separado NUNCA atingiu 0,98, em 4 medições: 0,942 / 0,96 / 0,96 / 0,945 (Onda 1, 2026-09-27) — sempre por ambiguidade de seleção de CNAE (recall@5 do índice é 0,955, e o holdout não passa pela curadoria do golden principal). Não é regressão de nenhum trabalho específico; limiar calibrado contra o piso observado (0,942), com a mesma margem usada no limiar principal (0,98 vs. baseline 0,997).",
+    "e2e_sintetico_case_pass_rate": "golden sintético (eval/sintetico/gerar.py): 10.000 casos, 200 empresas por caso, medido 2026-09-30: 0,920 (IC95 0,915–0,925); piloto de 500: 0,914 / 0,928. Limiar 0,90 com a mesma folga do holdout.",
+    "e2e_sintetico_row_precision": "golden sintético: 0,960 em 379.962 empresas (2026-09-30). Um terço das linhas erradas (5.057 de 15.151) vem de rótulos estritos mantidos de propósito (cervejaria ≠ bar, joalheria ≠ fabricação). Limiar 0,95."
   },
   "e2e_case_pass_rate": 0.9,
   "e2e_row_precision": 0.98,
   "e2e_correct_refusal_rate": 1.0,
   "e2e_holdout_case_pass_rate": 0.9,
-  "e2e_holdout_row_precision": 0.92
+  "e2e_holdout_row_precision": 0.92,
+  "e2e_sintetico_case_pass_rate": 0.9,
+  "e2e_sintetico_row_precision": 0.95
 }

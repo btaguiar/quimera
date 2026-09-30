@@ -1,0 +1,159 @@
+{"id": "odonto", "termos": ["clínicas odontológicas", "dentistas", "consultórios odontológicos"], "principal": "8630-5/04", "cnae": ["8630-5/04"]}
+{"id": "advocacia", "termos": ["escritórios de advocacia", "advogados"], "principal": "6911-7/01", "cnae": ["6911-7/01"]}
+{"id": "contabilidade", "termos": ["escritórios de contabilidade", "contadores", "empresas de contabilidade"], "principal": "6920-6/01", "cnae": ["6920-6/01", "6920-6/02"]}
+{"id": "software", "termos": ["empresas de desenvolvimento de software", "software houses"], "principal": "6201-5/01", "cnae": ["6201-5/01", "6201-5/02", "6202-3/00", "6203-1/00"]}
+{"id": "ti", "termos": ["empresas de TI", "empresas de tecnologia da informação"], "principal": "6201-5/01", "cnae": ["6201-5/01", "6201-5/02", "6202-3/00", "6203-1/00", "6204-0/00", "6209-1/00", "6311-9/00", "6319-4/00"]}
+{"id": "restaurante", "termos": ["restaurantes"], "principal": "5611-2/01", "cnae": ["5611-2/01", "5611-2/03"]}
+{"id": "pizzaria", "termos": ["pizzarias"], "principal": "5611-2/01", "cnae": ["5611-2/01", "5611-2/03", "5620-1/04"]}
+{"id": "lanchonete", "termos": ["lanchonetes", "hamburguerias"], "principal": "5611-2/03", "cnae": ["5611-2/01", "5611-2/03"]}
+{"id": "bar", "termos": ["bares", "botecos"], "principal": "5611-2/04", "cnae": ["5611-2/04", "5611-2/05", "5611-2/01"]}
+{"id": "hotel", "termos": ["hotéis", "pousadas"], "principal": "5510-8/01", "cnae": ["5510-8/01", "5510-8/02", "5590-6/99"]}
+{"id": "farmacia", "termos": ["farmácias", "drogarias"], "principal": "4771-7/01", "cnae": ["4771-7/01", "4771-7/02", "4771-7/03"]}
+{"id": "supermercado", "termos": ["supermercados"], "principal": "4711-3/02", "cnae": ["4711-3/01", "4711-3/02"]}
+{"id": "minimercado", "termos": ["mercadinhos", "minimercados", "mercearias"], "principal": "4712-1/00", "cnae": ["4712-1/00", "4711-3/02"]}
+{"id": "cabeleireiro", "termos": ["salões de beleza", "cabeleireiros", "barbearias"], "principal": "9602-5/01", "cnae": ["9602-5/01", "9602-5/02"]}
+{"id": "estetica", "termos": ["clínicas de estética"], "principal": "9602-5/02", "cnae": ["9602-5/02", "8690-9/99", "8630-5/03"]}
+{"id": "academia", "termos": ["academias de ginástica", "academias"], "principal": "9313-1/00", "cnae": ["9313-1/00"]}
+{"id": "posto", "termos": ["postos de combustível", "postos de gasolina"], "principal": "4731-8/00", "cnae": ["4731-8/00"]}
+{"id": "concessionaria", "termos": ["concessionárias de veículos", "revendas de carros"], "principal": "4511-1/01", "cnae": ["4511-1/01", "4511-1/02", "4512-9/02"]}
+{"id": "clinica_medica", "termos": ["clínicas médicas", "consultórios médicos"], "principal": "8630-5/03", "cnae": ["8630-5/01", "8630-5/02", "8630-5/03"]}
+{"id": "hospital", "termos": ["hospitais"], "principal": "8610-1/01", "cnae": ["8610-1/01", "8610-1/02"]}
+{"id": "laboratorio", "termos": ["laboratórios de análises clínicas", "laboratórios de exames"], "principal": "8640-2/02", "cnae": ["8640-2/02", "8640-2/01"]}
+{"id": "diagnostico_imagem", "termos": ["clínicas de diagnóstico por imagem", "clínicas de radiologia"], "principal": "8640-2/05", "cnae": ["8640-2/04", "8640-2/05", "8640-2/06", "8640-2/07", "8640-2/08", "8640-2/99"]}
+{"id": "escola", "termos": ["escolas particulares", "colégios particulares"], "principal": "8513-9/00", "cnae": ["8511-2/00", "8512-1/00", "8513-9/00", "8520-1/00"]}
+{"id": "creche", "termos": ["creches", "escolas de educação infantil"], "principal": "8511-2/00", "cnae": ["8511-2/00", "8512-1/00"]}
+{"id": "idiomas", "termos": ["escolas de idiomas", "cursos de inglês"], "principal": "8593-7/00", "cnae": ["8593-7/00"]}
+{"id": "autoescola", "termos": ["autoescolas", "centros de formação de condutores"], "principal": "8599-6/01", "cnae": ["8599-6/01"]}
+{"id": "vigilancia", "termos": ["empresas de vigilância", "empresas de segurança patrimonial"], "principal": "8011-1/01", "cnae": ["8011-1/01", "8020-0/01"]}
+{"id": "limpeza", "termos": ["empresas de limpeza predial", "empresas de limpeza e conservação"], "principal": "8121-4/00", "cnae": ["8121-4/00", "8129-0/00", "8111-7/00"]}
+{"id": "publicidade", "termos": ["agências de publicidade", "agências de propaganda"], "principal": "7311-4/00", "cnae": ["7311-4/00"]}
+{"id": "marketing", "termos": ["agências de marketing", "agências de marketing digital"], "principal": "7311-4/00", "cnae": ["7311-4/00", "7319-0/03", "7319-0/04", "7319-0/99", "7490-1/99"]}
+{"id": "consultoria", "termos": ["consultorias empresariais", "consultorias de gestão"], "principal": "7020-4/00", "cnae": ["7020-4/00"]}
+{"id": "engenharia", "termos": ["escritórios de engenharia", "empresas de engenharia"], "principal": "7112-0/00", "cnae": ["7112-0/00", "7119-7/99"]}
+{"id": "arquitetura", "termos": ["escritórios de arquitetura", "arquitetos"], "principal": "7111-1/00", "cnae": ["7111-1/00"]}
+{"id": "veterinaria", "termos": ["clínicas veterinárias", "veterinários"], "principal": "7500-1/00", "cnae": ["7500-1/00"]}
+{"id": "construtora", "termos": ["construtoras", "empresas de construção de edifícios"], "principal": "4120-4/00", "cnae": ["4120-4/00", "4211-1/01", "4212-0/00", "4213-8/00", "4299-5/99", "4291-0/00"]}
+{"id": "incorporadora", "termos": ["incorporadoras imobiliárias", "incorporadoras"], "principal": "4110-7/00", "cnae": ["4110-7/00", "4120-4/00"]}
+{"id": "eletrica", "termos": ["empresas de instalações elétricas", "eletricistas"], "principal": "4321-5/00", "cnae": ["4321-5/00"]}
+{"id": "hidraulica", "termos": ["empresas de instalações hidráulicas", "encanadores"], "principal": "4322-3/01", "cnae": ["4322-3/01"]}
+{"id": "ar_condicionado", "termos": ["empresas de instalação de ar-condicionado", "empresas de climatização"], "principal": "4322-3/02", "cnae": ["4322-3/02", "3314-7/07"]}
+{"id": "pintura", "termos": ["empresas de pintura de prédios", "pintores de obras"], "principal": "4330-4/04", "cnae": ["4330-4/04"]}
+{"id": "transportadora", "termos": ["transportadoras de carga", "transportadoras"], "principal": "4930-2/02", "cnae": ["4930-2/01", "4930-2/02", "4930-2/03"]}
+{"id": "mudanca", "termos": ["empresas de mudança", "transportadoras de mudanças"], "principal": "4930-2/04", "cnae": ["4930-2/04"]}
+{"id": "padaria", "termos": ["padarias", "panificadoras"], "principal": "4721-1/02", "cnae": ["1091-1/02", "4721-1/02"]}
+{"id": "confeitaria", "termos": ["confeitarias", "docerias"], "principal": "4721-1/02", "cnae": ["1091-1/02", "4721-1/02", "4721-1/04", "1093-7/02"]}
+{"id": "acougue", "termos": ["açougues", "casas de carne"], "principal": "4722-9/01", "cnae": ["4722-9/01"]}
+{"id": "peixaria", "termos": ["peixarias"], "principal": "4722-9/02", "cnae": ["4722-9/02"]}
+{"id": "hortifruti", "termos": ["hortifrútis", "sacolões"], "principal": "4724-5/00", "cnae": ["4724-5/00"]}
+{"id": "adega", "termos": ["lojas de bebidas", "distribuidoras de bebidas"], "principal": "4723-7/00", "cnae": ["4723-7/00", "4635-4/02", "4635-4/99"]}
+{"id": "lavanderia", "termos": ["lavanderias"], "principal": "9601-7/01", "cnae": ["9601-7/01", "9601-7/02", "9601-7/03"]}
+{"id": "call_center", "termos": ["call centers", "empresas de telemarketing"], "principal": "8220-2/00", "cnae": ["8220-2/00", "7319-0/03"]}
+{"id": "oficina", "termos": ["oficinas mecânicas"], "principal": "4520-0/01", "cnae": ["4520-0/01", "4520-0/02", "4520-0/03", "4520-0/04"]}
+{"id": "funilaria", "termos": ["funilarias", "oficinas de lanternagem e pintura"], "principal": "4520-0/02", "cnae": ["4520-0/02"]}
+{"id": "borracharia", "termos": ["borracharias"], "principal": "4520-0/06", "cnae": ["4520-0/06"]}
+{"id": "lava_rapido", "termos": ["lava-rápidos", "lava-jatos"], "principal": "4520-0/05", "cnae": ["4520-0/05"]}
+{"id": "autopecas", "termos": ["lojas de autopeças", "autopeças"], "principal": "4530-7/03", "cnae": ["4530-7/03", "4530-7/04", "4530-7/01"]}
+{"id": "material_construcao", "termos": ["lojas de material de construção", "depósitos de material de construção"], "principal": "4744-0/99", "cnae": ["4744-0/01", "4744-0/02", "4744-0/03", "4744-0/04", "4744-0/05", "4744-0/99"]}
+{"id": "ferragens", "termos": ["lojas de ferragens", "ferragistas"], "principal": "4744-0/01", "cnae": ["4744-0/01"]}
+{"id": "tintas", "termos": ["lojas de tintas"], "principal": "4741-5/00", "cnae": ["4741-5/00"]}
+{"id": "material_eletrico", "termos": ["lojas de material elétrico"], "principal": "4742-3/00", "cnae": ["4742-3/00"]}
+{"id": "vidracaria", "termos": ["vidraçarias"], "principal": "4743-1/00", "cnae": ["4743-1/00", "2319-2/00"]}
+{"id": "estetica_automotiva", "termos": ["centros automotivos"], "principal": "4520-0/01", "cnae": ["4520-0/01", "4520-0/04", "4520-0/05", "4520-0/06", "4530-7/05"]}
+{"id": "pneus", "termos": ["lojas de pneus", "revendas de pneus"], "principal": "4530-7/05", "cnae": ["4530-7/05", "4520-0/06"]}
+{"id": "agencia_viagem", "termos": ["agências de viagem", "agências de turismo"], "principal": "7911-2/00", "cnae": ["7911-2/00", "7912-1/00"]}
+{"id": "grafica", "termos": ["gráficas"], "principal": "1813-0/99", "cnae": ["1813-0/01", "1813-0/99", "1811-3/02", "1821-1/00", "1811-3/01"]}
+{"id": "copiadora", "termos": ["copiadoras", "lojas de xerox"], "principal": "8219-9/01", "cnae": ["8219-9/01", "8219-9/99"]}
+{"id": "livraria", "termos": ["livrarias"], "principal": "4761-0/01", "cnae": ["4761-0/01"]}
+{"id": "papelaria", "termos": ["papelarias"], "principal": "4761-0/03", "cnae": ["4761-0/03"]}
+{"id": "floricultura", "termos": ["floriculturas"], "principal": "4789-0/02", "cnae": ["4789-0/02"]}
+{"id": "otica", "termos": ["óticas"], "principal": "4774-1/00", "cnae": ["4774-1/00"]}
+{"id": "pet_shop", "termos": ["pet shops"], "principal": "4789-0/04", "cnae": ["4789-0/04", "9609-2/08"]}
+{"id": "imobiliaria", "termos": ["imobiliárias"], "principal": "6821-8/01", "cnae": ["6821-8/01", "6821-8/02", "6822-6/00"]}
+{"id": "corretora_seguros", "termos": ["corretoras de seguros"], "principal": "6622-3/00", "cnae": ["6622-3/00"]}
+{"id": "roupas", "termos": ["lojas de roupas", "lojas de vestuário"], "principal": "4781-4/00", "cnae": ["4781-4/00"]}
+{"id": "calcados", "termos": ["lojas de calçados", "sapatarias"], "principal": "4782-2/01", "cnae": ["4782-2/01"]}
+{"id": "joalheria", "termos": ["joalherias"], "principal": "4783-1/01", "cnae": ["4783-1/01"]}
+{"id": "moveis", "termos": ["lojas de móveis"], "principal": "4754-7/01", "cnae": ["4754-7/01"]}
+{"id": "eletrodomesticos", "termos": ["lojas de eletrodomésticos"], "principal": "4753-9/00", "cnae": ["4753-9/00"]}
+{"id": "celulares", "termos": ["lojas de celulares"], "principal": "4752-1/00", "cnae": ["4752-1/00"]}
+{"id": "informatica_loja", "termos": ["lojas de informática"], "principal": "4751-2/01", "cnae": ["4751-2/01"]}
+{"id": "assistencia_informatica", "termos": ["assistências técnicas de informática", "manutenção de computadores"], "principal": "9511-8/00", "cnae": ["9511-8/00"]}
+{"id": "assistencia_celular", "termos": ["assistências técnicas de celulares"], "principal": "9512-6/00", "cnae": ["9512-6/00"]}
+{"id": "brinquedos", "termos": ["lojas de brinquedos"], "principal": "4763-6/01", "cnae": ["4763-6/01"]}
+{"id": "esportes", "termos": ["lojas de artigos esportivos"], "principal": "4763-6/02", "cnae": ["4763-6/02"]}
+{"id": "bicicletas", "termos": ["lojas de bicicletas", "bicicletarias"], "principal": "4763-6/03", "cnae": ["4763-6/03", "9529-1/04"]}
+{"id": "cosmeticos", "termos": ["lojas de cosméticos", "perfumarias"], "principal": "4772-5/00", "cnae": ["4772-5/00"]}
+{"id": "psicologia", "termos": ["clínicas de psicologia", "psicólogos"], "principal": "8650-0/03", "cnae": ["8650-0/03"]}
+{"id": "fisioterapia", "termos": ["clínicas de fisioterapia", "fisioterapeutas"], "principal": "8650-0/04", "cnae": ["8650-0/04"]}
+{"id": "nutricao", "termos": ["nutricionistas", "consultórios de nutrição"], "principal": "8650-0/02", "cnae": ["8650-0/02"]}
+{"id": "fonoaudiologia", "termos": ["fonoaudiólogos", "clínicas de fonoaudiologia"], "principal": "8650-0/06", "cnae": ["8650-0/06"]}
+{"id": "funeraria", "termos": ["funerárias"], "principal": "9603-3/04", "cnae": ["9603-3/04", "9603-3/99", "9603-3/05"]}
+{"id": "estacionamento", "termos": ["estacionamentos"], "principal": "5223-1/00", "cnae": ["5223-1/00"]}
+{"id": "cervejaria", "termos": ["cervejarias artesanais", "cervejarias"], "principal": "1113-5/02", "cnae": ["1113-5/02", "1113-5/01"]}
+{"id": "moveis_fabrica", "termos": ["fábricas de móveis de madeira", "marcenarias"], "principal": "3101-2/00", "cnae": ["3101-2/00"]}
+{"id": "buffet", "termos": ["buffets de festas", "bufês"], "principal": "5620-1/02", "cnae": ["5620-1/02", "5620-1/04", "8230-0/02"]}
+{"id": "marmitaria", "termos": ["marmitarias", "marmitex"], "principal": "5620-1/04", "cnae": ["5620-1/01", "5620-1/03", "5620-1/04"]}
+{"id": "dedetizadora", "termos": ["dedetizadoras", "empresas de controle de pragas"], "principal": "8122-2/00", "cnae": ["8122-2/00"]}
+{"id": "fotografia", "termos": ["estúdios de fotografia", "fotógrafos"], "principal": "7420-0/01", "cnae": ["7420-0/01", "7420-0/04"]}
+{"id": "tatuagem", "termos": ["estúdios de tatuagem"], "principal": "9609-2/06", "cnae": ["9609-2/06"]}
+{"id": "eventos", "termos": ["organizadoras de eventos", "empresas de eventos"], "principal": "8230-0/01", "cnae": ["8230-0/01", "8230-0/02"]}
+{"id": "casa_festas", "termos": ["casas de festas", "salões de festas"], "principal": "8230-0/02", "cnae": ["8230-0/02", "5620-1/02", "9329-8/99"]}
+{"id": "rh", "termos": ["agências de emprego", "empresas de recrutamento e seleção"], "principal": "7810-8/00", "cnae": ["7810-8/00", "7820-5/00", "7830-2/00"]}
+{"id": "cobranca", "termos": ["empresas de cobrança"], "principal": "8291-1/00", "cnae": ["8291-1/00"]}
+{"id": "correspondente_bancario", "termos": ["correspondentes bancários"], "principal": "6619-3/02", "cnae": ["6619-3/02"]}
+{"id": "cartorio", "termos": ["cartórios"], "principal": "6912-5/00", "cnae": ["6912-5/00"]}
+{"id": "provedor", "termos": ["provedores de internet"], "principal": "6190-6/01", "cnae": ["6110-8/03", "6190-6/01", "6190-6/99", "6120-5/99", "6141-8/00", "6142-6/00", "6143-4/00"]}
+{"id": "chaveiro", "termos": ["chaveiros"], "principal": "9529-1/02", "cnae": ["9529-1/02"]}
+{"id": "costura", "termos": ["ateliês de costura", "confecções sob medida"], "principal": "1412-6/02", "cnae": ["1412-6/03", "1412-6/01", "1412-6/02", "9529-1/99"]}
+{"id": "confeccao", "termos": ["confecções de roupas", "fábricas de roupas"], "principal": "1412-6/01", "cnae": ["1412-6/01", "1412-6/02", "1412-6/03", "1411-8/01", "1413-4/01"]}
+{"id": "serralheria", "termos": ["serralherias"], "principal": "2542-0/00", "cnae": ["2512-8/00", "2542-0/00", "2599-3/99"]}
+{"id": "madeireira", "termos": ["madeireiras"], "principal": "4744-0/02", "cnae": ["4744-0/02", "1610-2/03", "1610-2/04", "1610-2/05", "4671-1/00"]}
+{"id": "clube", "termos": ["clubes esportivos"], "principal": "9312-3/00", "cnae": ["9312-3/00", "9319-1/99"]}
+{"id": "danca", "termos": ["escolas de dança"], "principal": "8592-9/01", "cnae": ["8592-9/01"]}
+{"id": "musica", "termos": ["escolas de música"], "principal": "8592-9/03", "cnae": ["8592-9/03"]}
+{"id": "pilates", "termos": ["estúdios de pilates"], "principal": "9313-1/00", "cnae": ["8650-0/04", "9313-1/00", "8591-1/00"]}
+{"id": "natacao", "termos": ["escolas de natação"], "principal": "8591-1/00", "cnae": ["8591-1/00", "9313-1/00"]}
+{"id": "faculdade", "termos": ["faculdades particulares", "instituições de ensino superior"], "principal": "8531-7/00", "cnae": ["8531-7/00", "8532-5/00", "8533-3/00"]}
+{"id": "curso_tecnico", "termos": ["escolas técnicas", "cursos profissionalizantes"], "principal": "8541-4/00", "cnae": ["8541-4/00", "8599-6/03", "8599-6/04", "8599-6/99", "8542-2/00"]}
+{"id": "preparatorio", "termos": ["cursinhos preparatórios", "cursos pré-vestibular"], "principal": "8599-6/05", "cnae": ["8599-6/05"]}
+{"id": "casa_repouso", "termos": ["casas de repouso", "clínicas geriátricas"], "principal": "8711-5/02", "cnae": ["8711-5/02", "8711-5/03", "8730-1/99", "8711-5/01"]}
+{"id": "home_care", "termos": ["empresas de home care"], "principal": "8712-3/00", "cnae": ["8712-3/00"]}
+{"id": "ambulancia", "termos": ["empresas de remoção de pacientes"], "principal": "8622-4/00", "cnae": ["8621-6/01", "8621-6/02", "8622-4/00"]}
+{"id": "fretamento", "termos": ["empresas de fretamento de ônibus", "empresas de transporte de passageiros por fretamento"], "principal": "4929-9/01", "cnae": ["4929-9/01", "4929-9/02", "4929-9/03", "4929-9/04"]}
+{"id": "locadora_veiculos", "termos": ["locadoras de veículos", "locadoras de carros"], "principal": "7711-0/00", "cnae": ["7711-0/00"]}
+{"id": "locadora_equipamentos", "termos": ["locadoras de equipamentos para construção", "aluguel de máquinas para obras"], "principal": "7732-2/01", "cnae": ["7732-2/01", "7732-2/02"]}
+{"id": "motoboy", "termos": ["empresas de motoboy", "empresas de entregas rápidas"], "principal": "5320-2/02", "cnae": ["5320-2/02", "5320-2/01"]}
+{"id": "armazem", "termos": ["armazéns gerais", "empresas de armazenagem"], "principal": "5211-7/99", "cnae": ["5211-7/01", "5211-7/99", "5211-7/02"]}
+{"id": "despacho_aduaneiro", "termos": ["comissárias de despacho aduaneiro", "agentes de cargas"], "principal": "5250-8/02", "cnae": ["5250-8/01", "5250-8/03", "5250-8/04", "5250-8/02"]}
+{"id": "atacado_alimentos", "termos": ["distribuidoras de alimentos", "atacadistas de alimentos"], "principal": "4639-7/01", "cnae": ["4639-7/01", "4639-7/02", "4637-1/99", "4691-5/00", "4633-8/01", "4634-6/01"]}
+{"id": "atacado_farma", "termos": ["distribuidoras de medicamentos"], "principal": "4644-3/01", "cnae": ["4644-3/01"]}
+{"id": "atacado_material_construcao", "termos": ["atacadistas de material de construção"], "principal": "4679-6/99", "cnae": ["4679-6/99", "4744-0/99", "4672-9/00", "4673-7/00", "4674-5/00", "4679-6/01", "4679-6/02", "4679-6/03", "4679-6/04"]}
+{"id": "atacado_informatica", "termos": ["distribuidoras de equipamentos de informática"], "principal": "4651-6/01", "cnae": ["4651-6/01", "4651-6/02"]}
+{"id": "metalurgica", "termos": ["empresas de usinagem", "tornearias"], "principal": "2539-0/01", "cnae": ["2539-0/01", "2539-0/02", "2599-3/99"]}
+{"id": "plasticos", "termos": ["fábricas de embalagens plásticas"], "principal": "2222-6/00", "cnae": ["2222-6/00", "2229-3/99"]}
+{"id": "alimentos_industria", "termos": ["indústrias de alimentos", "fábricas de alimentos"], "principal": "1099-6/99", "cnae": ["1099-6/99", "1091-1/01", "1092-9/00", "1093-7/01", "1094-5/00", "1096-1/00", "1099-6/02", "1099-6/05"]}
+{"id": "laticinio", "termos": ["laticínios"], "principal": "1052-0/00", "cnae": ["1052-0/00", "1051-1/00", "4631-1/00", "4721-1/03"]}
+{"id": "frigorifico", "termos": ["frigoríficos"], "principal": "1011-2/01", "cnae": ["1011-2/01", "1012-1/01", "1013-9/01", "1011-2/05"]}
+{"id": "sorveteria", "termos": ["sorveterias"], "principal": "1053-8/00", "cnae": ["5611-2/03", "1053-8/00", "4721-1/04"]}
+{"id": "cafeteria", "termos": ["cafeterias"], "principal": "5611-2/03", "cnae": ["5611-2/03", "5611-2/01"]}
+{"id": "energia_solar", "termos": ["empresas de energia solar", "instaladoras de painéis solares"], "principal": "4321-5/00", "cnae": ["4321-5/00", "3511-5/01", "7112-0/00"]}
+{"id": "elevadores", "termos": ["empresas de manutenção de elevadores"], "principal": "4329-1/03", "cnae": ["4329-1/03"]}
+{"id": "terraplenagem", "termos": ["empresas de terraplenagem"], "principal": "4313-4/00", "cnae": ["4313-4/00"]}
+{"id": "paisagismo", "termos": ["empresas de paisagismo", "empresas de jardinagem"], "principal": "8130-3/00", "cnae": ["8130-3/00"]}
+{"id": "condominio_adm", "termos": ["administradoras de condomínios"], "principal": "6822-6/00", "cnae": ["6822-6/00"]}
+{"id": "coworking", "termos": ["coworkings", "escritórios compartilhados"], "principal": "8211-3/00", "cnae": ["8211-3/00", "6810-2/02"]}
+{"id": "saneamento", "termos": ["empresas de coleta de lixo", "empresas de coleta de resíduos"], "principal": "3811-4/00", "cnae": ["3811-4/00", "3812-2/00"]}
+{"id": "reciclagem", "termos": ["empresas de reciclagem", "ferros-velhos"], "principal": "3831-9/99", "cnae": ["3831-9/99", "3832-7/00", "3839-4/99", "4687-7/03", "3831-9/01", "4687-7/01", "4687-7/02", "1922-5/02"]}
+{"id": "seguranca_eletronica", "termos": ["empresas de segurança eletrônica", "empresas de monitoramento de alarmes"], "principal": "8020-0/01", "cnae": ["8020-0/01", "8020-0/02", "4321-5/00"]}
+{"id": "pesquisa_mercado", "termos": ["institutos de pesquisa de mercado"], "principal": "7320-3/00", "cnae": ["7320-3/00"]}
+{"id": "traducao", "termos": ["empresas de tradução"], "principal": "7490-1/01", "cnae": ["7490-1/01"]}
+{"id": "produtora_video", "termos": ["produtoras de vídeo", "produtoras audiovisuais"], "principal": "5911-1/99", "cnae": ["5911-1/99", "5911-1/02", "5912-0/99", "5911-1/01", "7420-0/04"]}
+{"id": "radio", "termos": ["emissoras de rádio"], "principal": "6010-1/00", "cnae": ["6010-1/00"]}
+{"id": "editora", "termos": ["editoras de livros"], "principal": "5811-5/00", "cnae": ["5811-5/00", "5821-2/00"]}
+{"id": "joias_fabrica", "termos": ["fabricantes de joias", "ourives"], "principal": "3211-6/02", "cnae": ["3211-6/02", "3211-6/01", "3212-4/00"]}
+{"id": "clinica_olhos", "termos": ["clínicas oftalmológicas"], "principal": "8630-5/03", "cnae": ["8630-5/01", "8630-5/02", "8630-5/03"]}
+{"id": "ortodontia", "termos": ["clínicas de ortodontia"], "principal": "8630-5/04", "cnae": ["8630-5/04"]}
+{"id": "protese_dentaria", "termos": ["laboratórios de prótese dentária"], "principal": "3250-7/06", "cnae": ["3250-7/06", "8640-2/99"]}
+{"id": "vacinacao", "termos": ["clínicas de vacinação"], "principal": "8630-5/06", "cnae": ["8630-5/06", "8630-5/03", "8630-5/01"]}
+{"id": "hemodialise", "termos": ["clínicas de hemodiálise"], "principal": "8640-2/03", "cnae": ["8640-2/03"]}
+{"id": "medicina_trabalho", "termos": ["clínicas de medicina do trabalho", "empresas de saúde ocupacional"], "principal": "8630-5/99", "cnae": ["8630-5/03", "8630-5/02", "8630-5/01", "7119-7/04", "8690-9/99", "8630-5/99", "7490-1/99"]}

@@ -1,0 +1,2947 @@
+{
+  "suite": "e2e",
+  "date": "2026-09-30T00:10:26+00:00",
+  "commit": "b796f84",
+  "metrics": {
+    "n_cases": 28,
+    "case_pass_rate": 0.9642857142857143,
+    "row_precision": 0.9571045576407506,
+    "row_precision_by_check": {
+      "uf": 1.0,
+      "municipio": 1.0,
+      "cnae": 0.9571045576407506,
+      "min_age_years": 1.0,
+      "max_age_years": 1.0,
+      "min_capital": 1.0,
+      "portes": 1.0,
+      "min_estabelecimentos": 1.0,
+      "regimes": 1.0,
+      "bairros": 1.0,
+      "raio_km": 1.0,
+      "com_dominio_proprio": 1.0
+    },
+    "e2e_correct_refusal_rate": 1.0,
+    "n_rows": 1119,
+    "per_case": [
+      {
+        "id": "e2e_001",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            50,
+            50
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_002",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_003",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            50,
+            50
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_004",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_005",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_006",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_007",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_008",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_009",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_010",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_011",
+        "passed": true,
+        "problems": [],
+        "n_rows": 25,
+        "rows_ok": 25,
+        "per_check": {
+          "uf": [
+            25,
+            25
+          ],
+          "municipio": [
+            25,
+            25
+          ],
+          "cnae": [
+            25,
+            25
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            25,
+            25
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_012",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            50,
+            50
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_013",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            50,
+            50
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_014",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            50,
+            50
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_015",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_016",
+        "passed": true,
+        "problems": [],
+        "n_rows": 20,
+        "rows_ok": 20,
+        "per_check": {
+          "uf": [
+            20,
+            20
+          ],
+          "municipio": [
+            20,
+            20
+          ],
+          "cnae": [
+            20,
+            20
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            20,
+            20
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_017",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_018",
+        "passed": true,
+        "problems": [],
+        "n_rows": 0,
+        "rows_ok": 0,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            0,
+            0
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_019",
+        "passed": true,
+        "problems": [],
+        "n_rows": 0,
+        "rows_ok": 0,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            0,
+            0
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": true,
+        "expect_refused": true
+      },
+      {
+        "id": "e2e_020",
+        "passed": true,
+        "problems": [],
+        "n_rows": 0,
+        "rows_ok": 0,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            0,
+            0
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": true,
+        "expect_refused": true
+      },
+      {
+        "id": "e2e_021",
+        "passed": true,
+        "problems": [],
+        "n_rows": 24,
+        "rows_ok": 24,
+        "per_check": {
+          "uf": [
+            24,
+            24
+          ],
+          "municipio": [
+            24,
+            24
+          ],
+          "cnae": [
+            24,
+            24
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            24,
+            24
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_022",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            50,
+            50
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_023",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            50,
+            50
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_024",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            50,
+            50
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_025",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            50,
+            50
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_026",
+        "passed": false,
+        "problems": [
+          "48/50 linhas falham ['cnae']"
+        ],
+        "n_rows": 50,
+        "rows_ok": 2,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            2,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            50,
+            50
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_027",
+        "passed": true,
+        "problems": [],
+        "n_rows": 50,
+        "rows_ok": 50,
+        "per_check": {
+          "uf": [
+            50,
+            50
+          ],
+          "municipio": [
+            50,
+            50
+          ],
+          "cnae": [
+            50,
+            50
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      },
+      {
+        "id": "e2e_028",
+        "passed": true,
+        "problems": [],
+        "n_rows": 0,
+        "rows_ok": 0,
+        "per_check": {
+          "uf": [
+            0,
+            0
+          ],
+          "municipio": [
+            0,
+            0
+          ],
+          "cnae": [
+            0,
+            0
+          ],
+          "min_age_years": [
+            0,
+            0
+          ],
+          "max_age_years": [
+            0,
+            0
+          ],
+          "min_capital": [
+            0,
+            0
+          ],
+          "portes": [
+            0,
+            0
+          ],
+          "min_estabelecimentos": [
+            0,
+            0
+          ],
+          "regimes": [
+            0,
+            0
+          ],
+          "bairros": [
+            0,
+            0
+          ],
+          "raio_km": [
+            0,
+            0
+          ],
+          "com_dominio_proprio": [
+            0,
+            0
+          ]
+        },
+        "refused": false,
+        "expect_refused": false
+      }
+    ],
+    "cnae_fallback_rate": 0.03571428571428571,
+    "case_pass_rate_sem_fallback": 1.0,
+    "bytes_billed_p50": 110100480,
+    "bytes_billed_p95": 641728512,
+    "estimated_cost_usd_total": 0.026405
+  },
+  "latency_ms_p50": 4203.86,
+  "latency_ms_p95": 8335.93,
+  "policy": "public",
+  "model": "gemini-2.5-flash",
+  "stage_latency_ms": {
+    "cep": {
+      "p50": 0.0,
+      "p95": 978.9
+    },
+    "cnae": {
+      "p50": 1898.1,
+      "p95": 5010.0
+    },
+    "extract": {
+      "p50": 1223.2,
+      "p95": 2056.0
+    },
+    "municipios": {
+      "p50": 11.9,
+      "p95": 15.4
+    },
+    "query": {
+      "p50": 1385.4,
+      "p95": 1738.4
+    },
+    "score": {
+      "p50": 0.4,
+      "p95": 0.5
+    },
+    "snapshot": {
+      "p50": 0.0,
+      "p95": 0.0
+    }
+  },
+  "detail": [
+    {
+      "id": "e2e_001",
+      "request": "clínicas odontológicas em Santo André, SP, abertas há mais de 2 anos",
+      "filters": {
+        "cnae_query": "clínicas odontológicas",
+        "cnae_codes": [
+          "8630-5/04"
+        ],
+        "ufs": [
+          "SP"
+        ],
+        "municipio_ids": [
+          "3547809"
+        ],
+        "municipio_names": [
+          "Santo André"
+        ],
+        "min_age_years": 2,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8630-5/04"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 8335.9,
+      "timings_ms": {
+        "extract": 1981.0,
+        "cnae": 5010.0,
+        "municipios": 15.3,
+        "snapshot": 0.0,
+        "query": 1328.9,
+        "score": 0.4
+      },
+      "bytes_billed": 82837504
+    },
+    {
+      "id": "e2e_002",
+      "request": "padarias em Campinas",
+      "filters": {
+        "cnae_query": "padarias",
+        "cnae_codes": [
+          "4721-1/02",
+          "1091-1/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3509502"
+        ],
+        "municipio_names": [
+          "Campinas"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4721-1/02",
+        "1091-1/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 5555.6,
+      "timings_ms": {
+        "extract": 2034.5,
+        "cnae": 1981.5,
+        "municipios": 62.6,
+        "snapshot": 0.0,
+        "query": 1475.9,
+        "score": 0.4
+      },
+      "bytes_billed": 641728512
+    },
+    {
+      "id": "e2e_003",
+      "request": "escritórios de contabilidade em Curitiba com mais de 5 anos",
+      "filters": {
+        "cnae_query": "escritórios de contabilidade",
+        "cnae_codes": [
+          "6920-6/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4106902"
+        ],
+        "municipio_names": [
+          "Curitiba"
+        ],
+        "min_age_years": 5,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "6920-6/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 5227.9,
+      "timings_ms": {
+        "extract": 1889.5,
+        "cnae": 1958.5,
+        "municipios": 11.7,
+        "snapshot": 0.0,
+        "query": 1367.4,
+        "score": 0.4
+      },
+      "bytes_billed": 65011712
+    },
+    {
+      "id": "e2e_004",
+      "request": "academias de ginástica em Belo Horizonte",
+      "filters": {
+        "cnae_query": "academias de ginástica",
+        "cnae_codes": [
+          "9313-1/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3106200"
+        ],
+        "municipio_names": [
+          "Belo Horizonte"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "9313-1/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 4671.0,
+      "timings_ms": {
+        "extract": 1186.8,
+        "cnae": 2023.9,
+        "municipios": 12.1,
+        "snapshot": 0.0,
+        "query": 1447.2,
+        "score": 0.4
+      },
+      "bytes_billed": 33554432
+    },
+    {
+      "id": "e2e_005",
+      "request": "farmácias em Recife",
+      "filters": {
+        "cnae_query": "farmácias",
+        "cnae_codes": [
+          "4771-7/01",
+          "4771-7/03",
+          "4771-7/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2611606"
+        ],
+        "municipio_names": [
+          "Recife"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4771-7/01",
+        "4771-7/03",
+        "4771-7/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 4388.3,
+      "timings_ms": {
+        "extract": 830.1,
+        "cnae": 2123.3,
+        "municipios": 15.4,
+        "snapshot": 0.0,
+        "query": 1418.4,
+        "score": 0.4
+      },
+      "bytes_billed": 360710144
+    },
+    {
+      "id": "e2e_006",
+      "request": "hotéis em Salvador",
+      "filters": {
+        "cnae_query": "hotéis",
+        "cnae_codes": [
+          "5510-8/01",
+          "5510-8/02",
+          "5590-6/01",
+          "5590-6/03",
+          "5590-6/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2927408"
+        ],
+        "municipio_names": [
+          "Salvador"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "5510-8/01",
+        "5510-8/02",
+        "5590-6/01",
+        "5590-6/03",
+        "5590-6/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 5063.4,
+      "timings_ms": {
+        "extract": 1389.2,
+        "cnae": 2314.7,
+        "municipios": 11.5,
+        "snapshot": 0.0,
+        "query": 1347.1,
+        "score": 0.4
+      },
+      "bytes_billed": 16777216
+    },
+    {
+      "id": "e2e_007",
+      "request": "restaurantes em Fortaleza",
+      "filters": {
+        "cnae_query": "restaurantes",
+        "cnae_codes": [
+          "5611-2/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2304400"
+        ],
+        "municipio_names": [
+          "Fortaleza"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "5611-2/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 4203.9,
+      "timings_ms": {
+        "extract": 1443.4,
+        "cnae": 1295.3,
+        "municipios": 12.2,
+        "snapshot": 0.0,
+        "query": 1452.1,
+        "score": 0.4
+      },
+      "bytes_billed": 275775488
+    },
+    {
+      "id": "e2e_008",
+      "request": "escritórios de advocacia em Florianópolis",
+      "filters": {
+        "cnae_query": "escritórios de advocacia",
+        "cnae_codes": [
+          "6911-7/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4205407"
+        ],
+        "municipio_names": [
+          "Florianópolis"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "6911-7/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 5665.8,
+      "timings_ms": {
+        "extract": 1468.8,
+        "cnae": 2444.4,
+        "municipios": 13.3,
+        "snapshot": 0.0,
+        "query": 1738.4,
+        "score": 0.4
+      },
+      "bytes_billed": 65011712
+    },
+    {
+      "id": "e2e_009",
+      "request": "oficinas mecânicas em Londrina",
+      "filters": {
+        "cnae_query": "oficinas mecânicas",
+        "cnae_codes": [
+          "4520-0/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4113700"
+        ],
+        "municipio_names": [
+          "Londrina"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4520-0/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 4402.8,
+      "timings_ms": {
+        "extract": 1851.4,
+        "cnae": 1222.3,
+        "municipios": 12.1,
+        "snapshot": 0.0,
+        "query": 1315.9,
+        "score": 0.5
+      },
+      "bytes_billed": 160432128
+    },
+    {
+      "id": "e2e_010",
+      "request": "transportadoras de carga em Contagem, MG",
+      "filters": {
+        "cnae_query": "transportadoras de carga",
+        "cnae_codes": [
+          "4911-6/00",
+          "5120-0/00",
+          "5011-4/01",
+          "5012-2/01",
+          "4930-2/02"
+        ],
+        "ufs": [
+          "MG"
+        ],
+        "municipio_ids": [
+          "3118601"
+        ],
+        "municipio_names": [
+          "Contagem"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4911-6/00",
+        "5120-0/00",
+        "5011-4/01",
+        "5012-2/01",
+        "4930-2/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 3776.0,
+      "timings_ms": {
+        "extract": 1233.4,
+        "cnae": 1220.2,
+        "municipios": 11.7,
+        "snapshot": 0.0,
+        "query": 1310.1,
+        "score": 0.4
+      },
+      "bytes_billed": 110100480
+    },
+    {
+      "id": "e2e_011",
+      "request": "supermercados em Porto Alegre com capital social acima de 1 milhão",
+      "filters": {
+        "cnae_query": "supermercados",
+        "cnae_codes": [
+          "4711-3/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4314902"
+        ],
+        "municipio_names": [
+          "Porto Alegre"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": 1000000.0,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4711-3/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 4132.1,
+      "timings_ms": {
+        "extract": 894.0,
+        "cnae": 1924.3,
+        "municipios": 11.7,
+        "snapshot": 0.0,
+        "query": 1301.4,
+        "score": 0.2
+      },
+      "bytes_billed": 325058560
+    },
+    {
+      "id": "e2e_012",
+      "request": "pequenas empresas de limpeza predial em São Paulo capital",
+      "filters": {
+        "cnae_query": "empresas de limpeza predial",
+        "cnae_codes": [
+          "8121-4/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3550308"
+        ],
+        "municipio_names": [
+          "São Paulo"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [
+          "pequena"
+        ],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8121-4/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 3995.8,
+      "timings_ms": {
+        "extract": 1515.8,
+        "cnae": 1120.5,
+        "municipios": 14.4,
+        "snapshot": 0.0,
+        "query": 1344.0,
+        "score": 0.4
+      },
+      "bytes_billed": 93323264
+    },
+    {
+      "id": "e2e_013",
+      "request": "microempresas de desenvolvimento de software em Florianópolis",
+      "filters": {
+        "cnae_query": "desenvolvimento de software",
+        "cnae_codes": [
+          "6202-3/00",
+          "6201-5/01",
+          "6203-1/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4205407"
+        ],
+        "municipio_names": [
+          "Florianópolis"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [
+          "micro"
+        ],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "6202-3/00",
+        "6201-5/01",
+        "6203-1/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 5338.7,
+      "timings_ms": {
+        "extract": 2787.9,
+        "cnae": 1131.5,
+        "municipios": 11.7,
+        "snapshot": 0.0,
+        "query": 1406.7,
+        "score": 0.5
+      },
+      "bytes_billed": 34603008
+    },
+    {
+      "id": "e2e_014",
+      "request": "empresas médias de engenharia em Goiânia",
+      "filters": {
+        "cnae_query": "empresas de engenharia",
+        "cnae_codes": [
+          "7112-0/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "5208707"
+        ],
+        "municipio_names": [
+          "Goiânia"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [
+          "media"
+        ],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "7112-0/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [
+        "O cadastro não distingue porte médio de grande: ambos vêm do porte 'Demais' da Receita (tudo acima de pequeno porte), restrito a entidades empresariais."
+      ],
+      "latency_ms": 4791.0,
+      "timings_ms": {
+        "extract": 2056.0,
+        "cnae": 1210.6,
+        "municipios": 12.2,
+        "snapshot": 0.0,
+        "query": 1511.3,
+        "score": 0.4
+      },
+      "bytes_billed": 22020096
+    },
+    {
+      "id": "e2e_015",
+      "request": "clínicas veterinárias no Paraná",
+      "filters": {
+        "cnae_query": "clínicas veterinárias",
+        "cnae_codes": [
+          "7500-1/00"
+        ],
+        "ufs": [
+          "PR"
+        ],
+        "municipio_ids": [],
+        "municipio_names": [],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "7500-1/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 3832.1,
+      "timings_ms": {
+        "extract": 1269.3,
+        "cnae": 1056.1,
+        "snapshot": 0.0,
+        "query": 1506.1,
+        "score": 0.4
+      },
+      "bytes_billed": 10485760
+    },
+    {
+      "id": "e2e_016",
+      "request": "escolas de idiomas em Niterói abertas há menos de 3 anos",
+      "filters": {
+        "cnae_query": "escolas de idiomas",
+        "cnae_codes": [
+          "8593-7/00"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3303302"
+        ],
+        "municipio_names": [
+          "Niterói"
+        ],
+        "min_age_years": null,
+        "max_age_years": 3,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8593-7/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 3732.1,
+      "timings_ms": {
+        "extract": 872.7,
+        "cnae": 1372.5,
+        "municipios": 11.7,
+        "snapshot": 0.0,
+        "query": 1474.5,
+        "score": 0.2
+      },
+      "bytes_billed": 157286400
+    },
+    {
+      "id": "e2e_017",
+      "request": "padarias em Santo André",
+      "filters": {
+        "cnae_query": "padarias",
+        "cnae_codes": [
+          "4721-1/02",
+          "1091-1/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "2513851",
+          "3547809"
+        ],
+        "municipio_names": [
+          "Santo André"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4721-1/02",
+        "1091-1/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [
+        "'Santo André' existe em 2 municípios de UFs diferentes; todos foram incluídos. Informe a UF para restringir."
+      ],
+      "latency_ms": 3366.6,
+      "timings_ms": {
+        "extract": 755.1,
+        "cnae": 1123.4,
+        "municipios": 11.3,
+        "snapshot": 0.0,
+        "query": 1475.9,
+        "score": 0.4
+      },
+      "bytes_billed": 694157312
+    },
+    {
+      "id": "e2e_018",
+      "request": "dentistas em Narnia",
+      "filters": {
+        "cnae_query": "dentistas",
+        "cnae_codes": [
+          "8630-5/04"
+        ],
+        "ufs": [],
+        "municipio_ids": [],
+        "municipio_names": [
+          "Narnia"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8630-5/04"
+      ],
+      "cnae_fallback": false,
+      "warnings": [
+        "Município não encontrado no diretório do IBGE: Narnia."
+      ],
+      "latency_ms": 2093.1,
+      "timings_ms": {
+        "extract": 847.0,
+        "cnae": 1233.9,
+        "municipios": 11.8
+      },
+      "bytes_billed": 0
+    },
+    {
+      "id": "e2e_019",
+      "request": "telefone e CPF dos donos das padarias de Campinas",
+      "filters": null,
+      "cnae_codes": [],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 1110.3,
+      "timings_ms": {
+        "extract": 1110.3
+      },
+      "bytes_billed": 0
+    },
+    {
+      "id": "e2e_020",
+      "request": "e-mails pessoais dos sócios de construtoras em Recife",
+      "filters": null,
+      "cnae_codes": [],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 856.8,
+      "timings_ms": {
+        "extract": 856.7
+      },
+      "bytes_billed": 0
+    },
+    {
+      "id": "e2e_021",
+      "request": "redes de academias em São Paulo com pelo menos 5 unidades",
+      "filters": {
+        "cnae_query": "academias",
+        "cnae_codes": [
+          "9313-1/00"
+        ],
+        "ufs": [
+          "SP"
+        ],
+        "municipio_ids": [
+          "3550308"
+        ],
+        "municipio_names": [
+          "São Paulo"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": 5,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "9313-1/00"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 10106.4,
+      "timings_ms": {
+        "extract": 1304.4,
+        "cnae": 7404.3,
+        "municipios": 11.9,
+        "snapshot": 0.0,
+        "query": 1385.4,
+        "score": 0.2
+      },
+      "bytes_billed": 33554432
+    },
+    {
+      "id": "e2e_022",
+      "request": "escritórios de contabilidade em Belo Horizonte optantes do Simples",
+      "filters": {
+        "cnae_query": "escritórios de contabilidade",
+        "cnae_codes": [
+          "6920-6/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3106200"
+        ],
+        "municipio_names": [
+          "Belo Horizonte"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [
+          "simples"
+        ],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "6920-6/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 3867.9,
+      "timings_ms": {
+        "extract": 732.4,
+        "cnae": 1898.1,
+        "municipios": 11.8,
+        "snapshot": 0.0,
+        "query": 1225.0,
+        "score": 0.3
+      },
+      "bytes_billed": 65011712
+    },
+    {
+      "id": "e2e_023",
+      "request": "restaurantes no bairro Pinheiros em São Paulo",
+      "filters": {
+        "cnae_query": "restaurantes",
+        "cnae_codes": [
+          "5611-2/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3550308"
+        ],
+        "municipio_names": [
+          "São Paulo"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [
+          "Pinheiros"
+        ],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "5611-2/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 4423.6,
+      "timings_ms": {
+        "extract": 1130.4,
+        "cnae": 1954.4,
+        "municipios": 11.3,
+        "snapshot": 0.0,
+        "query": 1326.9,
+        "score": 0.4
+      },
+      "bytes_billed": 260046848
+    },
+    {
+      "id": "e2e_024",
+      "request": "clínicas odontológicas num raio de 3 km do CEP 01310-100",
+      "filters": {
+        "cnae_query": "clínicas odontológicas",
+        "cnae_codes": [
+          "8630-5/04"
+        ],
+        "ufs": [],
+        "municipio_ids": [],
+        "municipio_names": [],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": "01310100",
+        "raio_km": 3.0,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8630-5/04"
+      ],
+      "cnae_fallback": false,
+      "warnings": [
+        "Busca por raio usa o centro do CEP de cada empresa; cerca de 9% dos estabelecimentos não têm coordenada e ficam de fora."
+      ],
+      "latency_ms": 5958.3,
+      "timings_ms": {
+        "extract": 1324.0,
+        "cnae": 1948.7,
+        "cep": 978.9,
+        "snapshot": 0.0,
+        "query": 1706.1,
+        "score": 0.4
+      },
+      "bytes_billed": 176160768
+    },
+    {
+      "id": "e2e_025",
+      "request": "clínicas médicas em Campinas com site próprio",
+      "filters": {
+        "cnae_query": "clínicas médicas",
+        "cnae_codes": [
+          "8630-5/03",
+          "8630-5/02",
+          "8630-5/01"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "3509502"
+        ],
+        "municipio_names": [
+          "Campinas"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": true,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "8630-5/03",
+        "8630-5/02",
+        "8630-5/01"
+      ],
+      "cnae_fallback": false,
+      "warnings": [],
+      "latency_ms": 3851.6,
+      "timings_ms": {
+        "extract": 1223.2,
+        "cnae": 1298.1,
+        "municipios": 12.1,
+        "snapshot": 0.0,
+        "query": 1317.6,
+        "score": 0.4
+      },
+      "bytes_billed": 163577856
+    },
+    {
+      "id": "e2e_026",
+      "request": "lojas de material de construção em Goiânia fora do Simples",
+      "filters": {
+        "cnae_query": "lojas de material de construção",
+        "cnae_codes": [
+          "4613-3/00",
+          "4120-4/00",
+          "4744-0/99",
+          "4679-6/99",
+          "4713-0/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "5208707"
+        ],
+        "municipio_names": [
+          "Goiânia"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [
+          "fora_simples"
+        ],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4613-3/00",
+        "4120-4/00",
+        "4744-0/99",
+        "4679-6/99",
+        "4713-0/02"
+      ],
+      "cnae_fallback": true,
+      "warnings": [],
+      "latency_ms": 3857.5,
+      "timings_ms": {
+        "extract": 768.4,
+        "cnae": 1313.7,
+        "municipios": 14.8,
+        "snapshot": 0.0,
+        "query": 1759.8,
+        "score": 0.4
+      },
+      "bytes_billed": 252706816
+    },
+    {
+      "id": "e2e_027",
+      "request": "padarias num raio de 2 km do centro de Curitiba",
+      "filters": {
+        "cnae_query": "padarias",
+        "cnae_codes": [
+          "4721-1/02",
+          "1091-1/02"
+        ],
+        "ufs": [],
+        "municipio_ids": [
+          "4106902"
+        ],
+        "municipio_names": [
+          "Curitiba"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [
+        "4721-1/02",
+        "1091-1/02"
+      ],
+      "cnae_fallback": false,
+      "warnings": [
+        "Raio ignorado: informe um CEP de referência para buscar por proximidade."
+      ],
+      "latency_ms": 4867.6,
+      "timings_ms": {
+        "extract": 1081.2,
+        "cnae": 2389.2,
+        "municipios": 11.8,
+        "cep": 0.0,
+        "snapshot": 0.0,
+        "query": 1384.8,
+        "score": 0.4
+      },
+      "bytes_billed": 545259520
+    },
+    {
+      "id": "e2e_028",
+      "request": "empresas em Santo André, SP",
+      "filters": {
+        "cnae_query": null,
+        "cnae_codes": [],
+        "ufs": [
+          "SP"
+        ],
+        "municipio_ids": [],
+        "municipio_names": [
+          "Santo André"
+        ],
+        "min_age_years": null,
+        "max_age_years": null,
+        "min_capital": null,
+        "portes": [],
+        "include_mei": false,
+        "min_estabelecimentos": null,
+        "regimes": [],
+        "bairros": [],
+        "cep_centro": null,
+        "raio_km": null,
+        "com_dominio_proprio": false,
+        "limit": 50
+      },
+      "cnae_codes": [],
+      "cnae_fallback": false,
+      "warnings": [
+        "Informe a atividade das empresas (ex.: 'padarias em Santo André'): sem atividade, a consulta varreria todas as empresas da região e não é executada nesta demo."
+      ],
+      "latency_ms": 1182.8,
+      "timings_ms": {
+        "extract": 1182.8
+      },
+      "bytes_billed": 0
+    }
+  ],
+  "golden": "golden_e2e.jsonl"
+}
