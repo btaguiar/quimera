@@ -91,6 +91,14 @@ CnaeSearchFn = Callable[[str, int], list[tuple[str, str, float]]]
 # falhas das de qualidade: com pedidos em paralelo, o 429 de cota do Gemini
 # chegou a 20% dos casos (2026-09-29), coisa que o tráfego da demo não gera.
 _selecao = threading.local()
+# Uma nova tentativa antes do plano B. O corte por similaridade erra muito
+# quando o embedding põe um vizinho em 1º ("material de construção" ->
+# representantes comerciais; golden principal e2e_026, 2026-09-30), e
+# nenhuma variante de corte testada ganhou dele em acerto. Cada chamada tem
+# timeout de SELECT_TIMEOUT_MS, então o pior caso fica em ~8,5 s, não nos
+# ~20 s das retentativas do SDK.
+SELECT_TENTATIVAS = 2
+SELECT_PAUSA_S = 0.5
 
 
 def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
@@ -101,15 +109,19 @@ def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
     """
     candidates = cnae.hybrid_candidates(query, cnae.SELECT_CANDIDATES)
     _selecao.fallback = False
-    try:
-        return cnae.select_codes(query, candidates)[:k]
-    except Exception as exc:  # 429/timeout: não segura o pedido por ~20 s
-        logger.warning(
-            "seleção de CNAE falhou (%s); usando corte por similaridade",
-            type(exc).__name__,
-        )
-        _selecao.fallback = True
-        return cnae.fallback_codes(candidates)[:k]
+    for tentativa in range(SELECT_TENTATIVAS):
+        try:
+            return cnae.select_codes(query, candidates)[:k]
+        except Exception as exc:  # 429/5xx/resposta fora do contrato
+            if tentativa + 1 < SELECT_TENTATIVAS:
+                time.sleep(SELECT_PAUSA_S)
+                continue
+            logger.warning(
+                "seleção de CNAE falhou (%s); usando corte por similaridade",
+                type(exc).__name__,
+            )
+    _selecao.fallback = True
+    return cnae.fallback_codes(candidates)[:k]
 
 
 @dataclass

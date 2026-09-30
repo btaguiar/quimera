@@ -215,10 +215,15 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 | seleção por nota + extração corrigida | 20 | 0,95 | 0,997 | 1,00 | 3,7 s | 7,0 s | 77 |
 | **+ Onda 1 (rede, regime, bairro, raio, domínio próprio)** | 27 | **0,926** | **0,990** | 1,00 | 3,5 s | 5,2 s | 110 |
 | + UF junto do município (2026-09-30) | 28 | 0,964 | 0,957 | 1,00 | 4,2 s | — | — |
+| **+ nova tentativa na seleção de CNAE (2026-09-30)** | 28 | **1,000** | **1,000** | 1,00 | 3,9 s | — | — |
 
-Na medição de 2026-09-30 a única falha foi `e2e_026` (a seleção de CNAE
-trocou os códigos de material de construção), variação entre rodadas vista
-também no A/B; a precisão (0,957) ficou abaixo do limiar por esse caso.
+Na 1ª medição de 2026-09-30 a única falha foi `e2e_026`: a chamada de
+seleção de CNAE falhou (cota) e o plano B — corte por similaridade do
+embedding — pôs representantes comerciais em 1º para "material de
+construção". Seis variantes de corte testadas em 322 casos com gabarito não
+ganharam do atual em acerto; a correção foi tentar a seleção uma 2ª vez
+(pausa de 0,5 s, timeout de 4 s por chamada) antes do plano B. Plano B no
+piloto sintético de 500 casos: 2,2% → 0%.
 Os 7 casos novos da Onda 1 passaram todos; os 2 casos que falharam já
 falhavam antes (ambiguidade de seleção de CNAE, não é regressão da Onda 1 —
 `docs/schema.md`). Limiares: casos ≥ 0,90, precisão ≥ 0,98, recusa =

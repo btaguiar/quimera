@@ -363,11 +363,36 @@ class TestCnaeSelectionFallback:
         candidates = [("a", "A", 0.80), ("b", "B", 0.78), ("c", "C", 0.60)]
         monkeypatch.setattr(cnae, "hybrid_candidates", lambda q, k: candidates)
 
+        chamadas = []
+
         def fail(query, cands):
+            chamadas.append(query)
             raise RuntimeError("429 RESOURCE_EXHAUSTED")
 
         monkeypatch.setattr(cnae, "select_codes", fail)
+        monkeypatch.setattr(pipeline, "SELECT_PAUSA_S", 0)
         assert [c for c, _, _ in pipeline.default_cnae_search("x", 5)] == ["a", "b"]
+        assert len(chamadas) == pipeline.SELECT_TENTATIVAS
+
+    def test_second_attempt_avoids_fallback(self, monkeypatch):
+        # e2e_026: um 429 isolado mandava "material de construção" para o
+        # corte por similaridade, que pôs representantes comerciais em 1º.
+        from quimera import cnae, pipeline
+
+        candidates = [("a", "A", 0.80), ("b", "B", 0.78), ("c", "C", 0.60)]
+        monkeypatch.setattr(cnae, "hybrid_candidates", lambda q, k: candidates)
+        respostas = iter([RuntimeError("429"), [candidates[2]]])
+
+        def select(query, cands):
+            r = next(respostas)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+        monkeypatch.setattr(cnae, "select_codes", select)
+        monkeypatch.setattr(pipeline, "SELECT_PAUSA_S", 0)
+        assert pipeline.default_cnae_search("x", 5) == [("c", "C", 0.60)]
+        assert pipeline._selecao.fallback is False
 
 
 class TestCostGuard:
@@ -749,6 +774,10 @@ class TestCnaeFallbackFlag:
         assert result.to_dict()["cnae_fallback"] is False
 
     def test_selection_failure_is_flagged(self, monkeypatch):
+        from quimera import pipeline
+
+        monkeypatch.setattr(pipeline, "SELECT_PAUSA_S", 0)
+
         def falha(q, c):
             raise TimeoutError
 
