@@ -120,3 +120,39 @@ class TestLoadMetrics:
         (tmp_path / "thresholds.json").write_text("{}", encoding="utf-8")
         metrics = load_metrics(results_dir=results, eval_dir=tmp_path)
         assert metrics["cnae"][0]["metrics"]["recall@5"] == 0.7
+
+
+class TestMetricsCache:
+    """Relê eval/ só quando algum arquivo muda."""
+
+    def _grava(self, pasta, nome, payload):
+        (pasta / nome).write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_reuses_until_a_file_changes(self, tmp_path, monkeypatch):
+        from quimera.api import metrics as mod
+
+        results = tmp_path / "results"
+        results.mkdir()
+        self._grava(results, "a.json", {"suite": "cnae", "metrics": {"recall@5": 0.9}})
+        leituras = []
+        original = mod._read_metrics
+
+        def contando(r, b):
+            leituras.append(1)
+            return original(r, b)
+
+        monkeypatch.setattr(mod, "_read_metrics", contando)
+        primeiro = mod.load_metrics(eval_dir=tmp_path)
+        mod.load_metrics(eval_dir=tmp_path)
+        assert len(leituras) == 1
+        self._grava(results, "b.json", {"suite": "cnae", "metrics": {"recall@5": 0.95}})
+        segundo = mod.load_metrics(eval_dir=tmp_path)
+        assert len(leituras) == 2
+        assert len(primeiro["cnae"]) == 1 and len(segundo["cnae"]) == 2
+
+    def test_returned_dict_does_not_leak_into_cache(self, tmp_path):
+        from quimera.api.metrics import load_metrics
+
+        (tmp_path / "results").mkdir()
+        load_metrics(eval_dir=tmp_path)["cnae"].append({"x": 1})
+        assert load_metrics(eval_dir=tmp_path)["cnae"] == []
