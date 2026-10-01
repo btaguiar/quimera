@@ -215,7 +215,8 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 | **+ Onda 1 (rede, regime, bairro, raio, domínio próprio)** | 27 | **0,926** | **0,990** | 1,00 | 3,5 s | 5,2 s | 110 |
 | + UF junto do município (2026-09-30) | 28 | 0,964 | 0,957 | 1,00 | 4,2 s | — | — |
 | **+ nova tentativa na seleção de CNAE (2026-09-30)** | 28 | **1,000** | **1,000** | 1,00 | 3,9 s | — | — |
-| + reescrita da atividade e filtros lidos do texto (2026-10-01) | 28 | 0,964 | 0,995 | 1,00 | 4,1 s | — | — |
+| + reescrita da atividade e filtros lidos do texto (2026-10-01, `6f39566+alterações`) | 28 | 0,964 | 0,995 | 1,00 | 4,1 s | — | — |
+| **mesmo código, árvore limpa (2026-10-01, `4d79a1b`)** | 28 | **0,929** | **0,981** | 1,00 | 4,5 s | — | — |
 
 Na 1ª medição de 2026-09-30 a única falha foi `e2e_026`: a chamada de
 seleção de CNAE falhou (cota) e o plano B — corte por similaridade do
@@ -240,7 +241,8 @@ generalização:
 | após busca híbrida (já não é inédito) | 30 | 0,933 | 0,960 |
 | + Onda 1 (3 casos novos) | 33 | 0,909 | 0,945 |
 | + UF junto do município (2026-09-30) | 33 | 0,909 | 0,952 |
-| + reescrita da atividade e filtros lidos do texto (2026-10-01) | 33 | 0,909 | 0,952 |
+| + reescrita da atividade e filtros lidos do texto (2026-10-01, `6f39566+alterações`) | 33 | 0,909 | 0,952 |
+| **mesmo código, árvore limpa (2026-10-01, `4d79a1b`)** | 33 | **0,879** | **0,910** |
 
 A precisão do conjunto separado nunca atingiu a mesma barra do golden
 principal (0,942 a 0,96, sempre por ambiguidade de seleção de CNAE, mesmo
@@ -336,9 +338,18 @@ O reteste dos mesmos casos (as 800 falhas + 2.000 acertos sorteados como
 controle) estima 0,946 para os 10 mil com o pipeline novo; o controle manteve
 98,8% (24 regressões, 21 sem relação com as mudanças — variação do Gemini).
 
-Os goldens curados não pioraram: principal 0,964 / 0,995 (a única falha,
-`e2e_026`, com 6 de 50 empresas fora) e separado 0,909 / 0,952, igual ao
-anterior. Reteste em `eval/golden_e2e_reteste.jsonl`.
+Goldens curados: a 1ª medição (principal 0,964 / 0,995; separado
+0,909 / 0,952) gravou `6f39566+alterações` — rodou com arquivos de `eval/`
+editados por cima, então não é reconferível pelo hash. Refeita com a árvore
+limpa (`4d79a1b`, mesmo código de pipeline, goldens e métricas — `git diff`
+vazio em `src/`): principal **0,929 / 0,981** e separado **0,879 / 0,910**,
+este abaixo dos limiares (0,90 / 0,92). A diferença é variação do Gemini
+entre rodadas, não das mudanças: `e2e_021` alterna entre ler "São Paulo"
+como cidade ou estado (falhou em 28/09, passou 3 vezes, falhou de novo);
+`hold_006` passou 5 vezes e desta vez a seleção incluiu "imóveis próprios";
+`e2e_026` trocou os códigos de material de construção. Com 28 e 33 casos,
+uma falha vale 3–3,6 pontos — o conjunto de 1.000 inéditos (IC95 ±1,3) é a
+medida estável. Reteste em `eval/golden_e2e_reteste.jsonl`.
 
 Rótulos corrigidos à parte, só com confirmação no texto do IBGE (abate de
 equinos/ovinos/bufalinos/suínos em "frigoríficos", facção de roupas em
