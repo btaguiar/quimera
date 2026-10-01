@@ -530,6 +530,37 @@ def select_codes(
     return [c for c, nota in zip(candidates, notas) if nota == SELECT_KEEP_GRADE]
 
 
+REFORMULATE_PROMPT = """Reescreva a atividade econômica abaixo como ela é descrita na CNAE \
+(Classificação Nacional de Atividades Econômicas, IBGE): termos formais, sem gíria, sem \
+sigla, sem marca. Se o termo tiver mais de uma leitura comum, use a mais comum para \
+empresas. Responda só com a descrição, em até 12 palavras.
+Atividade: "{activity}\""""
+REFORMULATE_MAX_CHARS = 160
+
+
+def reformulate_activity(
+    activity: str, *, client: Any | None = None, model: str | None = None
+) -> str:
+    """Atividade no vocabulário da CNAE ("botecos" -> "bares...").
+
+    Gíria e nome informal ("botecos", "sacolões", "empresas de TI") não
+    aparecem nas atividades do IBGE: a busca não traz o código certo e a
+    seleção volta vazia. Só é chamada nesse caso (golden sintético,
+    2026-09-30: 173 de 10 mil pedidos terminavam em "nenhuma atividade").
+    O texto volta para a busca, nunca vira código.
+    """
+    from .extract import DEFAULT_MODEL
+
+    client = client or _select_client()
+    response = client.models.generate_content(
+        model=model or os.environ.get("EXTRACT_MODEL", DEFAULT_MODEL),
+        contents=REFORMULATE_PROMPT.format(activity=activity),
+        config={"temperature": 0, "thinking_config": {"thinking_budget": 0}},
+    )
+    texto = " ".join((response.text or "").split()).strip("\"'. ")
+    return texto[:REFORMULATE_MAX_CHARS]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m quimera.cnae",

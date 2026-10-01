@@ -18,6 +18,7 @@ from typing import Any, Callable
 from . import cnae
 from .extract import DEFAULT_MODEL, extract_filters
 from .filters import VALID_UFS, LeadFilters
+from .filtros_texto import filtros_no_texto
 from .policy import Policy, apply_policy
 from .query import (
     PORTE_LABELS_DEMAIS,
@@ -83,6 +84,28 @@ def ufs_apos_nome(request: str, nome: str) -> list[str]:
     return [uf for uf in dict.fromkeys(achadas) if uf in VALID_UFS]
 
 
+def completar_do_texto(
+    request: str, filters: LeadFilters
+) -> tuple[LeadFilters, list[str]]:
+    """Preenche idade/capital que a extração deixou vazios, lendo o pedido.
+
+    Nunca sobrescreve o que o modelo extraiu e não cria faixa de idade
+    invertida. Ver ``filtros_texto`` (golden sintético: 0 falsos positivos
+    em 10.061 pedidos).
+    """
+    lidos = filtros_no_texto(request)
+    novos = {k: v for k, v in lidos.items() if getattr(filters, k) is None}
+    minimo = novos.get("min_age_years", filters.min_age_years)
+    maximo = novos.get("max_age_years", filters.max_age_years)
+    if minimo is not None and maximo is not None and minimo > maximo:
+        novos.pop("min_age_years", None)
+        novos.pop("max_age_years", None)
+    if not novos:
+        return filters, []
+    logger.info("filtros completados pelo texto do pedido: %s", novos)
+    return filters.model_copy(update=novos), sorted(novos)
+
+
 # Busca CNAE injetável: (query, k) -> [(codigo, descricao, similaridade)]
 CnaeSearchFn = Callable[[str, int], list[tuple[str, str, float]]]
 
@@ -109,19 +132,44 @@ def default_cnae_search(query: str, k: int) -> list[tuple[str, str, float]]:
     """
     candidates = cnae.hybrid_candidates(query, cnae.SELECT_CANDIDATES)
     _selecao.fallback = False
+    _selecao.reformulada = None
+    try:
+        escolhidos = _selecionar(query, candidates)
+    except Exception as exc:  # 429/5xx/resposta fora do contrato, 2 vezes
+        logger.warning(
+            "seleção de CNAE falhou (%s); usando corte por similaridade",
+            type(exc).__name__,
+        )
+        _selecao.fallback = True
+        return cnae.fallback_codes(candidates)[:k]
+    if escolhidos:
+        return escolhidos[:k]
+    # Nenhum candidato serviu: a atividade veio em gíria ou nome informal
+    # ("botecos", "sacolões"). Reescrita no vocabulário da CNAE, busca de
+    # novo; a seleção julga com o termo original e a reescrita juntos.
+    try:
+        formal = cnae.reformulate_activity(query)
+        if formal and normalize_name(formal) != normalize_name(query):
+            _selecao.reformulada = formal
+            outros = cnae.hybrid_candidates(formal, cnae.SELECT_CANDIDATES)
+            return _selecionar(f"{query} ({formal})", outros)[:k]
+    except Exception as exc:
+        logger.warning("reescrita da atividade falhou (%s)", type(exc).__name__)
+    return []
+
+
+def _selecionar(
+    activity: str, candidates: list[tuple[str, str, float]]
+) -> list[tuple[str, str, float]]:
+    """Seleção com uma nova tentativa; a 2ª falha propaga."""
     for tentativa in range(SELECT_TENTATIVAS):
         try:
-            return cnae.select_codes(query, candidates)[:k]
-        except Exception as exc:  # 429/5xx/resposta fora do contrato
-            if tentativa + 1 < SELECT_TENTATIVAS:
-                time.sleep(SELECT_PAUSA_S)
-                continue
-            logger.warning(
-                "seleção de CNAE falhou (%s); usando corte por similaridade",
-                type(exc).__name__,
-            )
-    _selecao.fallback = True
-    return cnae.fallback_codes(candidates)[:k]
+            return cnae.select_codes(activity, candidates)
+        except Exception:
+            if tentativa + 1 == SELECT_TENTATIVAS:
+                raise
+            time.sleep(SELECT_PAUSA_S)
+    return []
 
 
 @dataclass
@@ -150,6 +198,10 @@ class PipelineResult:
     query_sql: str = ""
     # A seleção de CNAE falhou (429/timeout) e valeu o corte por similaridade.
     cnae_fallback: bool = False
+    # Atividade reescrita no vocabulário da CNAE quando a 1ª busca não serviu.
+    cnae_reformulada: str | None = None
+    # Filtros que a extração deixou vazios e o texto do pedido preencheu.
+    filtros_completados: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -158,6 +210,8 @@ class PipelineResult:
             "filters": self.filters.model_dump() if self.filters else None,
             "cnae_matches": [list(m) for m in self.cnae_matches],
             "cnae_fallback": self.cnae_fallback,
+            "cnae_reformulada": self.cnae_reformulada,
+            "filtros_completados": self.filtros_completados,
             "municipio_resolution": self.municipio_resolution,
             "snapshot": self.snapshot,
             "rows": self.rows,
@@ -275,15 +329,19 @@ def run(
         return result
 
     filters = extraction.filters
+    filters, completados = completar_do_texto(request, filters)
 
     # 1. cnae_query -> códigos CNAE por embeddings (o LLM nunca inventa código).
     cnae_matches: list[tuple[str, str, float]] = []
     cnae_fallback = False
+    cnae_reformulada = None
     if filters.cnae_query:
         _selecao.fallback = False
+        _selecao.reformulada = None
         with _stage(timings, "cnae"):
             cnae_matches = cnae_search(filters.cnae_query, cnae_top_k)
         cnae_fallback = getattr(_selecao, "fallback", False)
+        cnae_reformulada = getattr(_selecao, "reformulada", None)
         filters = filters.model_copy(
             update={"cnae_codes": [c for c, _, _ in cnae_matches]}
         )
@@ -306,6 +364,8 @@ def run(
             filters=filters,
             cnae_matches=cnae_matches,
             cnae_fallback=cnae_fallback,
+            cnae_reformulada=cnae_reformulada,
+            filtros_completados=completados,
             municipio_resolution=municipio_resolution,
             model=resolved_model,
             policy=policy.name,
@@ -486,6 +546,8 @@ def run(
         filters=filters,
         cnae_matches=cnae_matches,
         cnae_fallback=cnae_fallback,
+        cnae_reformulada=cnae_reformulada,
+        filtros_completados=completados,
         municipio_resolution=municipio_resolution,
         snapshot={table: snap.isoformat() for table, snap in snapshots.items()},
         rows=rows,

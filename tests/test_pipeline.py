@@ -784,3 +784,119 @@ class TestCnaeFallbackFlag:
         result = self._run(monkeypatch, falha)
         assert result.cnae_fallback is True
         assert result.filters.cnae_codes == ["1091-1/02"]
+
+
+class TestReescritaDaAtividade:
+    """Seleção vazia (gíria, nome informal) -> reescrita na CNAE e nova busca."""
+
+    def _prepara(self, monkeypatch, selecoes, reescrita="bares e estabelecimentos de bebidas"):
+        from quimera import cnae, pipeline
+
+        buscas, julgadas, reescritas = [], [], []
+
+        def busca(q, k):
+            buscas.append(q)
+            return [("5611-2/04" if "bares" in q else "9999-9/99", "X", 0.9)]
+
+        def seleciona(atividade, cands):
+            julgadas.append(atividade)
+            return selecoes.pop(0)(cands)
+
+        def reescreve(atividade):
+            reescritas.append(atividade)
+            if isinstance(reescrita, Exception):
+                raise reescrita
+            return reescrita
+
+        monkeypatch.setattr(cnae, "hybrid_candidates", busca)
+        monkeypatch.setattr(cnae, "select_codes", seleciona)
+        monkeypatch.setattr(cnae, "reformulate_activity", reescreve)
+        monkeypatch.setattr(pipeline, "SELECT_PAUSA_S", 0)
+        return pipeline, buscas, julgadas, reescritas
+
+    def test_empty_selection_rewrites_and_searches_again(self, monkeypatch):
+        pipeline, buscas, julgadas, reescritas = self._prepara(
+            monkeypatch, [lambda c: [], lambda c: c]
+        )
+        assert [c for c, _, _ in pipeline.default_cnae_search("botecos", 5)] == ["5611-2/04"]
+        assert reescritas == ["botecos"]
+        assert buscas == ["botecos", "bares e estabelecimentos de bebidas"]
+        # a seleção julga com o termo original e a reescrita juntos
+        assert julgadas[1] == "botecos (bares e estabelecimentos de bebidas)"
+        assert pipeline._selecao.reformulada == "bares e estabelecimentos de bebidas"
+
+    def test_selection_with_result_does_not_rewrite(self, monkeypatch):
+        pipeline, _, _, reescritas = self._prepara(monkeypatch, [lambda c: c])
+        assert pipeline.default_cnae_search("padarias", 5)
+        assert reescritas == []
+        assert pipeline._selecao.reformulada is None
+
+    def test_rewrite_failure_keeps_empty(self, monkeypatch):
+        pipeline, _, _, _ = self._prepara(
+            monkeypatch, [lambda c: []], reescrita=TimeoutError()
+        )
+        assert pipeline.default_cnae_search("botecos", 5) == []
+        assert pipeline._selecao.fallback is False
+
+    def test_same_text_after_rewrite_does_not_search_again(self, monkeypatch):
+        pipeline, buscas, _, _ = self._prepara(
+            monkeypatch, [lambda c: []], reescrita="Botecos"
+        )
+        assert pipeline.default_cnae_search("botecos", 5) == []
+        assert buscas == ["botecos"]
+
+    def test_result_records_rewrite(self, monkeypatch):
+        from quimera import cnae
+
+        monkeypatch.setattr(
+            cnae, "hybrid_candidates",
+            lambda q, k: [("5611-2/04", "Bares", 0.9)] if "bares" in q else [("x", "X", 0.9)],
+        )
+        respostas = iter([[], [("5611-2/04", "Bares", 0.9)]])
+        monkeypatch.setattr(cnae, "select_codes", lambda a, c: next(respostas))
+        monkeypatch.setattr(cnae, "reformulate_activity", lambda a: "bares")
+        extract = FakeGenaiClient(_extraction_payload(cnae_query="botecos", ufs=["SP"]))
+        result = run(
+            "botecos em SP", PUBLIC, extract_client=extract,
+            bq_client=FakePipelineBQ(lead_rows=LEAD_ROWS),
+        )
+        assert result.filters.cnae_codes == ["5611-2/04"]
+        assert result.to_dict()["cnae_reformulada"] == "bares"
+
+
+class TestCompletarDoTexto:
+    """A extração perdeu a última condição: o texto do pedido completa."""
+
+    def test_fills_only_what_extraction_left_empty(self):
+        from quimera.filters import LeadFilters
+        from quimera.pipeline import completar_do_texto
+
+        f = LeadFilters(regimes=["fora_simples"], min_age_years=3)
+        novo, campos = completar_do_texto(
+            "padarias fora do Simples e com capital acima de R$ 500 mil e há mais de 8 anos", f
+        )
+        assert novo.min_capital == 500_000
+        assert novo.min_age_years == 3  # o do modelo fica
+        assert campos == ["min_capital"]
+
+    def test_never_creates_inverted_age_range(self):
+        from quimera.filters import LeadFilters
+        from quimera.pipeline import completar_do_texto
+
+        f = LeadFilters(max_age_years=2)
+        novo, campos = completar_do_texto("padarias há mais de 5 anos", f)
+        assert novo.min_age_years is None and campos == []
+
+    def test_pipeline_records_completed_fields(self):
+        extract = FakeGenaiClient(
+            _extraction_payload(cnae_query="padarias", ufs=["SP"], regimes=["fora_simples"])
+        )
+        result = run(
+            "padarias em SP fora do Simples e com capital acima de R$ 500 mil",
+            PUBLIC,
+            extract_client=extract,
+            cnae_search=_uma_atividade(),
+            bq_client=FakePipelineBQ(lead_rows=LEAD_ROWS),
+        )
+        assert result.filters.min_capital == 500_000
+        assert result.to_dict()["filtros_completados"] == ["min_capital"]

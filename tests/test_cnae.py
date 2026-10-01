@@ -318,3 +318,28 @@ class TestLexicalAndHybrid:
             ("2219-6/00", "Borracha", 0.8),
             ("4520-0/06", "Borracharia", 0.0),
         ]
+
+
+class TestReformulateActivity:
+    def test_cleans_and_bounds_the_text(self):
+        from quimera.cnae import REFORMULATE_MAX_CHARS, reformulate_activity
+
+        class Resp:
+            text = '  "Comércio varejista de hortifrutigranjeiros."\n'
+
+        class Cli:
+            class models:
+                @staticmethod
+                def generate_content(**kw):
+                    assert "sacolões" in kw["contents"]
+                    return Resp()
+
+        assert reformulate_activity("sacolões", client=Cli()) == (
+            "Comércio varejista de hortifrutigranjeiros"
+        )
+
+        class Longo(Resp):
+            text = "a" * 500
+
+        Cli.models.generate_content = staticmethod(lambda **kw: Longo())
+        assert len(reformulate_activity("x", client=Cli())) == REFORMULATE_MAX_CHARS
