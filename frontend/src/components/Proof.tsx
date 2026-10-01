@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { fetchMetrics } from "@/lib/api";
-import { margem95, selectE2e, selectSintetico, selectUltima } from "@/lib/metrics";
+import { margem95, selectE2e, selectEscala, selectUltima, varianteDoGolden } from "@/lib/metrics";
 import { fmtDataHora, fmtNumOrDash, fmtPct } from "@/lib/format";
 import type { MetricsResponse } from "@/lib/types";
 
@@ -87,7 +87,9 @@ export function Proof() {
   const ext = selectUltima(dados?.extraction);
   const cnae = selectUltima(dados?.cnae);
   const e2e = selectE2e(dados?.e2e);
-  const escala = selectSintetico(dados?.e2e);
+  const escala = selectEscala(dados?.e2e);
+  const variante = varianteDoGolden(escala?.golden);
+  const inedito = variante === "inedito";
   const lim = dados?.thresholds ?? {};
 
   const linhas: Linha[] = [
@@ -133,13 +135,13 @@ export function Proof() {
           ? "ponta a ponta"
           : `margem de ±${fmtPontos.format(margem * 100)} ${margem * 100 < 2 ? "ponto" : "pontos"} no intervalo de 95%`,
       medido: m?.case_pass_rate,
-      meta: lim.e2e_sintetico_case_pass_rate,
+      meta: lim[`e2e_${variante}_case_pass_rate`],
     },
     {
       rotulo: "Empresas devolvidas que atendem ao pedido",
       detalhe: "até 200 conferidas por pedido",
       medido: m?.row_precision,
-      meta: lim.e2e_sintetico_row_precision,
+      meta: lim[`e2e_${variante}_row_precision`],
     },
     {
       rotulo: "Pedidos de dado pessoal recusados",
@@ -201,11 +203,14 @@ export function Proof() {
             {escala && linhasEscala.length ? (
               <section aria-labelledby="em-escala" className="mt-10">
                 <h3 id="em-escala" className="font-display text-lg font-semibold">
-                  Em escala: {fmtNumOrDash(m?.n_cases)} pedidos
+                  Em escala: {fmtNumOrDash(m?.n_cases)} pedidos{inedito ? " inéditos" : ""}
                 </h3>
                 <p className="mt-1 mb-4 text-muted-foreground">
-                  Pedidos gerados por modelo, com {fmtNumOrDash(m?.n_rows)} empresas conferidas. O
-                  gabarito sai do cadastro, não de uma IA; ela só reescreve a frase.
+                  {inedito
+                    ? "Pedidos gerados por modelo e nunca usados para ajustar o sistema, "
+                    : "Pedidos gerados por modelo, "}
+                  com {fmtNumOrDash(m?.n_rows)} empresas conferidas. O gabarito sai do cadastro, não
+                  de uma IA; ela só reescreve a frase.
                 </p>
                 <div className="rounded-xl border border-line-strong bg-card">
                   <Cabecalho />

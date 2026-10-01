@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { margem95, selectE2e, selectSintetico, selectUltima } from "@/lib/metrics";
+import {
+  margem95,
+  selectE2e,
+  selectEscala,
+  selectInedito,
+  selectSintetico,
+  selectUltima,
+  varianteDoGolden,
+} from "@/lib/metrics";
 import type { MetricEntry } from "@/lib/types";
 
 const entry = (o: Partial<MetricEntry>): MetricEntry => ({
@@ -82,5 +90,33 @@ describe("golden sintético", () => {
     expect(margem95(0.92, 10000)).toBeCloseTo(0.0053, 4);
     expect(margem95(undefined, 10000)).toBeNull();
     expect(margem95(0.9, 0)).toBeNull();
+  });
+});
+
+describe("conjunto inédito", () => {
+  const rod = (golden: string, n: number, date: string) =>
+    entry({ golden, date, metrics: { n_cases: n } });
+
+  it("o painel em escala mostra a medição gerada mais recente", () => {
+    const sint = rod("golden_e2e_sintetico.jsonl", 10000, "2026-09-30T02:49:23+00:00");
+    const ined = rod("golden_e2e_inedito.jsonl", 1000, "2026-10-01T01:49:07+00:00");
+    expect(selectEscala([ined, sint])?.golden).toBe("golden_e2e_inedito.jsonl");
+    expect(selectEscala([sint])?.golden).toBe("golden_e2e_sintetico.jsonl");
+    expect(selectInedito([sint])).toBeNull();
+    expect(selectEscala([])).toBeNull();
+  });
+
+  it("inédito e reteste nunca ocupam o lugar do golden principal", () => {
+    const lista = [
+      rod("golden_e2e_inedito.jsonl", 1000, "b"),
+      rod("golden_e2e_reteste.jsonl", 2800, "c"),
+    ];
+    expect(selectE2e(lista)).toBeNull();
+  });
+
+  it("variante escolhe os limiares certos", () => {
+    expect(varianteDoGolden("golden_e2e_inedito.jsonl")).toBe("inedito");
+    expect(varianteDoGolden("golden_e2e_sintetico.jsonl")).toBe("sintetico");
+    expect(varianteDoGolden("golden_e2e.jsonl")).toBeNull();
   });
 });
