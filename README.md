@@ -215,6 +215,7 @@ o mínimo correto, então é um piso). Detalhes em `docs/schema.md`.
 | **+ Onda 1 (rede, regime, bairro, raio, domínio próprio)** | 27 | **0,926** | **0,990** | 1,00 | 3,5 s | 5,2 s | 110 |
 | + UF junto do município (2026-09-30) | 28 | 0,964 | 0,957 | 1,00 | 4,2 s | — | — |
 | **+ nova tentativa na seleção de CNAE (2026-09-30)** | 28 | **1,000** | **1,000** | 1,00 | 3,9 s | — | — |
+| + reescrita da atividade e filtros lidos do texto (2026-10-01) | 28 | 0,964 | 0,995 | 1,00 | 4,1 s | — | — |
 
 Na 1ª medição de 2026-09-30 a única falha foi `e2e_026`: a chamada de
 seleção de CNAE falhou (cota) e o plano B — corte por similaridade do
@@ -239,6 +240,7 @@ generalização:
 | após busca híbrida (já não é inédito) | 30 | 0,933 | 0,960 |
 | + Onda 1 (3 casos novos) | 33 | 0,909 | 0,945 |
 | + UF junto do município (2026-09-30) | 33 | 0,909 | 0,952 |
+| + reescrita da atividade e filtros lidos do texto (2026-10-01) | 33 | 0,909 | 0,952 |
 
 A precisão do conjunto separado nunca atingiu a mesma barra do golden
 principal (0,942 a 0,96, sempre por ambiguidade de seleção de CNAE, mesmo
@@ -311,6 +313,39 @@ e UF escrita depois de uma cidade homônima ("pousadas em Valença, BA") era
 ignorada quando a extração não a devolvia. Uma terceira mudança (mostrar
 primeiro os exemplos do IBGE que citam o pedido, na seleção de CNAE) melhorou
 a seleção isolada e piorou o ponta a ponta no A/B — foi revertida.
+
+**Correções guiadas pelas 800 falhas (2026-09-30)** — orçamento de US$ 8,
+gasto ~US$ 7. Três mudanças no pipeline, cada uma mirando um grupo de erros:
+
+| causa no golden de 10 mil | casos | consertados | mudança |
+|---|---|---|---|
+| termo informal sem CNAE ("botecos", "sacolões", "empresas de TI") | 173 | 151 (87%) | seleção vazia → Gemini reescreve a atividade no vocabulário da CNAE e busca de novo |
+| extração perdia a última condição ("fora do Simples **e** com capital…") | 62 | 56 (90%) | idade e capital vazios lidos do texto do pedido (0 falsos positivos em 10.061 pedidos); pedir no prompt piorou (94,2% → 88,7%) e foi revertido |
+| seleção de CNAE no plano B por cota | 83 | 73 (88%) | 2ª tentativa antes do plano B |
+
+Medição sem viés: as correções saíram das falhas do golden de 10 mil, então
+o número que vale é o de **1.000 pedidos inéditos** (`eval/golden_e2e_inedito.jsonl`,
+outra semente, nenhum pedido nem template repetido):
+
+| conjunto | casos corretos | precisão por empresa | recusa correta |
+|---|---|---|---|
+| golden de 10 mil, pipeline antigo | 0,920 (IC95 0,915–0,925) | 0,960 | 1,00 |
+| **1.000 inéditos, pipeline novo** | **0,954 (IC95 0,939–0,965)** | **0,965** | **1,00** |
+
+O reteste dos mesmos casos (as 800 falhas + 2.000 acertos sorteados como
+controle) estima 0,946 para os 10 mil com o pipeline novo; o controle manteve
+98,8% (24 regressões, 21 sem relação com as mudanças — variação do Gemini).
+
+Os goldens curados não pioraram: principal 0,964 / 0,995 (a única falha,
+`e2e_026`, com 6 de 50 empresas fora) e separado 0,909 / 0,952, igual ao
+anterior. Reteste em `eval/golden_e2e_reteste.jsonl`.
+
+Rótulos corrigidos à parte, só com confirmação no texto do IBGE (abate de
+equinos/ovinos/bufalinos/suínos em "frigoríficos", facção de roupas em
+"confecções", alimentos dietéticos e moagem em "indústrias de alimentos",
+aquecimento solar em "energia solar"): +0,3 ponto nos inéditos, +0,8 no
+golden de 10 mil. "Cervejarias" (bares) e "joalherias" (fabricação) seguem
+estritos.
 
 **Latência** (servidor aquecido): p50 ~3,7–5 s por pedido, antes ~25 s. O
 tempo por etapa vem em `timings_ms` no resultado. A cauda (p95 ~7 s, picos

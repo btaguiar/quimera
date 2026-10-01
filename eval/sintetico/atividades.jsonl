@@ -105,7 +105,7 @@
 {"id": "provedor", "termos": ["provedores de internet"], "principal": "6190-6/01", "cnae": ["6110-8/03", "6190-6/01", "6190-6/99", "6120-5/99", "6141-8/00", "6142-6/00", "6143-4/00"]}
 {"id": "chaveiro", "termos": ["chaveiros"], "principal": "9529-1/02", "cnae": ["9529-1/02"]}
 {"id": "costura", "termos": ["ateliês de costura", "confecções sob medida"], "principal": "1412-6/02", "cnae": ["1412-6/03", "1412-6/01", "1412-6/02", "9529-1/99"]}
-{"id": "confeccao", "termos": ["confecções de roupas", "fábricas de roupas"], "principal": "1412-6/01", "cnae": ["1412-6/01", "1412-6/02", "1412-6/03", "1411-8/01", "1413-4/01"]}
+{"id": "confeccao", "termos": ["confecções de roupas", "fábricas de roupas"], "principal": "1412-6/01", "cnae": ["1412-6/01", "1412-6/02", "1412-6/03", "1411-8/01", "1413-4/01", "1413-4/02", "1413-4/03", "1411-8/02"]}
 {"id": "serralheria", "termos": ["serralherias"], "principal": "2542-0/00", "cnae": ["2512-8/00", "2542-0/00", "2599-3/99"]}
 {"id": "madeireira", "termos": ["madeireiras"], "principal": "4744-0/02", "cnae": ["4744-0/02", "1610-2/03", "1610-2/04", "1610-2/05", "4671-1/00"]}
 {"id": "clube", "termos": ["clubes esportivos"], "principal": "9312-3/00", "cnae": ["9312-3/00", "9319-1/99"]}
@@ -131,12 +131,12 @@
 {"id": "atacado_informatica", "termos": ["distribuidoras de equipamentos de informática"], "principal": "4651-6/01", "cnae": ["4651-6/01", "4651-6/02"]}
 {"id": "metalurgica", "termos": ["empresas de usinagem", "tornearias"], "principal": "2539-0/01", "cnae": ["2539-0/01", "2539-0/02", "2599-3/99"]}
 {"id": "plasticos", "termos": ["fábricas de embalagens plásticas"], "principal": "2222-6/00", "cnae": ["2222-6/00", "2229-3/99"]}
-{"id": "alimentos_industria", "termos": ["indústrias de alimentos", "fábricas de alimentos"], "principal": "1099-6/99", "cnae": ["1099-6/99", "1091-1/01", "1092-9/00", "1093-7/01", "1094-5/00", "1096-1/00", "1099-6/02", "1099-6/05"]}
+{"id": "alimentos_industria", "termos": ["indústrias de alimentos", "fábricas de alimentos"], "principal": "1099-6/99", "cnae": ["1099-6/99", "1091-1/01", "1092-9/00", "1093-7/01", "1094-5/00", "1096-1/00", "1099-6/02", "1099-6/05", "1099-6/07", "1069-4/00", "1091-1/02"]}
 {"id": "laticinio", "termos": ["laticínios"], "principal": "1052-0/00", "cnae": ["1052-0/00", "1051-1/00", "4631-1/00", "4721-1/03"]}
-{"id": "frigorifico", "termos": ["frigoríficos"], "principal": "1011-2/01", "cnae": ["1011-2/01", "1012-1/01", "1013-9/01", "1011-2/05"]}
+{"id": "frigorifico", "termos": ["frigoríficos"], "principal": "1011-2/01", "cnae": ["1011-2/01", "1012-1/01", "1013-9/01", "1011-2/05", "1011-2/02", "1011-2/03", "1011-2/04", "1012-1/03"]}
 {"id": "sorveteria", "termos": ["sorveterias"], "principal": "1053-8/00", "cnae": ["5611-2/03", "1053-8/00", "4721-1/04"]}
 {"id": "cafeteria", "termos": ["cafeterias"], "principal": "5611-2/03", "cnae": ["5611-2/03", "5611-2/01"]}
-{"id": "energia_solar", "termos": ["empresas de energia solar", "instaladoras de painéis solares"], "principal": "4321-5/00", "cnae": ["4321-5/00", "3511-5/01", "7112-0/00"]}
+{"id": "energia_solar", "termos": ["empresas de energia solar", "instaladoras de painéis solares"], "principal": "4321-5/00", "cnae": ["4321-5/00", "3511-5/01", "7112-0/00", "4322-3/01"]}
 {"id": "elevadores", "termos": ["empresas de manutenção de elevadores"], "principal": "4329-1/03", "cnae": ["4329-1/03"]}
 {"id": "terraplenagem", "termos": ["empresas de terraplenagem"], "principal": "4313-4/00", "cnae": ["4313-4/00"]}
 {"id": "paisagismo", "termos": ["empresas de paisagismo", "empresas de jardinagem"], "principal": "8130-3/00", "cnae": ["8130-3/00"]}

@@ -179,6 +179,8 @@ def _e2e_record(case: dict, result: dict, latency_ms: float, today: date) -> dic
             "filters": result.get("filters"),
             "cnae_codes": [m[0] for m in result.get("cnae_matches") or []],
             "cnae_fallback": bool(result.get("cnae_fallback")),
+            "cnae_reformulada": result.get("cnae_reformulada"),
+            "filtros_completados": result.get("filtros_completados") or [],
             "warnings": result.get("warnings"),
             "latency_ms": round(latency_ms, 1),
             "timings_ms": result.get("timings_ms"),

@@ -321,3 +321,15 @@ def test_suite_separates_fallback_cases():
     assert m["case_pass_rate"] == 0.5
     assert m["cnae_fallback_rate"] == 0.5
     assert m["case_pass_rate_sem_fallback"] == 1.0
+
+
+def test_detail_records_rewrite_and_text_filters():
+    cases = [{"id": "a", "request": "botecos em SP", "expect": {"uf": ["SP"]}}]
+    result = {
+        **_result([_row()]),
+        "cnae_reformulada": "bares",
+        "filtros_completados": ["min_capital"],
+    }
+    detail = run_e2e_suite(cases, lambda request: result)["detail"][0]
+    assert detail["cnae_reformulada"] == "bares"
+    assert detail["filtros_completados"] == ["min_capital"]
